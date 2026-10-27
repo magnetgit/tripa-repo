@@ -1,0 +1,233 @@
+<meta charset="utf-8">
+
+{% load static %}
+<script src="{% static 'js/trim.js' %}"></script>
+<script language="javascript">
+    function check(){
+        var idval = f.email.value;
+        idval = trim(idval);
+        if(idval.length == 0){
+            alert("아이디를 넣어주세요");
+            f.email.value = "";
+            f.email.focus();
+            return false;
+        }else{
+            pass = checkByteLen(idval, 50);
+            if(!pass){
+                alert("아이디가 너무 길어요");
+                f.email.focus();
+                return false;
+            }
+        }
+
+        var pwdval = f.pwd.value;
+        pwdval = trim(pwdval);
+        if(pwdval.length == 0){
+            alert("비번을 넣어주세요");
+            f.pwd.value = "";
+            f.pwd.focus();
+            return false;
+        }else{
+            pass = checkByteLen(pwdval, 30);
+            if(!pass){
+                alert("비번이 너무 길어요");
+                f.pwd.focus();
+                return false;
+            }
+        }
+
+        f.submit();
+    }
+
+    function checkByteLen(str, size){
+        var byteLen = getByteLen(str);
+        if(byteLen <= size){
+            return true;
+        }else{
+            return false;
+        }
+    }
+    function getByteLen(str){
+       return str.replace(/[\0-\x7f]|([0-\u07ff]|(.))/g,"$&$1$2").length;
+    }
+
+    function enterCheck(elm){
+        if(event.keyCode == 13){
+            if(elm == f.email){
+                f.pwd.focus();
+            }else{
+                check();
+            }
+        }
+    }
+</script>
+
+<style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+        background-color: #f4f6f8;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+    }
+
+    .login-container {
+        background: #ffffff;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .login-header {
+        margin-bottom: 28px;
+        text-align: center;
+    }
+
+    .login-header h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1d20;
+    }
+
+    .input-group {
+        margin-bottom: 20px;
+    }
+
+    .input-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 8px;
+    }
+
+    .input-group input {
+        width: 100%;
+        padding: 12px 14px;
+        font-size: 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-group input:focus {
+        border-color: #3182ce;
+        box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+    }
+
+    .btn-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 28px;
+    }
+
+    .btn {
+        flex: 1;
+        padding: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .btn-submit {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        background-color: #3182ce;
+        color: white;
+    }
+
+    .btn-submit:hover {
+        background-color: #2b6cb0;
+    }
+
+    .btn-reset {
+        background-color: #edf2f7;
+        color: #4a5568;
+    }
+
+    .btn-reset:hover {
+        background-color: #e2e8f0;
+    }
+</style>
+
+<body onload="document.f.email.focus()">
+    <div class="login-container">
+        <div class="login-header">
+                <h1 class="logo">
+                    🛫TRIPA
+                </h1>
+            <h2>로그인</h2>
+        </div>
+
+        <form name="f" action="{% url 'login_ok' %}" method="post">
+            {% csrf_token %}
+
+            <div class="input-group">
+                <label for="email">아이디 or Email</label>
+                <input
+                type="text"
+                name="email"
+                placeholder="아이디 or (Email)"
+                >
+            </div>
+
+            <div class="input-group">
+                <label for="pwd">비밀번호</label>
+                <input
+                    type="password"
+                    name="pwd"
+                    placeholder="비밀번호"
+                >
+            </div>
+
+            <div class="btn-group">
+                <input
+                    type="submit"
+                    class="btn-submit"
+                    value="로그인"
+                >
+            
+            </div>
+            <div class="login-footer">
+
+            <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            아직 회원이 아니신가요?
+                
+            <a href="{% url 'join' %}">회원가입</a>
+            <br>
+            
+            아이디/비밀번호를 잊어버렸나요?
+            <a href="{% url 'idpw' %}">ID/PW 찾기</a>
+            <br><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <a href="{% url 'index' %}">홈으로 가기</a>
+            
+
+        </div>
+        </form>
+    </div>
+</body>
+
+<body>
+

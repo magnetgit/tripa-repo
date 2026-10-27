@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>TRIPA - 비용 관리</title>
+
+    {% load static %}
+
+    <link
+        rel="stylesheet"
+        href="{% static 'sherpaapp/css/style.css' %}?v=20261039"
+    >
+
+</head>
+
+
+<body>
+
+
+<!-- =========================
+     MAIN LAYOUT
+========================= -->
+
+<div class="detail-container">
+
+
+    <!-- =========================
+         SIDEBAR
+    ========================= -->
+
+    <aside class="sidebar">
+
+
+        <!-- 로고 -->
+
+        <div class="logo">
+
+            <a href="{% url 'index' %}">
+                {% include "_icon.html" with name="mountain" %} TRIPA
+            </a>
+
+        </div>
+
+
+        <div class="menu-title">
+            MENU
+        </div>
+
+
+        <ul class="menu">
+
+
+            <li>
+
+                <a href="{% url 'travel_list' %}">
+                    {% include "_icon.html" with name="suitcase" %} 내 여행
+                </a>
+
+            </li>
+
+
+            <li>
+
+                <a href="{% url 'travel_create' %}">
+                    {% include "_icon.html" with name="plus" %} 여행 만들기
+                </a>
+
+            </li>
+
+
+            <li>
+
+                <a href="{% url 'place_search' %}">
+                    {% include "_icon.html" with name="pin" %} 장소 검색
+                </a>
+
+            </li>
+
+
+            <li>
+
+                {% if travel %}
+
+                    <a
+                        href="{% url 'travel_detail' travel_id=travel.t_id %}"
+                    >
+                        {% include "_icon.html" with name="calendar" %} 일정 관리
+                    </a>
+
+                {% else %}
+
+                    <a href="{% url 'schedule_manage' %}">
+                        {% include "_icon.html" with name="calendar" %} 일정 관리
+                    </a>
+
+                {% endif %}
+
+            </li>
+
+
+            <li>
+
+                {% if travel %}
+
+                    <a
+                        href="{% url 'budget_travel' travel_id=travel.t_id %}"
+                        class="active"
+                    >
+                        {% include "_icon.html" with name="wallet" %} 비용 관리
+                    </a>
+
+                {% else %}
+
+                    <a
+                        href="{% url 'budget' %}"
+                        class="active"
+                    >
+                        {% include "_icon.html" with name="wallet" %} 비용 관리
+                    </a>
+
+                {% endif %}
+
+            </li>
+
+
+        </ul>
+
+
+        {% if member %}
+
+            <a
+                href="{% url 'mypage' %}"
+                class="user-profile"
+            >
+                {% include "_icon.html" with name="user" %} {{ member.nickname }}
+            </a>
+
+        {% else %}
+
+            <a
+                href="{% url 'login' %}"
+                class="user-profile"
+            >
+                {% include "_icon.html" with name="user" %} 로그인
+            </a>
+
+        {% endif %}
+
+
+    </aside>
+
+
+
+    <!-- =========================
+         CONTENT
+    ========================= -->
+
+    <main class="detail-content">
+
+
+        <!-- =========================
+             PAGE HEADER
+        ========================= -->
+
+        <section class="budget-header">
+
+
+            <div>
+
+                <h1>
+                    {% include "_icon.html" with name="wallet" %} 비용 관리
+                </h1>
+
+                <p>
+                    여행에 필요한 예산과 지출을 한곳에서 관리하세요.
+                </p>
+
+            </div>
+
+
+            {% if travel %}
+
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    onclick="openBudgetModal()"
+                >
+                    + 비용 추가
+                </button>
+
+            {% endif %}
+
+
+        </section>
+
+
+
+        {% if travel %}
+
+
+        <!-- =========================
+             여행 선택 + 여행 정보
+        ========================= -->
+
+        <section class="bg-toolbar">
+
+            <label class="bg-pick" for="travelSelect">
+                {% include "_icon.html" with name="map" %}
+                <span>여행 선택</span>
+
+                <select id="travelSelect" onchange="changeTravel(this)">
+
+                    {% for item in travels %}
+
+                        <option
+                            value="{% url 'budget_travel' travel_id=item.t_id %}"
+                            {% if item.t_id == travel.t_id %}selected{% endif %}
+                        >
+                            {{ item.t_title }}{% if item.t_place %} - {{ item.t_place }}{% endif %}{% if item.t_start %} ({{ item.t_start|date:"Y.m.d" }}){% endif %}
+                        </option>
+
+                    {% empty %}
+
+                        <option value="">등록된 여행이 없습니다.</option>
+
+                    {% endfor %}
+
+                </select>
+            </label>
+
+            <div class="bg-trip">
+                <strong>{{ travel.t_title }}</strong>
+                <span>
+                    {{ travel.t_start|date:"Y.m.d" }} ~ {{ travel.t_end|date:"Y.m.d" }}
+                </span>
+            </div>
+
+        </section>
+
+
+        <div class="bg-grid">
+
+
+            <!-- =========================
+                 왼쪽: 여행 예산
+            ========================= -->
+
+            <section class="bg-card bg-summary">
+
+                <header class="bg-card__head">
+                    <h2>{% include "_icon.html" with name="wallet" %} 여행 예산</h2>
+                    {% if travel.t_place %}
+                        <span class="bg-meta">{{ travel.t_place }}</span>
+                    {% endif %}
+                </header>
+
+
+                <div class="bg-stats">
+
+                    <div>
+                        <span>총 예산</span>
+                        <strong>{{ total_budget|floatformat:"0g" }}<small>원</small></strong>
+                    </div>
+
+                    <div>
+                        <span>사용 금액</span>
+                        <strong>{{ used_money|floatformat:"0g" }}<small>원</small></strong>
+                    </div>
+
+                    {% if is_over %}
+                        <div class="is-over">
+                            <span>초과 금액</span>
+                            <strong>{{ over_money|floatformat:"0g" }}<small>원</small></strong>
+                        </div>
+                    {% else %}
+                        <div class="is-remain">
+                            <span>남은 금액</span>
+                            <strong>{{ remain_money|floatformat:"0g" }}<small>원</small></strong>
+                        </div>
+                    {% endif %}
+
+                </div>
+
+
+                <div class="bg-bar" role="img" aria-label="분류별 사용 비율">
+
+                    {% for seg in bar_segments %}
+                        <span
+                            class="bg-bar__seg"
+                            style="width: {{ seg.width }}%; background: {{ seg.color }};"
+                            title="{{ seg.name }} {{ seg.amount }}원"
+                        ></span>
+                    {% endfor %}
+
+                    {% if is_over %}
+                        <i class="bg-bar__mark" style="left: {{ total_marker }}%;" title="총 예산"></i>
+                    {% endif %}
+
+                </div>
+
+
+                <!-- 총 예산 수정 -->
+
+                <form
+                    class="bg-budget-form"
+                    method="post"
+                    action="{% url 'budget_update_total' travel_id=travel.t_id %}"
+                >
+
+                    {% csrf_token %}
+
+                    <label for="totalBudgetInput">총 예산 (원)</label>
+
+                    <div class="bg-budget-form__row">
+
+                        <input
+                            type="number"
+                            name="total_budget"
+                            id="totalBudgetInput"
+                            value="{{ total_budget }}"
+                            min="0"
+                            step="1000"
+                            required
+                        >
+
+                        <button type="submit" class="bg-save">저장</button>
+
+                    </div>
+
+                </form>
+
+
+                <!-- 분류별 -->
+
+                <ul class="bg-cats">
+
+                    {% for cat in categories %}
+
+                        <li>
+                            <span class="bg-dot" style="background: {{ cat.color }};"></span>
+                            <span class="bg-cats__icon">
+                                {% include "_icon.html" with name=cat.icon %}
+                            </span>
+                            <span class="bg-cats__name">{{ cat.name }}</span>
+                            <strong>{{ cat.amount|floatformat:"0g" }}원</strong>
+                            <em>{{ cat.percent }}%</em>
+                        </li>
+
+                    {% empty %}
+
+                        <li class="bg-cats__empty">아직 등록된 지출이 없어요.</li>
+
+                    {% endfor %}
+
+                </ul>
+
+
+                <!-- 안내 -->
+
+                {% if is_over %}
+
+                    <div class="bg-note is-warn">
+                        {% include "_icon.html" with name="bulb" %}
+                        <p>
+                            예산을 {{ over_money|floatformat:"0g" }}원 넘었어요.
+                            {% if top_category %}
+                                {{ top_category.name }}({{ top_category.amount|floatformat:"0g" }}원)이 가장 커요. 이 항목부터 줄여 보세요.
+                            {% endif %}
+                        </p>
+                    </div>
+
+                {% elif pay_count and total_budget %}
+
+                    <div class="bg-note">
+                        {% include "_icon.html" with name="check" %}
+                        <p>
+                            예산 안에서 쓰고 있어요. 앞으로 {{ remain_money|floatformat:"0g" }}원 더 쓸 수 있어요.
+                        </p>
+                    </div>
+
+                {% endif %}
+
+            </section>
+
+
+
+            <!-- =========================
+                 오른쪽: 날짜별 지출
+            ========================= -->
+
+            <section class="bg-card bg-expense">
+
+                <header class="bg-card__head">
+
+                    <h2>{% include "_icon.html" with name="coins" %} 지출 내역</h2>
+
+                    <select
+                        class="bg-sort"
+                        id="expenseSort"
+                        onchange="sortExpenses()"
+                        aria-label="정렬"
+                    >
+                        <option value="date">날짜순</option>
+                        <option value="price">금액순</option>
+                        <option value="place">장소순</option>
+                    </select>
+
+                </header>
+
+
+                <div class="bg-thead" aria-hidden="true">
+                    <span>내용 · 장소</span>
+                    <span>분류</span>
+                    <span>금액</span>
+                    <span></span>
+                </div>
+
+
+                <div id="expenseList">
+
+                    {% for group in day_groups %}
+
+                        <div class="bg-day">
+                            <strong>
+                                {% if group.day_no %}{{ group.day_no }}일차 · {% endif %}{% if group.day %}{{ group.day|date:"m.d" }}{% else %}날짜 없음{% endif %}
+                            </strong>
+                            <span>{{ group.total|floatformat:"0g" }}원</span>
+                        </div>
+
+                        <div class="bg-rows">
+
+                            {% for row in group.rows %}
+
+                                <div
+                                    class="bg-row"
+                                    data-index="{{ row.index }}"
+                                    data-price="{{ row.amount }}"
+                                    data-place="{{ row.place }}"
+                                >
+
+                                    <div class="bg-row__main">
+                                        <span class="bg-row__icon" style="color: {{ row.category.color }};">
+                                            {% include "_icon.html" with name=row.category.icon %}
+                                        </span>
+                                        <div>
+                                            <h3>{{ row.pay.pay_context }}</h3>
+                                            {% if row.place %}<p>{{ row.place }}</p>{% endif %}
+                                        </div>
+                                    </div>
+
+                                    <span class="bg-row__cat">
+                                        <i style="background: {{ row.category.color }};"></i>{{ row.category.name }}
+                                    </span>
+
+                                    <div
+                                        class="bg-row__amt"
+                                        data-url="{% url 'budget_update_pay' travel_id=travel.t_id pay_id=row.pay.pay_id %}"
+                                    >
+                                        <button
+                                            type="button"
+                                            class="bg-edit"
+                                            aria-label="{{ row.pay.pay_context }} 금액 수정"
+                                        >수정</button>
+                                        <strong class="bg-row__price">{{ row.amount|floatformat:"0g" }}원</strong>
+                                    </div>
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'budget_delete' travel_id=travel.t_id pay_id=row.pay.pay_id %}"
+                                    >
+                                        {% csrf_token %}
+                                        <button
+                                            type="submit"
+                                            class="bg-del"
+                                            aria-label="삭제"
+                                            onclick="return confirm('이 비용을 삭제하시겠습니까?');"
+                                        >삭제</button>
+                                    </form>
+
+                                </div>
+
+                            {% endfor %}
+
+                        </div>
+
+                    {% empty %}
+
+                        <div id="emptyExpense" class="bg-empty">
+                            등록된 지출 내역이 없습니다.
+                            <span>위의 + 비용 추가 버튼을 눌러 비용을 등록해보세요.</span>
+                        </div>
+
+                    {% endfor %}
+
+                </div>
+
+
+                <div class="bg-total">
+                    <span>총 지출</span>
+                    <strong>{{ used_money|floatformat:"0g" }}원</strong>
+                </div>
+
+            </section>
+
+
+        </div>
+
+
+        {% else %}
+
+
+            <!-- =========================
+                 여행 없음
+            ========================= -->
+
+            <section class="section-box">
+
+
+                <div class="section-title">
+                    등록된 여행이 없습니다.
+                </div>
+
+
+                <p
+                    style="
+                        color: #777;
+                        margin-bottom: 20px;
+                    "
+                >
+                    비용을 관리하려면 먼저 여행을 생성해주세요.
+                </p>
+
+
+                <a
+                    href="{% url 'travel_create' %}"
+                    class="btn btn-primary"
+                >
+                    여행 만들기
+                </a>
+
+
+            </section>
+
+
+        {% endif %}
+
+
+    </main>
+
+
+</div>
+
+
+
+{% if travel %}
+
+
+<!-- =========================
+     비용 추가 MODAL
+========================= -->
+
+<div
+    id="budgetModal"
+    class="budget-modal"
+    data-travel-id="{{ travel.t_id }}"
+    data-start-date="{{ travel.t_start|date:'Y-m-d' }}"
+    data-end-date="{{ travel.t_end|date:'Y-m-d' }}"
+>
+
+
+    <div
+        class="budget-modal-overlay"
+        onclick="closeBudgetModal()"
+    >
+    </div>
+
+
+
+    <div class="budget-modal-content">
+
+
+        <!-- =========================
+             MODAL HEADER
+        ========================= -->
+
+        <div class="budget-modal-header">
+
+
+            <h2>
+                비용 추가
+            </h2>
+
+
+            <button
+                type="button"
+                class="modal-close"
+                onclick="closeBudgetModal()"
+            >
+                ×
+            </button>
+
+
+        </div>
+
+
+
+        <!-- =========================
+             비용 추가 FORM
+        ========================= -->
+
+        <form
+            method="post"
+            action="{% url 'budget_add' travel_id=travel.t_id %}"
+            onsubmit="return validateExpenseForm();"
+        >
+
+
+            {% csrf_token %}
+
+
+
+            <!-- =========================
+                 일정 장소 선택
+            ========================= -->
+
+            <div class="form-group">
+
+                <label for="schedulePlaceSelect">
+                    일정 장소 선택
+                </label>
+
+                <select
+                    id="schedulePlaceSelect"
+                    name="schedule_place_select"
+                    onchange="applySchedulePlaceSelection(this)"
+                >
+                    <option value="">
+                        직접 입력
+                    </option>
+                </select>
+
+                <input
+                    type="hidden"
+                    id="expensePlaceId"
+                    name="expense_place_id"
+                    value=""
+                >
+
+                <p
+                    style="
+                        margin: 7px 0 0 0;
+                        color: #777;
+                        font-size: 12px;
+                        line-height: 1.5;
+                    "
+                >
+                    일정 장소를 선택하면 비용 항목, 장소, 날짜가 자동으로 입력됩니다.
+                    직접 입력을 선택하면 모든 항목을 직접 입력할 수 있습니다.
+                </p>
+
+            </div>
+
+
+
+            <!-- =========================
+                 금액
+            ========================= -->
+
+            <div class="form-group">
+
+
+                <label for="expenseAmount">
+                    금액
+                </label>
+
+
+                <div class="amount-input">
+
+
+                    <span>
+                        ₩
+                    </span>
+
+
+                    <input
+                        type="number"
+                        id="expenseAmount"
+                        name="expense_amount"
+                        min="1"
+                        placeholder="0"
+                        required
+                    >
+
+
+                    <span>
+                        원
+                    </span>
+
+
+                </div>
+
+
+            </div>
+
+
+
+            <!-- =========================
+                 비용 항목
+            ========================= -->
+
+            <div class="form-group">
+
+
+                <label for="expenseCategory">
+                    비용 항목
+                </label>
+
+
+                <select
+                    id="expenseCategory"
+                    name="expense_category"
+                    required
+                >
+
+
+                    <option value="">
+                        선택해주세요
+                    </option>
+
+
+                    <option value="관광지">
+                        관광지
+                    </option>
+
+
+                    <option value="식비">
+                        식비
+                    </option>
+
+
+                    <option value="교통">
+                        교통
+                    </option>
+
+
+                    <option value="쇼핑">
+                        쇼핑
+                    </option>
+
+
+                    <option value="숙박">
+                        숙박
+                    </option>
+
+
+                    <option value="기타">
+                        기타
+                    </option>
+
+
+                </select>
+
+
+            </div>
+
+
+
+            <!-- =========================
+                 장소
+            ========================= -->
+
+            <div class="form-group">
+
+
+                <label for="expensePlace">
+                    장소
+                </label>
+
+
+                <input
+                    type="text"
+                    id="expensePlace"
+                    name="expense_place"
+                    placeholder="예: 경복궁"
+                >
+
+
+            </div>
+
+
+
+            <!-- =========================
+                 메모
+            ========================= -->
+
+            <div class="form-group">
+
+
+                <label for="expenseMemo">
+                    메모
+                </label>
+
+
+                <textarea
+                    id="expenseMemo"
+                    name="expense_memo"
+                    rows="3"
+                    placeholder="비용에 대한 메모를 입력하세요."
+                ></textarea>
+
+
+            </div>
+
+
+
+            <!-- =========================
+                 날짜
+            ========================= -->
+
+            <div class="form-group">
+
+
+                <label for="expenseDate">
+                    날짜
+                </label>
+
+
+                <input
+                    type="date"
+                    id="expenseDate"
+                    name="expense_date"
+
+                    min="{{ travel.t_start|date:'Y-m-d' }}"
+
+                    max="{{ travel.t_end|date:'Y-m-d' }}"
+
+                    required
+                >
+
+
+            </div>
+
+
+
+            <!-- =========================
+                 버튼
+            ========================= -->
+
+            <div class="budget-modal-buttons">
+
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="closeBudgetModal()"
+                >
+                    취소
+                </button>
+
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    저장
+                </button>
+
+
+            </div>
+
+
+        </form>
+
+
+    </div>
+
+
+</div>
+
+
+{% endif %}
+
+
+
+<!-- =========================
+     JAVASCRIPT
+========================= -->
+
+<script>
+
+
+    // ==========================================
+    // 여행 변경
+    // ==========================================
+
+    function changeTravel(select) {
+
+
+        const url =
+            select.value;
+
+
+        if (!url) {
+
+            return;
+
+        }
+
+
+        window.location.href =
+            url;
+
+    }
+
+
+
+    // ==========================================
+    // 비용 추가 모달 열기
+    // ==========================================
+
+    function openBudgetModal() {
+
+
+        const modal =
+            document.getElementById(
+                "budgetModal"
+            );
+
+
+        if (!modal) {
+
+            return;
+
+        }
+
+
+        modal.classList.add(
+            "show"
+        );
+
+        loadBudgetSchedulePlaces();
+
+    }
+
+
+
+    // ==========================================
+    // 비용 추가 모달 닫기
+    // ==========================================
+
+    function closeBudgetModal() {
+
+
+        const modal =
+            document.getElementById(
+                "budgetModal"
+            );
+
+
+        if (!modal) {
+
+            return;
+
+        }
+
+
+        modal.classList.remove(
+            "show"
+        );
+
+    }
+
+
+
+
+    // ==========================================
+    // 비용 추가 - 일정 장소 선택
+    // ==========================================
+
+    let budgetSchedulePlacesLoaded = false;
+
+    function getBudgetModalTravelInfo() {
+        const modal = document.getElementById("budgetModal");
+
+        if (!modal) {
+            return null;
+        }
+
+        return {
+            travelId: modal.dataset.travelId || "",
+            startDate: modal.dataset.startDate || "",
+            endDate: modal.dataset.endDate || ""
+        };
+    }
+
+    function getTravelDayCount(startDate, endDate) {
+        if (!startDate || !endDate) {
+            return 0;
+        }
+
+        const start = new Date(startDate + "T00:00:00");
+        const end = new Date(endDate + "T00:00:00");
+
+        if (
+            Number.isNaN(start.getTime())
+            || Number.isNaN(end.getTime())
+            || end < start
+        ) {
+            return 0;
+        }
+
+        const oneDay = 24 * 60 * 60 * 1000;
+
+        return Math.floor(
+            (end.getTime() - start.getTime()) / oneDay
+        ) + 1;
+    }
+
+    function mapPlaceKindToExpenseCategory(placeKind) {
+        const kind = String(placeKind || "");
+
+        if (
+            kind.includes("음식")
+            || kind.includes("식당")
+            || kind.includes("카페")
+            || kind.includes("베이커리")
+        ) {
+            return "식비";
+        }
+
+        if (
+            kind.includes("쇼핑")
+            || kind.includes("마트")
+            || kind.includes("백화점")
+        ) {
+            return "쇼핑";
+        }
+
+        if (
+            kind.includes("숙박")
+            || kind.includes("호텔")
+            || kind.includes("펜션")
+            || kind.includes("게스트하우스")
+        ) {
+            return "숙박";
+        }
+
+        if (
+            kind.includes("교통")
+            || kind.includes("터미널")
+            || kind.includes("정류장")
+        ) {
+            return "교통";
+        }
+
+        if (
+            kind.includes("관광")
+            || kind.includes("문화")
+            || kind.includes("역사")
+            || kind.includes("랜드마크")
+            || kind.includes("공원")
+            || kind.includes("자연")
+            || kind.includes("바다")
+            || kind.includes("테마")
+        ) {
+            return "관광지";
+        }
+
+        return "기타";
+    }
+
+    function resetAutoFilledExpenseFields() {
+        const placeId = document.getElementById("expensePlaceId");
+        const category = document.getElementById("expenseCategory");
+        const place = document.getElementById("expensePlace");
+        const date = document.getElementById("expenseDate");
+
+        if (placeId) {
+            placeId.value = "";
+        }
+
+        if (category) {
+            category.value = "";
+        }
+
+        if (place) {
+            place.value = "";
+        }
+
+        if (date) {
+            date.value = "";
+        }
+    }
+
+    function applySchedulePlaceSelection(select) {
+        if (!select) {
+            return;
+        }
+
+        const option = select.options[select.selectedIndex];
+
+        if (!option || !option.value) {
+            resetAutoFilledExpenseFields();
+            return;
+        }
+
+        const placeId = document.getElementById("expensePlaceId");
+        const category = document.getElementById("expenseCategory");
+        const place = document.getElementById("expensePlace");
+        const date = document.getElementById("expenseDate");
+
+        if (placeId) {
+            placeId.value = option.dataset.placeId || "";
+        }
+
+        if (category) {
+            category.value = mapPlaceKindToExpenseCategory(
+                option.dataset.placeKind
+            );
+        }
+
+        if (place) {
+            place.value = option.dataset.placeName || "";
+        }
+
+        if (date) {
+            date.value = option.dataset.scheduleDate || "";
+        }
+    }
+
+    function addSchedulePlaceOption(
+        select,
+        place,
+        scheduleDate,
+        dayNumber
+    ) {
+        const option = document.createElement("option");
+
+        const placeId =
+            place.place_id
+            ?? place.id
+            ?? "";
+
+        const placeName =
+            place.place_name
+            ?? place.name
+            ?? "";
+
+        const placeKind =
+            place.place_kind
+            ?? place.kind
+            ?? "";
+
+        option.value =
+            `${dayNumber}-${placeId}-${scheduleDate}`;
+
+        option.dataset.placeId = String(placeId);
+        option.dataset.placeName = placeName;
+        option.dataset.placeKind = placeKind;
+        option.dataset.scheduleDate = scheduleDate;
+
+        option.textContent =
+            `${scheduleDate.replaceAll("-", ".")} · ${placeName}`;
+
+        select.appendChild(option);
+    }
+
+    async function loadBudgetSchedulePlaces() {
+        const select = document.getElementById("schedulePlaceSelect");
+
+        if (!select || budgetSchedulePlacesLoaded) {
+            return;
+        }
+
+        const info = getBudgetModalTravelInfo();
+
+        if (!info || !info.travelId) {
+            return;
+        }
+
+        const dayCount = getTravelDayCount(
+            info.startDate,
+            info.endDate
+        );
+
+        select.innerHTML = `
+            <option value="">
+                직접 입력
+            </option>
+        `;
+
+        if (dayCount <= 0) {
+            return;
+        }
+
+        const loadingOption = document.createElement("option");
+        loadingOption.disabled = true;
+        loadingOption.textContent = "일정 장소 불러오는 중...";
+        select.appendChild(loadingOption);
+
+        const requests = [];
+
+        for (let day = 1; day <= dayCount; day++) {
+            requests.push(
+                fetch(
+                    `/travel_detail_day/${info.travelId}/${day}/`
+                )
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error(`DAY ${day} 조회 실패`);
+                    }
+
+                    return response.json();
+                })
+                .then(function(data) {
+                    return {
+                        dayNumber: day,
+                        data: data
+                    };
+                })
+            );
+        }
+
+        const results = await Promise.allSettled(requests);
+
+        if (loadingOption.parentNode === select) {
+            select.removeChild(loadingOption);
+        }
+
+        const addedKeys = new Set();
+        let addedCount = 0;
+
+        results.forEach(function(result) {
+            if (result.status !== "fulfilled") {
+                return;
+            }
+
+            const dayNumber = result.value.dayNumber;
+            const data = result.value.data;
+
+            if (
+                !data
+                || !data.success
+                || !Array.isArray(data.places)
+            ) {
+                return;
+            }
+
+            const scheduleDate =
+                String(data.s_day || "").replaceAll(".", "-");
+
+            data.places.forEach(function(place) {
+                const placeId =
+                    place.place_id
+                    ?? place.id
+                    ?? "";
+
+                const key =
+                    `${scheduleDate}-${placeId}`;
+
+                if (addedKeys.has(key)) {
+                    return;
+                }
+
+                addedKeys.add(key);
+
+                addSchedulePlaceOption(
+                    select,
+                    place,
+                    scheduleDate,
+                    dayNumber
+                );
+
+                addedCount += 1;
+            });
+        });
+
+        if (addedCount === 0) {
+            const emptyOption = document.createElement("option");
+            emptyOption.disabled = true;
+            emptyOption.textContent = "일정에 등록된 장소가 없습니다.";
+            select.appendChild(emptyOption);
+        }
+
+        budgetSchedulePlacesLoaded = true;
+    }
+
+
+
+    // ==========================================
+    // 비용 FORM 검사
+    // ==========================================
+
+    function validateExpenseForm() {
+
+
+        const amount =
+            document.getElementById(
+                "expenseAmount"
+            ).value;
+
+
+        const category =
+            document.getElementById(
+                "expenseCategory"
+            ).value;
+
+
+        const date =
+            document.getElementById(
+                "expenseDate"
+            ).value;
+
+
+
+        if (
+            !amount
+            ||
+            Number(amount) <= 0
+        ) {
+
+            alert(
+                "금액을 입력해주세요."
+            );
+
+            return false;
+
+        }
+
+
+
+        if (!category) {
+
+            alert(
+                "비용 항목을 선택해주세요."
+            );
+
+            return false;
+
+        }
+
+
+
+        if (!date) {
+
+            alert(
+                "날짜를 선택해주세요."
+            );
+
+            return false;
+
+        }
+
+
+        return true;
+
+    }
+
+
+
+    // ==========================================
+    // 지출 정렬
+    // ==========================================
+
+    function sortExpenses() {
+
+        const sortType =
+            document.getElementById(
+                "expenseSort"
+            ).value;
+
+        const list =
+            document.getElementById(
+                "expenseList"
+            );
+
+        if (!list) {
+
+            return;
+
+        }
+
+        // 날짜별 묶음은 그대로 두고, 각 날짜 안에서만 줄을 다시 세운다.
+        list.querySelectorAll(".bg-rows").forEach(
+            function(box) {
+
+                const rows =
+                    Array.from(
+                        box.querySelectorAll(
+                            ".bg-row"
+                        )
+                    );
+
+                rows.sort(
+                    function(a, b) {
+
+                        if (sortType === "price") {
+
+                            return (
+                                Number(b.dataset.price || 0)
+                                -
+                                Number(a.dataset.price || 0)
+                            );
+
+                        }
+
+                        if (sortType === "place") {
+
+                            return (
+                                (a.dataset.place || "")
+                                    .localeCompare(
+                                        b.dataset.place || "",
+                                        "ko"
+                                    )
+                            );
+
+                        }
+
+                        return (
+                            Number(a.dataset.index || 0)
+                            -
+                            Number(b.dataset.index || 0)
+                        );
+
+                    }
+                );
+
+                rows.forEach(
+                    function(row) {
+
+                        box.appendChild(row);
+
+                    }
+                );
+
+            }
+        );
+
+    }
+
+
+
+    // ==========================================
+    // ESC로 모달 닫기
+    // ==========================================
+
+    document.addEventListener(
+        "keydown",
+        function(event) {
+
+
+            if (
+                event.key
+                ===
+                "Escape"
+            ) {
+
+                closeBudgetModal();
+
+            }
+
+        }
+    );
+
+
+</script>
+
+
+
+<script>
+/* 지출 내역 금액 수정: [수정] 또는 금액을 누르면 입력칸으로 바뀌고, 저장하면 서버에 반영한 뒤 새로고침한다. */
+(function () {
+    var list = document.getElementById("expenseList");
+    if (!list) return;
+
+    var current = null;
+
+    function won(n) {
+        return Number(n).toLocaleString("ko-KR") + "원";
+    }
+
+    function closeEdit() {
+        if (!current) return;
+        current.box.classList.remove("is-editing");
+        current.box.textContent = "";
+        current.box.appendChild(current.editBtn);
+        current.box.appendChild(current.price);
+        current = null;
+    }
+
+    function openEdit(box) {
+        if (current && current.box === box) return;
+        closeEdit();
+
+        var row = box.closest(".bg-row");
+        var price = box.querySelector(".bg-row__price");
+        var editBtn = box.querySelector(".bg-edit");
+        var original = Number(row.dataset.price || 0);
+
+        var input = document.createElement("input");
+        input.type = "number";
+        input.className = "bg-amt-input";
+        input.min = "1";
+        input.step = "1";
+        input.inputMode = "numeric";
+        input.value = String(Math.round(original));
+        input.setAttribute("aria-label", "금액(원)");
+
+        var ok = document.createElement("button");
+        ok.type = "button";
+        ok.className = "bg-amt-ok";
+        ok.textContent = "저장";
+
+        var cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "bg-amt-cancel";
+        cancel.textContent = "취소";
+
+        var msg = document.createElement("span");
+        msg.className = "bg-amt-msg";
+        msg.setAttribute("role", "alert");
+
+        box.textContent = "";
+        box.appendChild(input);
+        box.appendChild(ok);
+        box.appendChild(cancel);
+        box.appendChild(msg);
+        box.classList.add("is-editing");
+
+        current = { box: box, price: price, editBtn: editBtn };
+        input.focus();
+        input.select();
+
+        var saving = false;
+
+        function save() {
+            if (saving) return;
+            var value = Math.round(Number(input.value));
+
+            if (!isFinite(value) || value < 1) {
+                msg.textContent = "1원 이상 입력해 주세요.";
+                input.focus();
+                return;
+            }
+
+            if (value === original) {
+                box.classList.remove("is-editing");
+                closeEdit();
+                return;
+            }
+
+            saving = true;
+            ok.disabled = true;
+            ok.textContent = "저장 중";
+            msg.textContent = "";
+
+            var token = document.querySelector("[name=csrfmiddlewaretoken]");
+            var body = new URLSearchParams({ amount: String(value) });
+
+            fetch(box.dataset.url, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "X-CSRFToken": token ? token.value : "",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: body.toString()
+            }).then(function (res) {
+                return res.json().catch(function () {
+                    return { ok: false, error: "서버 응답을 읽지 못했어요." };
+                });
+            }).then(function (data) {
+                if (data.ok) {
+                    // 합계, 분류별 금액, 남은 예산이 모두 달라지므로 서버 계산 결과로 다시 그린다
+                    location.reload();
+                    return;
+                }
+                if (data.login) {
+                    location.href = "/login/";
+                    return;
+                }
+                saving = false;
+                ok.disabled = false;
+                ok.textContent = "저장";
+                msg.textContent = data.error || "금액을 저장하지 못했어요.";
+            }).catch(function () {
+                saving = false;
+                ok.disabled = false;
+                ok.textContent = "저장";
+                msg.textContent = "네트워크에 문제가 있어요. 다시 시도해 주세요.";
+            });
+        }
+
+        ok.addEventListener("click", save);
+        cancel.addEventListener("click", function () {
+            box.classList.remove("is-editing");
+            closeEdit();
+        });
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { e.preventDefault(); save(); }
+            if (e.key === "Escape") { box.classList.remove("is-editing"); closeEdit(); }
+        });
+    }
+
+    list.addEventListener("click", function (e) {
+        var target = e.target;
+        if (!(target instanceof Element)) return;
+        var box = target.closest(".bg-row__amt");
+        if (!box || box.classList.contains("is-editing")) return;
+        if (target.closest(".bg-edit") || target.closest(".bg-row__price")) openEdit(box);
+    });
+})();
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TRIPA - 내 여행</title>
+
+    {% load static %}
+
+    <link rel="stylesheet"
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261029">
+
+</head>
+
+
+<body>
+
+
+<div class="detail-container">
+
+
+    <!-- =========================
+         SIDEBAR
+    ========================= -->
+
+    <aside class="sidebar">
+
+
+        <div class="logo">
+            <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>
+        </div>
+
+
+        <div class="menu-title">
+            MENU
+        </div>
+
+
+        <ul class="menu">
+
+
+            <li>
+                <a href="{% url 'travel_list' %}"
+                   class="active">
+                    {% include "_icon.html" with name="suitcase" %} 내 여행
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'travel_create' %}">
+                    {% include "_icon.html" with name="plus" %} 여행 만들기
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'place_search' %}">
+                    {% include "_icon.html" with name="pin" %} 장소 검색
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'schedule_manage' %}">
+                    {% include "_icon.html" with name="calendar" %} 일정 관리
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'budget' %}">
+                    {% include "_icon.html" with name="wallet" %} 비용 관리
+                </a>
+            </li>
+
+
+        </ul>
+
+            {% if member %}
+                <a href="{% url 'mypage' %}" class="user-profile">
+                    {% include "_icon.html" with name="user" %} {{ member.nickname }}
+                </a>
+            {% else %}
+                <a href="{% url 'login' %}" class="user-profile">
+                    {% include "_icon.html" with name="user" %} 로그인
+                </a>
+            {% endif %}
+
+
+    </aside>
+
+
+    <!-- =========================
+         MAIN
+    ========================= -->
+
+    <main class="detail-content">
+
+
+        <div class="travel-list-header">
+
+
+            <div class="travel-list-title">
+
+                <h1>
+                    {% include "_icon.html" with name="suitcase" %} 내 여행
+                </h1>
+
+                <p>
+                    내가 계획한 여행을 관리하세요.
+                </p>
+
+            </div>
+
+
+            <a
+                href="{% url 'travel_create' %}"
+                class="btn btn-primary">
+
+                + 여행 만들기
+
+            </a>
+
+
+        </div>
+
+
+        <div class="travel-grid">
+
+
+            <div class="travel-grid">
+
+                {% for travel in travels %}
+
+                <div class="travel-card">
+
+                    <div class="travel-image">
+                        {% include "_icon.html" with name="building" %}
+                    </div>
+
+                    <div class="travel-content">
+
+                        <h2>
+                            {{ travel.t_title }}
+                        </h2>
+
+                        <p>
+                            {% include "_icon.html" with name="pin" %} {{ travel.t_place }}
+                        </p>
+
+                        <p>
+                            {% include "_icon.html" with name="calendar" %} {{ travel.t_start|date:"Y.m.d" }}
+                                ~
+                            {{ travel.t_end|date:"Y.m.d" }}
+                        </p>
+
+                        <p>
+                            {% include "_icon.html" with name="calendar" %} 여행
+                        </p>
+
+                        <a
+                            href="{% url 'travel_detail' travel_id=travel.t_id %}"
+                            class="btn btn-primary">
+
+                            여행 보기
+
+                        </a>
+                        <form
+                            method="POST"
+                            action="{% url 'travel_delete' travel_id=travel.t_id %}"
+                            style="display: inline;">
+
+                            {% csrf_token %}
+
+                            <button
+                                type="submit"
+                                class="btn btn-danger"
+                                onclick="return confirm('이 여행을 삭제하시겠습니까?');">
+
+                                삭제
+
+                            </button>
+
+                        </form>
+                    </div>
+
+                </div>
+
+                {% empty %}
+
+                <p>
+                아직 만들어진 여행이 없습니다.
+                </p>
+
+                {% endfor %}
+
+            </div>
+
+
+        </div>
+
+
+    </main>
+
+
+</div>
+
+
+</body>
+</html>

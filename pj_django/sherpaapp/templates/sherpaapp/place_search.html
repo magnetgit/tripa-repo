@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>TRIPA - 장소 검색</title>
+
+    {% load static %}
+
+    <link rel="stylesheet"
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261029">
+
+    <script
+    type="text/javascript"
+    src="//dapi.kakao.com/v2/maps/sdk.js?appkey={{KAKAO_MAP_API_KEY}}">
+    </script>
+
+    <style>
+        .schedule-add-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 30000;
+        }
+
+        .schedule-add-modal.show {
+            display: block;
+        }
+
+        .schedule-add-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+        }
+
+        .schedule-add-dialog {
+            position: relative;
+            z-index: 1;
+            width: min(520px, calc(100% - 32px));
+            margin: 80px auto;
+            padding: 24px;
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 20px 55px rgba(15, 23, 42, 0.25);
+        }
+
+        .schedule-add-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .schedule-add-header h2 {
+            margin: 0;
+            font-size: 21px;
+        }
+
+        .schedule-add-close {
+            border: 0;
+            background: transparent;
+            font-size: 26px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .schedule-add-place {
+            margin-bottom: 18px;
+            padding: 12px 14px;
+            border: 1px solid #dbe3ef;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        .schedule-add-place strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .schedule-add-place span {
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .schedule-add-form .form-group {
+            margin-bottom: 15px;
+        }
+
+        .schedule-add-form label {
+            display: block;
+            margin-bottom: 7px;
+            font-weight: 700;
+        }
+
+        .schedule-add-form select,
+        .schedule-add-form input[type="time"] {
+            width: 100%;
+            height: 46px;
+            padding: 0 12px;
+            border: 1px solid #dcdfe5;
+            border-radius: 8px;
+            background: #fff;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        .schedule-add-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 22px;
+        }
+
+        .schedule-add-empty {
+            margin: 8px 0 0;
+            color: #dc2626;
+            font-size: 13px;
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="detail-container">
+
+
+    <!-- =========================
+         SIDEBAR
+    ========================= -->
+
+    <aside class="sidebar">
+
+
+        <div class="logo">
+            <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>
+        </div>
+
+
+        <div class="menu-title">
+            MENU
+        </div>
+
+
+        <ul class="menu">
+
+
+            <li>
+                <a href="{% url 'travel_list' %}">
+                    {% include "_icon.html" with name="suitcase" %} 내 여행
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'travel_create' %}">
+                    {% include "_icon.html" with name="plus" %} 여행 만들기
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'place_search' %}"
+                   class="active">
+                    {% include "_icon.html" with name="pin" %} 장소 검색
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'schedule_manage' %}">
+                    {% include "_icon.html" with name="calendar" %} 일정 관리
+                </a>
+            </li>
+
+
+            <li>
+                <a href="{% url 'budget' %}">
+                    {% include "_icon.html" with name="wallet" %} 비용 관리
+                </a>
+            </li>
+
+
+        </ul>
+
+
+            {% if member %}
+                <a href="{% url 'mypage' %}" class="user-profile">
+                    {% include "_icon.html" with name="user" %} {{ member.nickname }}
+                </a>
+            {% else %}
+                <a href="{% url 'login' %}" class="user-profile">
+                    {% include "_icon.html" with name="user" %} 로그인
+                </a>
+            {% endif %}
+
+
+    </aside>
+
+
+    <!-- =========================
+         MAIN
+    ========================= -->
+
+    <main class="detail-content">
+
+
+        <div class="page-title">
+
+            <h1>
+                {% include "_icon.html" with name="pin" %} 장소 검색
+            </h1>
+
+            <p>
+                여행하고 싶은 장소를 검색하세요.
+            </p>
+
+        </div>
+
+
+        <!-- 검색 -->
+
+        <form
+            class="search-box"
+            action="{% url 'place_search_search' %}"
+            method="get"
+        >
+
+
+            <input
+                type="text"
+                name="query"
+                placeholder="장소명 또는 키워드를 입력하세요."
+                value="{{ query|default:'' }}"
+                required
+            >
+
+            <button type="submit" class="btn btn-primary">
+                검색
+            </button>
+
+        </form>
+
+<!-- 검색 후에만 결과 표시 -->
+        <!-- 장소 + 지도 -->
+{% if places %}
+
+<div class="place-layout">
+
+        <!-- 검색 결과 -->
+
+        <section class="place-results">
+
+            <h2>
+                검색 결과
+            </h2>
+            
+            {% for place in places %}
+
+            <div class="place-result-card"
+                style="cursor: pointer;"
+                onclick="focusPlace({{ place.y }}, {{ place.x }}, '{{ place.name|escapejs }}', '{{ place.address|escapejs }}', '{{ place.category|escapejs }}', '{{ place.phone|default:''|escapejs }}', '{{ place.image|default:''|escapejs }}', '{{ place.place_url|default:''|escapejs }}')">
+
+                <!-- 장소 사진 -->
+                <div class="place-photo">
+
+                    {% if place.image %}
+
+                        <img
+                            src="{{ place.image }}"
+                            alt="{{ place.name }}"
+                        >
+
+                    {% else %}
+
+                        {% include "_icon.html" with name="home" %}
+
+                    {% endif %}
+
+                </div>
+
+
+                <!-- 장소 정보 -->
+                <div class="place-result-info">
+
+                    <h3>
+                        {{ place.name }}
+                    </h3>
+
+                    <p>
+                        {{ place.address }}
+                    </p>
+
+                    <span>
+                        {{ place.category }}
+                    </span>
+
+                    <br>
+
+                    <!-- 일정에 추가 버튼 -->
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        onclick="event.stopPropagation(); openScheduleAddModal(
+                            '{{ place.name|escapejs }}',
+                            '{{ place.address|escapejs }}',
+                            '{{ place.category|escapejs }}',
+                            '{{ place.y|escapejs }}',
+                            '{{ place.x|escapejs }}',
+                            '{{ place.image|default:''|escapejs }}'
+                        );"
+                    >
+                        일정에 추가
+                    </button>
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </section>
+
+
+        <!-- 지도 -->
+
+        <section class="map-area">
+
+
+            <div class="map-title">
+                {% include "_icon.html" with name="map" %} 지도
+            </div>
+
+            <!-- 지도 컨테이너 -->
+            
+            <div class="map-wrapper">
+                <!-- 카카오 지도 -->
+                <div id="map"></div>
+                <!-- 마커 클릭 시 표시될 카드 -->
+                <div id="place-detail-card" class="place-detail-card">
+                    <div class="detail-empty">{% include "_icon.html" with name="pin" %}</div>
+                    <p>지도에서 마커를 선택하세요.</p>
+                </div>
+            </div>
+
+        </section>
+
+
+    </div>
+
+    
+
+    </main>
+
+
+</div>
+
+
+<!-- =========================
+     일정 추가 모달
+========================= -->
+<div
+    id="scheduleAddModal"
+    class="schedule-add-modal"
+    aria-hidden="true"
+>
+    <div
+        class="schedule-add-overlay"
+        onclick="closeScheduleAddModal()"
+    ></div>
+
+    <div class="schedule-add-dialog">
+
+        <div class="schedule-add-header">
+            <h2>{% include "_icon.html" with name="calendar" %} 일정에 추가</h2>
+
+            <button
+                type="button"
+                class="schedule-add-close"
+                onclick="closeScheduleAddModal()"
+            >
+                ×
+            </button>
+        </div>
+
+        <div class="schedule-add-place">
+            <strong id="scheduleAddPlaceName">선택한 장소</strong>
+            <span id="scheduleAddPlaceAddress"></span>
+        </div>
+
+        <form
+            id="scheduleAddForm"
+            class="schedule-add-form"
+            onsubmit="submitScheduleAdd(event)"
+        >
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="scheduleTravelSelect">
+                    여행 선택
+                </label>
+
+                <select
+                    id="scheduleTravelSelect"
+                    required
+                    onchange="updateScheduleDateOptions()"
+                >
+                    <option value="">
+                        여행을 선택해주세요.
+                    </option>
+
+                    {% for item in travels %}
+                        <option
+                            value="{{ item.t_id }}"
+                            data-start="{{ item.t_start|date:'Y-m-d' }}"
+                            data-end="{{ item.t_end|date:'Y-m-d' }}"
+                        >
+                            {{ item.t_title }}
+                            {% if item.t_place %}
+                                - {{ item.t_place }}
+                            {% endif %}
+                            ({{ item.t_start|date:'Y.m.d' }} ~ {{ item.t_end|date:'Y.m.d' }})
+                        </option>
+                    {% endfor %}
+                </select>
+
+                {% if not travels %}
+                    <p class="schedule-add-empty">
+                        등록된 여행이 없습니다. 먼저 여행을 만들어주세요.
+                    </p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="scheduleDateSelect">
+                    추가 일자
+                </label>
+
+                <select
+                    id="scheduleDateSelect"
+                    required
+                    disabled
+                >
+                    <option value="">
+                        여행을 먼저 선택해주세요.
+                    </option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="scheduleArriveTime">
+                    방문 시간
+                </label>
+
+                <input
+                    type="time"
+                    id="scheduleArriveTime"
+                    required
+                >
+            </div>
+
+            <div class="schedule-add-buttons">
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="closeScheduleAddModal()"
+                >
+                    취소
+                </button>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                    {% if not travels %}disabled{% endif %}
+                >
+                    일정에 추가
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+    <script>
+const TP_SPRITE = "{% static 'sherpaapp/icons/icons.svg' %}?v=4";
+
+function tpIcon(name) {
+    return '<svg class="tp-icon" aria-hidden="true" focusable="false"><use href="'
+        + TP_SPRITE + '#i-' + name + '"></use></svg>';
+}
+
+
+        // =========================
+        // 일정 추가 상태
+        // =========================
+
+        let scheduleAddPlace = null;
+
+
+        function parseLocalDate(value) {
+            const parts = String(value || "")
+                .split("-")
+                .map(Number);
+
+            if (parts.length !== 3) {
+                return null;
+            }
+
+            return new Date(
+                parts[0],
+                parts[1] - 1,
+                parts[2]
+            );
+        }
+
+
+        function formatDateValue(date) {
+            const year = date.getFullYear();
+            const month = String(
+                date.getMonth() + 1
+            ).padStart(2, "0");
+            const day = String(
+                date.getDate()
+            ).padStart(2, "0");
+
+            return `${year}-${month}-${day}`;
+        }
+
+
+        function formatScheduleDateLabel(
+            date,
+            dayNumber
+        ) {
+            const month = String(
+                date.getMonth() + 1
+            ).padStart(2, "0");
+            const day = String(
+                date.getDate()
+            ).padStart(2, "0");
+
+            return `DAY ${dayNumber} · ${month}.${day}`;
+        }
+
+
+        function openScheduleAddModal(
+            name,
+            address,
+            category,
+            lat,
+            lon,
+            image
+        ) {
+            scheduleAddPlace = {
+                name: name || "",
+                address: address || "",
+                category: category || "",
+                lat: lat || "",
+                lon: lon || "",
+                image: image || ""
+            };
+
+            const modal =
+                document.getElementById(
+                    "scheduleAddModal"
+                );
+
+            document.getElementById(
+                "scheduleAddPlaceName"
+            ).textContent =
+                scheduleAddPlace.name;
+
+            document.getElementById(
+                "scheduleAddPlaceAddress"
+            ).textContent =
+                scheduleAddPlace.address;
+
+            document.getElementById(
+                "scheduleTravelSelect"
+            ).value = "";
+
+            const dateSelect =
+                document.getElementById(
+                    "scheduleDateSelect"
+                );
+
+            dateSelect.innerHTML =
+                '<option value="">여행을 먼저 선택해주세요.</option>';
+
+            dateSelect.disabled = true;
+
+            document.getElementById(
+                "scheduleArriveTime"
+            ).value = "";
+
+            modal.classList.add("show");
+            modal.setAttribute(
+                "aria-hidden",
+                "false"
+            );
+        }
+
+
+        function closeScheduleAddModal() {
+            const modal =
+                document.getElementById(
+                    "scheduleAddModal"
+                );
+
+            if (!modal) {
+                return;
+            }
+
+            modal.classList.remove("show");
+            modal.setAttribute(
+                "aria-hidden",
+                "true"
+            );
+
+            scheduleAddPlace = null;
+        }
+
+
+        function updateScheduleDateOptions() {
+            const travelSelect =
+                document.getElementById(
+                    "scheduleTravelSelect"
+                );
+
+            const dateSelect =
+                document.getElementById(
+                    "scheduleDateSelect"
+                );
+
+            const option =
+                travelSelect.options[
+                    travelSelect.selectedIndex
+                ];
+
+            if (
+                !option
+                ||
+                !option.value
+            ) {
+                dateSelect.innerHTML =
+                    '<option value="">여행을 먼저 선택해주세요.</option>';
+
+                dateSelect.disabled = true;
+                return;
+            }
+
+            const startDate =
+                parseLocalDate(
+                    option.dataset.start
+                );
+
+            const endDate =
+                parseLocalDate(
+                    option.dataset.end
+                );
+
+            if (
+                !startDate
+                ||
+                !endDate
+                ||
+                endDate < startDate
+            ) {
+                dateSelect.innerHTML =
+                    '<option value="">여행 날짜 정보가 없습니다.</option>';
+
+                dateSelect.disabled = true;
+                return;
+            }
+
+            dateSelect.innerHTML =
+                '<option value="">일자를 선택해주세요.</option>';
+
+            const cursor =
+                new Date(startDate);
+
+            let dayNumber = 1;
+
+            while (cursor <= endDate) {
+                const optionElement =
+                    document.createElement(
+                        "option"
+                    );
+
+                optionElement.value =
+                    formatDateValue(cursor);
+
+                optionElement.textContent =
+                    formatScheduleDateLabel(
+                        cursor,
+                        dayNumber
+                    );
+
+                dateSelect.appendChild(
+                    optionElement
+                );
+
+                cursor.setDate(
+                    cursor.getDate() + 1
+                );
+
+                dayNumber += 1;
+            }
+
+            dateSelect.disabled = false;
+        }
+
+
+        function getCsrfToken() {
+            const tokenInput =
+                document.querySelector(
+                    '#scheduleAddForm input[name="csrfmiddlewaretoken"]'
+                );
+
+            return tokenInput
+                ? tokenInput.value
+                : "";
+        }
+
+
+        function submitScheduleAdd(event) {
+            event.preventDefault();
+
+            if (!scheduleAddPlace) {
+                alert(
+                    "추가할 장소 정보가 없습니다."
+                );
+                return;
+            }
+
+            const travelId =
+                document.getElementById(
+                    "scheduleTravelSelect"
+                ).value;
+
+            const scheduleDate =
+                document.getElementById(
+                    "scheduleDateSelect"
+                ).value;
+
+            const arriveTime =
+                document.getElementById(
+                    "scheduleArriveTime"
+                ).value;
+
+            if (!travelId) {
+                alert(
+                    "여행을 선택해주세요."
+                );
+                return;
+            }
+
+            if (!scheduleDate) {
+                alert(
+                    "추가할 일자를 선택해주세요."
+                );
+                return;
+            }
+
+            if (!arriveTime) {
+                alert(
+                    "방문 시간을 입력해주세요."
+                );
+                return;
+            }
+
+            const body =
+                new URLSearchParams();
+
+            body.append(
+                "travel_id",
+                travelId
+            );
+
+            body.append(
+                "s_day",
+                scheduleDate
+            );
+
+            body.append(
+                "arrive_time",
+                arriveTime
+            );
+
+            body.append(
+                "place_name",
+                scheduleAddPlace.name
+            );
+
+            body.append(
+                "place_addr",
+                scheduleAddPlace.address
+            );
+
+            body.append(
+                "place_kind",
+                scheduleAddPlace.category
+            );
+
+            body.append(
+                "place_lat",
+                scheduleAddPlace.lat
+            );
+
+            body.append(
+                "place_lon",
+                scheduleAddPlace.lon
+            );
+
+            body.append(
+                "place_image",
+                scheduleAddPlace.image
+            );
+
+            fetch(
+                "{% url 'schedule_place_add' %}",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/x-www-form-urlencoded;charset=UTF-8",
+                        "X-CSRFToken":
+                            getCsrfToken()
+                    },
+                    body: body.toString()
+                }
+            )
+                .then(
+                    function(response) {
+                        return response
+                            .json()
+                            .then(
+                                function(data) {
+                                    if (
+                                        !response.ok
+                                    ) {
+                                        throw new Error(
+                                            data.message
+                                            ||
+                                            "일정 추가에 실패했습니다."
+                                        );
+                                    }
+
+                                    return data;
+                                }
+                            );
+                    }
+                )
+                .then(
+                    function(data) {
+                        alert(
+                            data.message
+                            ||
+                            "일정에 추가되었습니다."
+                        );
+
+                        const detailUrl =
+                            "{% url 'travel_detail' travel_id=999999 %}"
+                            .replace(
+                                "999999",
+                                travelId
+                            );
+
+                        window.location.href =
+                            detailUrl;
+                    }
+                )
+                .catch(
+                    function(error) {
+                        console.error(
+                            "일정 추가 오류:",
+                            error
+                        );
+
+                        alert(
+                            error.message
+                            ||
+                            "일정 추가 중 오류가 발생했습니다."
+                        );
+                    }
+                );
+        }
+
+
+        document.addEventListener(
+            "keydown",
+            function(event) {
+                if (
+                    event.key === "Escape"
+                ) {
+                    closeScheduleAddModal();
+                }
+            }
+        );
+
+
+        // =========================
+        // 지도 생성
+        // =========================
+
+        const container = document.getElementById('map');
+
+
+        // =========================
+        // 지도 옵션
+        // =========================
+
+        const options = {
+
+            // 서울 중심 좌표
+            center: new kakao.maps.LatLng(
+                37.5665,
+                126.9780
+            ),
+
+            // 확대 레벨
+            level: 8
+        };
+
+        // =========================
+        // 지도 생성 ★ 중요
+        // =========================
+
+        const map = new kakao.maps.Map(
+            container,
+            options
+        );
+
+
+        // =========================
+        // 지도 범위
+        // =========================
+
+        const bounds =
+            new kakao.maps.LatLngBounds();
+        
+        // =========================
+        // 장소 상세 카드
+        // =========================
+        const detailCard =
+            document.getElementById(
+                "place-detail-card"
+            );
+            
+        // =========================
+        // 검색 결과 반복
+        // =========================
+
+        {% for place in places %}
+
+        (function() {
+        
+            const position =
+                new kakao.maps.LatLng(
+                    {{ place.y }},
+                    {{ place.x }}
+                );
+
+            // 마커 생성
+
+            const marker =
+                new kakao.maps.Marker({
+                    position: position
+                });
+            
+            // 지도에 표시
+            marker.setMap(map);
+
+            // 지도 범위에 추가
+            bounds.extend(position);
+
+            // =========================
+            // 장소 정보
+            // =========================
+            const placeData = {
+                
+                name: "{{ place.name|escapejs }}",
+                address: "{{ place.address|escapejs }}",
+                category: "{{ place.category|escapejs }}",
+                phone: "{{place.phone|default:''|escapejs }}",
+                image: "{{place.image|default:''|escapejs }}",
+                place_url: "{{place.place_url|default:''|escapejs }}"
+            };
+
+            // =========================
+            // 마커 클릭 이벤트
+            // =========================
+            kakao.maps.event.addListener(
+                marker,
+                "click",
+                function() {
+
+                    console.log(
+                        "마커 클릭!",
+                        placeData
+                    );
+
+                    showPlaceDetail(
+                        placeData
+                    );
+
+                    // 클릭한 장소 확대
+                    map.setLevel(3);
+
+                    // 클릭한 장소를 지도 중앙으로 이동
+                    map.setCenter(position);
+                }
+            );
+
+        })();
+
+        {% endfor %}
+        // ==================================
+        // 검색 결과 카드 클릭
+        // 해당 장소로 지도 이동 + 확대
+        // ==================================
+
+        function focusPlace(
+            lat,
+            lng,
+            name,
+            address,
+            category,
+            phone,
+            image,
+            place_url
+        ) {
+
+            console.log("장소 클릭:", name);
+            console.log("좌표:", lat, lng);
+
+            // 클릭한 장소 좌표
+            const position =
+                new kakao.maps.LatLng(
+                    Number(lat),
+                    Number(lng)
+                );
+
+            // 먼저 확대
+            map.setLevel(3);
+
+            // 지도 중심을 해당 장소로 이동
+            map.setCenter(position);
+
+            // 장소 정보
+            const placeData = {
+
+                name: name,
+                address: address,
+                category: category,
+                phone: phone,
+                image: image,
+                place_url: place_url
+
+            };
+
+            // 장소 정보 카드 표시
+            showPlaceDetail(placeData);
+        }
+        // =========================
+        // 장소 정보 표시 함수
+        // =========================
+        function showPlaceDetail(place) {
+            let imageHtml = "";
+            if (place.image) {
+                imageHtml =
+                    '<img ' +
+                    'class="detail-image" ' +
+                    'src="' +
+                    place.image +
+                    '" ' +
+                    'alt="' +
+                    place.name +
+                    '">';
+            }
+
+            else {
+                imageHtml =
+                    '<div class="detail-no-image">' +
+                    tpIcon("pin") +
+                    '</div>';
+            }
+
+            detailCard.innerHTML =
+
+                imageHtml +
+
+                '<h3>' +
+                place.name +
+                '</h3>' +
+
+                '<p class="detail-category">' +
+                    tpIcon("tag") + ' ' +
+                    place.category +
+                '</p>' +
+
+                '<p>' +
+                tpIcon("pin") + ' ' +
+                place.address +
+                '</p>' +
+
+
+                (
+                    place.phone
+
+                    ?
+                    
+                    '<p>' + tpIcon("phone") + ' ' +
+                    place.phone +
+                    '</p>'
+
+                    :
+
+                    ''
+
+                ) +
+
+                (
+                    place.place_url
+                    
+                    ?
+
+                    '<a ' +
+                    'href="' +
+                    place.place_url +
+                    '" ' +
+                    'target="_blank" ' +
+                    'class="btn btn-primary">' +
+                    '카카오맵 보기' +
+                    '</a>'
+
+                    :
+
+                    ''
+
+                );
+        }
+
+        // ==================================
+        // 모든 마커가 보이도록 지도 범위 조정
+        // ==================================
+
+        {% if places %}
+            map.setBounds(bounds);
+        {% endif %}
+
+    </script>
+{% endif %}
+</body>
+</html>

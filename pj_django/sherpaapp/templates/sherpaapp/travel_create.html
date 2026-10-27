@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIPA - 여행 만들기</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261038">
+
+    <style>
+        .search-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .search-input-row input[type="text"] {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .place-search-button {
+            flex: 0 0 auto;
+            min-height: 44px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 8px;
+            background: #2563eb;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .place-search-button:hover {
+            background: #1d4ed8;
+        }
+
+        .selected-place-box {
+            display: none;
+            margin-top: 9px;
+            padding: 11px 13px;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            background: #f8fafc;
+        }
+
+        .selected-place-box.active {
+            display: block;
+        }
+
+        .selected-place-name {
+            margin: 0 0 4px;
+            color: #111827;
+            font-weight: 700;
+        }
+
+        .selected-place-address {
+            margin: 0;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .form-help {
+            margin-top: 7px;
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .time-picker-wrap {
+            position: relative;
+        }
+
+        .time-picker-trigger {
+            width: 150px;
+            min-height: 46px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 0 12px;
+            border: 2px solid #2563eb;
+            border-radius: 10px;
+            background: #fff;
+            color: #111827;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .time-picker-trigger:hover,
+        .time-picker-trigger:focus {
+            background: #eff6ff;
+            outline: none;
+        }
+
+        .picker-clock {
+            font-size: 15px;
+        }
+
+        .schedule-picker-popover {
+            position: absolute;
+            z-index: 20000;
+            width: 248px;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #fff;
+            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+        }
+
+        .schedule-picker-columns {
+            display: grid;
+            grid-template-columns: 72px 1fr 1fr;
+            gap: 6px;
+        }
+
+        .schedule-picker-list {
+            width: 100%;
+            min-height: 150px;
+            border: 0;
+            border-radius: 5px;
+            outline: none;
+            background: #fff;
+            color: #111827;
+            font-size: 14px;
+            scrollbar-width: thin;
+        }
+
+        .schedule-picker-list option {
+            padding: 7px 8px;
+            text-align: center;
+        }
+
+        .schedule-picker-list option:checked {
+            background: #2563eb linear-gradient(0deg, #2563eb 0%, #2563eb 100%);
+            color: #fff;
+        }
+
+        .schedule-picker-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 7px;
+            margin-top: 10px;
+        }
+
+        .schedule-picker-actions button {
+            border: 0;
+            border-radius: 7px;
+            padding: 7px 11px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .schedule-picker-cancel {
+            background: #eef2f7;
+            color: #475569;
+        }
+
+        .schedule-picker-save {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        .day-plan-section {
+            display: none;
+            margin-top: 28px;
+        }
+
+        .day-plan-section.active {
+            display: block;
+        }
+
+        .day-plan-title {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+
+        .day-plan-card {
+            margin-bottom: 14px;
+            padding: 17px;
+            border: 1px solid #dbe3ef;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+
+        .day-plan-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .day-plan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .day-plan-header strong {
+            font-size: 16px;
+            color: #111827;
+        }
+
+        .day-plan-date {
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .day-plan-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .day-plan-grid .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .day-plan-empty-note {
+            padding: 11px 13px;
+            border-radius: 8px;
+            background: #eef6ff;
+            color: #475569;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .place-search-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 30000;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 28px 16px;
+            overflow-y: auto;
+        }
+
+        .place-search-modal.active {
+            display: block;
+        }
+
+        .place-search-dialog {
+            width: min(720px, 100%);
+            margin: 40px auto;
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.24);
+            overflow: hidden;
+        }
+
+        .place-search-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 18px 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .place-search-modal-header h2 {
+            margin: 0;
+            font-size: 19px;
+        }
+
+        .place-search-close {
+            border: 0;
+            background: transparent;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .place-search-modal-body {
+            padding: 18px 20px 22px;
+        }
+
+        .place-search-results {
+            margin-top: 14px;
+            max-height: 480px;
+            overflow-y: auto;
+        }
+
+        .place-search-result {
+            display: grid;
+            grid-template-columns: 76px minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .place-result-image {
+            width: 76px;
+            height: 62px;
+            overflow: hidden;
+            border-radius: 8px;
+            background: #eef2f7;
+        }
+
+        .place-result-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .no-place-image {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .place-result-info h3 {
+            margin: 0 0 5px;
+            font-size: 15px;
+        }
+
+        .place-result-info p {
+            margin: 3px 0;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .place-select-btn {
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 13px;
+            background: #2563eb;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .place-search-empty {
+            padding: 28px 12px;
+            text-align: center;
+            color: #94a3b8;
+        }
+
+        @media (max-width: 768px) {
+            .search-input-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .day-plan-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .day-plan-grid .full-width {
+                grid-column: auto;
+            }
+
+            .place-search-result {
+                grid-template-columns: 72px minmax(0, 1fr);
+            }
+
+            .place-select-btn {
+                grid-column: 1 / -1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div class="detail-container">
+    <aside class="sidebar">
+        <div class="logo">
+            <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>
+        </div>
+
+        <div class="menu-title">MENU</div>
+
+        <ul class="menu">
+            <li><a href="{% url 'travel_list' %}">{% include "_icon.html" with name="suitcase" %} 내 여행</a></li>
+            <li><a href="{% url 'travel_create' %}" class="active">{% include "_icon.html" with name="plus" %} 여행 만들기</a></li>
+            <li><a href="{% url 'place_search' %}">{% include "_icon.html" with name="pin" %} 장소 검색</a></li>
+            <li><a href="{% url 'schedule_manage' %}">{% include "_icon.html" with name="calendar" %} 일정 관리</a></li>
+            <li><a href="{% url 'budget' %}">{% include "_icon.html" with name="wallet" %} 비용 관리</a></li>
+        </ul>
+
+        {% if member %}
+            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} {{ member.nickname }}</a>
+        {% else %}
+            <a href="{% url 'login' %}" class="user-profile">{% include "_icon.html" with name="user" %} 로그인</a>
+        {% endif %}
+    </aside>
+
+    <main class="detail-content">
+        {% if mode == 'chat' %}
+        <div class="page-title">
+            <h1>{% include "_icon.html" with name="plane" %} AI와 여행 만들기</h1>
+            <p>가고 싶은 여행을 말하듯이 적어 주세요. 대화하면서 일정 초안이 채워져요.</p>
+        </div>
+        {% else %}
+        <div class="page-title">
+            <h1>{% include "_icon.html" with name="plane" %} 새로운 여행 만들기</h1>
+            <p>여행 기본 정보와 출발지, 날짜별 숙소 정보를 입력해주세요.</p>
+            <p class="tc-switch"><a href="{% url 'travel_create' %}">AI와 대화로 만들기</a></p>
+        </div>
+        {% endif %}
+
+{% if mode == 'chat' %}
+        <div class="tc-app" id="tcApp"
+             data-chat-url="{% url 'travel_chat' %}"
+             data-apply-url="{% url 'travel_chat_apply' %}"
+             data-add-url="{% url 'schedule_place_add' %}"
+             data-preview-url="{% url 'travel_chat_preview' %}"
+             data-login-url="{% url 'login' %}"
+             data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5"
+             data-prefill="{{ prefill_title|default:'' }}"
+             data-budget="{{ prefill_budget_code|default:'' }}">
+            {% csrf_token %}
+
+            <!-- 1) 대화 -->
+            <section class="tc-panel tc-chat" aria-label="AI와 대화">
+                <header class="tc-panel__head">
+                    <h2>{% include "_icon.html" with name="chat" %} 대화</h2>
+                    <button type="button" class="tc-link" id="tcReset">새로 시작</button>
+                </header>
+
+                <div class="tc-messages" id="tcMessages" aria-live="polite"></div>
+
+                <div class="tc-examples" id="tcExamples" aria-label="예시 질문"></div>
+
+                <form class="tc-form" id="tcForm" autocomplete="off">
+                    <textarea id="tcInput" rows="1" maxlength="500"
+                              placeholder="여행 이야기를 편하게 적어 주세요"
+                              aria-label="메시지 입력"></textarea>
+                    <button type="submit" class="tc-send" id="tcSend" aria-label="보내기">
+                        {% include "_icon.html" with name="arrow" %}
+                    </button>
+                </form>
+            </section>
+
+            <!-- 2) 일정 초안 -->
+            <section class="tc-panel tc-draft" aria-label="일정 초안">
+                <header class="tc-panel__head">
+                    <h2>{% include "_icon.html" with name="calendar" %} 일정 초안</h2>
+                    <span class="tc-panel__sub">적용 전 미리보기</span>
+                </header>
+
+                <div class="tc-draft__body">
+                    <p class="tc-draft__title" id="tcTitle">새 여행</p>
+
+                    <div class="tc-progress" aria-hidden="true"><span id="tcProgressBar"></span></div>
+                    <p class="tc-progress__text"><strong id="tcProgressText">필수 정보 0/4</strong> <span id="tcMissing"></span></p>
+
+                    <ul class="tc-notes" id="tcNotes" hidden></ul>
+
+                    <dl class="tc-rows">
+                        <div class="tc-row is-empty" data-row="place">
+                            <dt>{% include "_icon.html" with name="pin" %}<span>지역</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="date">
+                            <dt>{% include "_icon.html" with name="calendar" %}<span>날짜</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="people">
+                            <dt>{% include "_icon.html" with name="users" %}<span>인원</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="stay">
+                            <dt>{% include "_icon.html" with name="bed" %}<span>숙소</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="start">
+                            <dt>{% include "_icon.html" with name="flag" %}<span>출발</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="budget">
+                            <dt>{% include "_icon.html" with name="wallet" %}<span>예산</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="concept">
+                            <dt>{% include "_icon.html" with name="tag" %}<span>컨셉</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="transport">
+                            <dt>{% include "_icon.html" with name="route" %}<span>이동수단</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                        <div class="tc-row is-empty" data-row="pins">
+                            <dt>{% include "_icon.html" with name="pin" %}<span>담은 장소</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
+                    </dl>
+                    <section class="tc-plan" aria-label="일정 미리보기">
+                        <div class="tc-plan__head">
+                            <h3>{% include "_icon.html" with name="route" %} 일정 미리보기</h3>
+                            <button type="button" class="tc-link" id="tcPlanRefresh" hidden>다시 만들기</button>
+                        </div>
+                        <div class="tc-tabs" id="tcTabs" role="tablist"></div>
+                        <div class="tc-plan__body" id="tcTimeline" aria-live="polite"></div>
+                        <p class="tc-plan__sum" id="tcPlanState"></p>
+                    </section>
+                </div>
+
+                <footer class="tc-draft__foot">
+                    <button type="button" class="tc-btn tc-btn--primary" id="tcApply" disabled>
+                        {% include "_icon.html" with name="check" %} 이 일정 적용하기
+                    </button>
+                    <button type="button" class="tc-btn tc-btn--ghost" id="tcEdit">
+                        {% include "_icon.html" with name="chat" %} 채팅으로 고치기
+                    </button>
+                    <a class="tc-link tc-manual" href="{% url 'travel_create' %}?mode=manual">직접 선택해서 만들기</a>
+                </footer>
+            </section>
+
+            <!-- 3) 지도 -->
+            <section class="tc-panel tc-mapPanel" aria-label="지도">
+                <header class="tc-panel__head">
+                    <h2>{% include "_icon.html" with name="map" %} 지도</h2>
+                </header>
+                <div class="tc-mapWrap">
+                    <div id="tcMap" class="tc-map"></div>
+                    <p class="tc-map__hint" id="tcMapHint">지역을 정하면 지도에 표시돼요.</p>
+                </div>
+            </section>
+        </div>
+{% else %}
+        <div class="create-layout">
+            <div class="card">
+                <form method="POST" id="travelCreateForm">
+                    {% csrf_token %}
+
+                    {% if error %}
+                        <div class="error-message">{{ error }}</div>
+                    {% endif %}
+
+                    {% if prefill_budget_style %}
+                        <div class="plan-notice">{% include "_icon.html" with name="wallet" %} 선택한 예산 성향: <strong>{{ prefill_budget_style }}</strong></div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label>여행 제목</label>
+                        <input
+                            type="text"
+                            name="t_title"
+                            value="{{ prefill_title|default:'' }}"
+                            placeholder="예) 서울 3박 4일 여행"
+                            required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>여행 지역</label>
+                        <input
+                            type="text"
+                            name="t_place"
+                            value="{{ prefill_place|default:'' }}"
+                            placeholder="예) 서울"
+                            required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>출발지</label>
+
+                        <div class="search-input-row">
+                            <input
+                                type="text"
+                                id="startPlaceSearchInput"
+                                placeholder="예) 수원역"
+                                autocomplete="off">
+
+                            <button
+                                type="button"
+                                class="place-search-button"
+                                onclick="openPlaceSearch('start')">
+                                검색
+                            </button>
+                        </div>
+
+                        <div id="startPlaceSelected" class="selected-place-box">
+                            <p id="startPlaceSelectedName" class="selected-place-name"></p>
+                            <p id="startPlaceSelectedAddress" class="selected-place-address"></p>
+                        </div>
+
+                        <input type="hidden" name="start_place" id="start_place">
+                        <input type="hidden" name="start_addr" id="start_addr">
+                        <input type="hidden" name="start_lat" id="start_lat">
+                        <input type="hidden" name="start_lon" id="start_lon">
+
+                        <div class="form-help">
+                            검색 결과에서 출발지를 선택해야 이름, 주소, 좌표가 함께 저장됩니다.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>첫날 출발 시간</label>
+
+                        <div class="time-picker-wrap">
+                            <button
+                                type="button"
+                                class="time-picker-trigger"
+                                onclick="openFormTimePicker(this, 'start_time', '09:00')">
+                                <span class="time-label">시간 설정</span>
+                                <span class="picker-clock">◷</span>
+                            </button>
+                            <input type="hidden" name="start_time" id="start_time">
+                        </div>
+
+                        <div class="form-help">
+                            입력하지 않으면 일정 추천 시 기본 출발 시간을 적용합니다.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>여행 컨셉</label>
+
+                        <div class="concept-list">
+                            {% for category in categories %}
+                                <label class="concept-item">
+                                    <input
+                                        type="checkbox"
+                                        name="categories"
+                                        value="{{ category.c_id }}">
+                                    <span>{{ category.c_name }}</span>
+                                </label>
+                            {% empty %}
+                                <p>등록된 여행 컨셉이 없습니다.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>교통 수단</label>
+
+                        <div class="concept-list">
+                            <label class="concept-item">
+                                <input type="radio" name="traffic" value="car">
+                                <span>차</span>
+                            </label>
+
+                            <label class="concept-item">
+                                <input type="radio" name="traffic" value="walk">
+                                <span>도보</span>
+                            </label>
+
+                            <label class="concept-item">
+                                <input type="radio" name="traffic" value="public_transport">
+                                <span>대중교통</span>
+                            </label>
+
+                            <label class="concept-item">
+                                <input type="radio" name="traffic" value="bike">
+                                <span>자전거</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="date-group">
+                        <div class="form-group">
+                            <label>여행 시작일</label>
+                            <input
+                                type="date"
+                                id="t_start"
+                                name="t_start"
+                                required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>여행 종료일</label>
+                            <input
+                                type="date"
+                                id="t_end"
+                                name="t_end"
+                                disabled
+                                required>
+                        </div>
+                    </div>
+
+                    <section id="dayPlanSection" class="day-plan-section">
+                        <h2 class="day-plan-title">{% include "_icon.html" with name="bed" %} 날짜별 숙소 및 출발 시간</h2>
+                        <div id="dayPlanContainer"></div>
+                    </section>
+
+                    <div class="button-group">
+                        <a href="{% url 'travel_list' %}" class="btn btn-secondary">취소</a>
+                        <button type="submit" class="btn btn-primary">여행 만들기</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card guide-card">
+                <h2>{% include "_icon.html" with name="bulb" %} 여행 만들기</h2>
+                <p>1. 여행 제목과 지역을 입력합니다.</p>
+                <p>2. 출발지를 검색해서 선택하고 첫날 출발 시간을 설정합니다.</p>
+                <p>3. 원하는 여행 컨셉과 교통수단을 선택합니다.</p>
+                <p>4. 여행 기간을 선택하면 날짜별 숙소 입력칸이 자동으로 생성됩니다.</p>
+                <p>5. 첫날 숙소를 선택하고, 숙소가 바뀌는 날만 새 숙소를 선택합니다.</p>
+                <p>6. 날짜별 출발시간과 숙소 도착시간은 필요한 경우 설정합니다.</p>
+            </div>
+        </div>
+        {% endif %}
+    </main>
+</div>
+
+{% if mode == 'chat' %}
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
+<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261038"></script>
+{% else %}
+<div id="placeSearchModal" class="place-search-modal" aria-hidden="true">
+    <div class="place-search-dialog">
+        <div class="place-search-modal-header">
+            <h2 id="placeSearchModalTitle">장소 검색</h2>
+            <button type="button" class="place-search-close" onclick="closePlaceSearch()">×</button>
+        </div>
+
+        <div class="place-search-modal-body">
+            <div class="search-input-row">
+                <input
+                    type="text"
+                    id="placeSearchInput"
+                    placeholder="장소명을 입력해주세요"
+                    autocomplete="off">
+                <button type="button" class="place-search-button" onclick="searchPlaces()">검색</button>
+            </div>
+
+            <div id="placeSearchResults" class="place-search-results">
+                <p class="place-search-empty">검색할 장소를 입력해주세요.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const TP_SPRITE = "{% static 'sherpaapp/icons/icons.svg' %}?v=5";
+
+function tpIcon(name) {
+    return '<svg class="tp-icon" aria-hidden="true" focusable="false"><use href="'
+        + TP_SPRITE + '#i-' + name + '"></use></svg>';
+}
+
+let activeSchedulePicker = null;
+let placeSearchTarget = null;
+let dayPlanState = {};
+
+function pad2(value) {
+    return String(value).padStart(2, "0");
+}
+
+function formatDateValue(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function formatKoreanDate(date) {
+    return `${pad2(date.getMonth() + 1)}월 ${pad2(date.getDate())}일`;
+}
+
+function parseLocalDate(value) {
+    const parts = value.split("-").map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function formatTimeDisplay(value) {
+    if (!value) {
+        return "시간 설정";
+    }
+
+    const parts = value.split(":");
+    let hour = Number(parts[0]);
+    const minute = pad2(parts[1] || "00");
+
+    if (Number.isNaN(hour)) {
+        return value;
+    }
+
+    const period = hour < 12 ? "오전" : "오후";
+    const hour12 = hour % 12 || 12;
+
+    return `${period} ${pad2(hour12)}:${minute}`;
+}
+
+function closeSchedulePicker() {
+    if (activeSchedulePicker) {
+        activeSchedulePicker.remove();
+        activeSchedulePicker = null;
+    }
+}
+
+function positionSchedulePicker(popover, trigger) {
+    document.body.appendChild(popover);
+
+    const rect = trigger.getBoundingClientRect();
+    const popoverRect = popover.getBoundingClientRect();
+
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + window.scrollY + 6;
+
+    const maxLeft =
+        window.scrollX
+        + window.innerWidth
+        - popoverRect.width
+        - 16;
+
+    if (left > maxLeft) {
+        left = Math.max(16 + window.scrollX, maxLeft);
+    }
+
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+    activeSchedulePicker = popover;
+}
+
+function makeOption(value, label, selected) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = selected;
+    return option;
+}
+
+function openFormTimePicker(trigger, inputId, defaultValue) {
+    closeSchedulePicker();
+
+    const input = document.getElementById(inputId);
+    if (!input) {
+        return;
+    }
+
+    const currentValue = input.value || defaultValue || "09:00";
+    const parts = currentValue.split(":");
+
+    let hour24 = Number(parts[0]);
+    let minute = Number(parts[1]);
+
+    if (Number.isNaN(hour24)) {
+        hour24 = 9;
+    }
+
+    if (Number.isNaN(minute)) {
+        minute = 0;
+    }
+
+    const currentPeriod = hour24 < 12 ? "AM" : "PM";
+    const currentHour12 = hour24 % 12 || 12;
+
+    const popover = document.createElement("div");
+    popover.className = "schedule-picker-popover";
+    popover.addEventListener("click", function (event) {
+        event.stopPropagation();
+    });
+
+    const columns = document.createElement("div");
+    columns.className = "schedule-picker-columns";
+
+    const periodSelect = document.createElement("select");
+    periodSelect.className = "schedule-picker-list";
+    periodSelect.size = 2;
+    periodSelect.appendChild(makeOption("AM", "오전", currentPeriod === "AM"));
+    periodSelect.appendChild(makeOption("PM", "오후", currentPeriod === "PM"));
+
+    const hourSelect = document.createElement("select");
+    hourSelect.className = "schedule-picker-list";
+    hourSelect.size = 6;
+
+    for (let hour = 1; hour <= 12; hour++) {
+        hourSelect.appendChild(
+            makeOption(
+                String(hour),
+                pad2(hour),
+                hour === currentHour12
+            )
+        );
+    }
+
+    const minuteSelect = document.createElement("select");
+    minuteSelect.className = "schedule-picker-list";
+    minuteSelect.size = 6;
+
+    for (let value = 0; value <= 59; value++) {
+        minuteSelect.appendChild(
+            makeOption(
+                String(value),
+                pad2(value),
+                value === minute
+            )
+        );
+    }
+
+    columns.appendChild(periodSelect);
+    columns.appendChild(hourSelect);
+    columns.appendChild(minuteSelect);
+    popover.appendChild(columns);
+
+    const actions = document.createElement("div");
+    actions.className = "schedule-picker-actions";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "schedule-picker-cancel";
+    cancelButton.textContent = "취소";
+    cancelButton.onclick = closeSchedulePicker;
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "schedule-picker-save";
+    saveButton.textContent = "적용";
+
+    saveButton.onclick = function () {
+        let hour = Number(hourSelect.value);
+
+        if (periodSelect.value === "AM") {
+            if (hour === 12) {
+                hour = 0;
+            }
+        } else if (hour !== 12) {
+            hour += 12;
+        }
+
+        const value = `${pad2(hour)}:${pad2(Number(minuteSelect.value))}`;
+
+        input.value = value;
+
+        const label = trigger.querySelector(".time-label");
+        if (label) {
+            label.textContent = formatTimeDisplay(value);
+        }
+
+        closeSchedulePicker();
+    };
+
+    actions.appendChild(cancelButton);
+    actions.appendChild(saveButton);
+    popover.appendChild(actions);
+
+    positionSchedulePicker(popover, trigger);
+    hourSelect.focus();
+}
+
+function captureDayPlanState() {
+    document.querySelectorAll(".day-plan-card").forEach(function (card) {
+        const planDateInput = card.querySelector('input[name="plan_date[]"]');
+        if (!planDateInput) {
+            return;
+        }
+
+        const planDate = planDateInput.value;
+
+        dayPlanState[planDate] = {
+            stay_name: card.querySelector('input[name="stay_name[]"]')?.value || "",
+            stay_addr: card.querySelector('input[name="stay_addr[]"]')?.value || "",
+            stay_lat: card.querySelector('input[name="stay_lat[]"]')?.value || "",
+            stay_lon: card.querySelector('input[name="stay_lon[]"]')?.value || "",
+            stay_arrival_time: card.querySelector('input[name="stay_arrival_time[]"]')?.value || "",
+            day_departure_time: card.querySelector('input[name="day_departure_time[]"]')?.value || ""
+        };
+    });
+}
+
+function createTimeControl(inputId, inputName, value, defaultValue) {
+    const display = formatTimeDisplay(value);
+
+    return `
+        <div class="time-picker-wrap">
+            <button
+                type="button"
+                class="time-picker-trigger"
+                onclick="openFormTimePicker(this, '${inputId}', '${defaultValue}')">
+                <span class="time-label">${display}</span>
+                <span class="picker-clock">◷</span>
+            </button>
+            <input
+                type="hidden"
+                name="${inputName}"
+                id="${inputId}"
+                value="${value || ""}">
+        </div>
+    `;
+}
+
+function rebuildDayPlanRows() {
+    captureDayPlanState();
+
+    const startInput = document.getElementById("t_start");
+    const endInput = document.getElementById("t_end");
+    const section = document.getElementById("dayPlanSection");
+    const container = document.getElementById("dayPlanContainer");
+
+    if (!startInput.value || !endInput.value) {
+        section.classList.remove("active");
+        container.innerHTML = "";
+        return;
+    }
+
+    const startDate = parseLocalDate(startInput.value);
+    const endDate = parseLocalDate(endInput.value);
+
+    if (endDate < startDate) {
+        section.classList.remove("active");
+        container.innerHTML = "";
+        return;
+    }
+
+    const dates = [];
+    const cursor = new Date(startDate);
+
+    while (cursor <= endDate) {
+        dates.push(new Date(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    container.innerHTML = "";
+
+    dates.forEach(function (date, index) {
+        const dayNumber = index + 1;
+        const dateValue = formatDateValue(date);
+        const saved = dayPlanState[dateValue] || {};
+        const isFirstDay = index === 0;
+        const isLastDay = index === dates.length - 1;
+
+        const card = document.createElement("div");
+        card.className = "day-plan-card";
+        card.dataset.dayIndex = String(index);
+
+        let html = `
+            <div class="day-plan-header">
+                <strong>${dayNumber}일차</strong>
+                <span class="day-plan-date">${formatKoreanDate(date)}</span>
+            </div>
+
+            <input type="hidden" name="plan_date[]" value="${dateValue}">
+        `;
+
+        if (isFirstDay) {
+            html += `
+                <input
+                    type="hidden"
+                    name="day_departure_time[]"
+                    id="day_departure_time_${index}"
+                    value="">
+            `;
+        }
+
+        html += '<div class="day-plan-grid">';
+
+        if (!isFirstDay) {
+            html += `
+                <div class="form-group">
+                    <label>출발 시간</label>
+                    ${createTimeControl(
+                        `day_departure_time_${index}`,
+                        "day_departure_time[]",
+                        saved.day_departure_time || "",
+                        "09:00"
+                    )}
+                    <div class="form-help">
+                        입력하지 않으면 기본 출발 시간을 적용합니다.
+                    </div>
+                </div>
+            `;
+        }
+
+        if (!isLastDay) {
+            const selectedClass = saved.stay_name ? "selected-place-box active" : "selected-place-box";
+
+            html += `
+                <div class="form-group ${isFirstDay ? "full-width" : ""}">
+                    <label>${dayNumber}일차 숙소</label>
+
+                    <div class="search-input-row">
+                        <input
+                            type="text"
+                            id="staySearchInput_${index}"
+                            placeholder="숙소를 검색해주세요"
+                            autocomplete="off">
+
+                        <button
+                            type="button"
+                            class="place-search-button"
+                            onclick="openPlaceSearch('stay', ${index})">
+                            검색
+                        </button>
+                    </div>
+
+                    <div id="staySelected_${index}" class="${selectedClass}">
+                        <p id="staySelectedName_${index}" class="selected-place-name">${saved.stay_name || ""}</p>
+                        <p id="staySelectedAddress_${index}" class="selected-place-address">${saved.stay_addr || ""}</p>
+                    </div>
+
+                    <input type="hidden" name="stay_name[]" id="stay_name_${index}" value="${saved.stay_name || ""}">
+                    <input type="hidden" name="stay_addr[]" id="stay_addr_${index}" value="${saved.stay_addr || ""}">
+                    <input type="hidden" name="stay_lat[]" id="stay_lat_${index}" value="${saved.stay_lat || ""}">
+                    <input type="hidden" name="stay_lon[]" id="stay_lon_${index}" value="${saved.stay_lon || ""}">
+
+                    ${index > 0 ? '<div class="form-help">비워두면 이전 날짜의 숙소를 그대로 사용합니다.</div>' : ''}
+                </div>
+
+                <div class="form-group ${isFirstDay ? "full-width" : ""}">
+                    <label>숙소 도착 시간</label>
+                    ${createTimeControl(
+                        `stay_arrival_time_${index}`,
+                        "stay_arrival_time[]",
+                        saved.stay_arrival_time || "",
+                        "20:00"
+                    )}
+                    <div class="form-help">
+                        입력하지 않으면 기본 숙소 도착 시간을 적용합니다.
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <input type="hidden" name="stay_name[]" id="stay_name_${index}" value="">
+                <input type="hidden" name="stay_addr[]" id="stay_addr_${index}" value="">
+                <input type="hidden" name="stay_lat[]" id="stay_lat_${index}" value="">
+                <input type="hidden" name="stay_lon[]" id="stay_lon_${index}" value="">
+                <input type="hidden" name="stay_arrival_time[]" id="stay_arrival_time_${index}" value="">
+
+                <div class="day-plan-empty-note full-width">
+                    ${isFirstDay
+                        ? "당일 여행은 숙소 정보 없이 첫날 출발 시간으로 일정을 진행합니다."
+                        : "마지막 날은 숙박 정보 없이 전날 숙소에서 출발하는 시간만 설정합니다."
+                    }
+                </div>
+            `;
+        }
+
+        html += "</div>";
+        card.innerHTML = html;
+        container.appendChild(card);
+    });
+
+    section.classList.add("active");
+}
+
+function openPlaceSearch(type, dayIndex) {
+    placeSearchTarget = {
+        type: type,
+        dayIndex: typeof dayIndex === "number" ? dayIndex : null
+    };
+
+    const modal = document.getElementById("placeSearchModal");
+    const title = document.getElementById("placeSearchModalTitle");
+    const input = document.getElementById("placeSearchInput");
+    const results = document.getElementById("placeSearchResults");
+
+    let initialQuery = "";
+
+    if (type === "start") {
+        title.textContent = "출발지 검색";
+        initialQuery = document.getElementById("startPlaceSearchInput").value.trim();
+    } else {
+        title.textContent = `${Number(dayIndex) + 1}일차 숙소 검색`;
+        const stayInput = document.getElementById(`staySearchInput_${dayIndex}`);
+        initialQuery = stayInput ? stayInput.value.trim() : "";
+    }
+
+    input.value = initialQuery;
+    results.innerHTML = '<p class="place-search-empty">검색할 장소를 입력해주세요.</p>';
+
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden", "false");
+
+    setTimeout(function () {
+        input.focus();
+
+        if (initialQuery) {
+            searchPlaces();
+        }
+    }, 0);
+}
+
+function closePlaceSearch() {
+    const modal = document.getElementById("placeSearchModal");
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden", "true");
+    placeSearchTarget = null;
+}
+
+function searchPlaces() {
+    const input = document.getElementById("placeSearchInput");
+    const results = document.getElementById("placeSearchResults");
+    const query = input.value.trim();
+
+    if (!query) {
+        alert("검색할 장소를 입력해주세요.");
+        return;
+    }
+
+    results.innerHTML = '<p class="place-search-empty">' + tpIcon("search") + ' 검색 중...</p>';
+
+    fetch(`/schedule_place_search/?query=${encodeURIComponent(query)}`)
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("장소 검색 요청에 실패했습니다.");
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            results.innerHTML = "";
+
+            const places = Array.isArray(data.places) ? data.places : [];
+
+            if (places.length === 0) {
+                results.innerHTML = '<p class="place-search-empty">검색 결과가 없습니다.</p>';
+                return;
+            }
+
+            places.forEach(function (place) {
+                const row = document.createElement("div");
+                row.className = "place-search-result";
+
+                const imageArea = document.createElement("div");
+                imageArea.className = "place-result-image";
+
+                if (place.image) {
+                    const img = document.createElement("img");
+                    img.src = place.image;
+                    img.alt = place.name || "";
+                    imageArea.appendChild(img);
+                } else {
+                    const noImage = document.createElement("div");
+                    noImage.className = "no-place-image";
+                    noImage.innerHTML = tpIcon("pin");
+                    imageArea.appendChild(noImage);
+                }
+
+                const info = document.createElement("div");
+                info.className = "place-result-info";
+
+                const name = document.createElement("h3");
+                name.textContent = place.name || "";
+
+                const address = document.createElement("p");
+                address.textContent = place.address || "주소 정보 없음";
+
+                const category = document.createElement("p");
+                category.textContent = place.category || "";
+                category.insertAdjacentHTML("afterbegin", tpIcon("tag") + " ");
+
+                info.appendChild(name);
+                info.appendChild(address);
+                info.appendChild(category);
+
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "place-select-btn";
+                button.textContent = "선택";
+                button.addEventListener("click", function () {
+                    selectPlace(place);
+                });
+
+                row.appendChild(imageArea);
+                row.appendChild(info);
+                row.appendChild(button);
+                results.appendChild(row);
+            });
+        })
+        .catch(function (error) {
+            console.error("장소 검색 오류:", error);
+            results.innerHTML = '<p class="place-search-empty">검색 중 오류가 발생했습니다.</p>';
+        });
+}
+
+function selectPlace(place) {
+    if (!placeSearchTarget) {
+        return;
+    }
+
+    const lat = place.y || place.lat || "";
+    const lon = place.x || place.lon || "";
+
+    if (placeSearchTarget.type === "start") {
+        document.getElementById("start_place").value = place.name || "";
+        document.getElementById("start_addr").value = place.address || "";
+        document.getElementById("start_lat").value = lat;
+        document.getElementById("start_lon").value = lon;
+
+        document.getElementById("startPlaceSearchInput").value = place.name || "";
+        document.getElementById("startPlaceSelectedName").textContent = place.name || "";
+        document.getElementById("startPlaceSelectedAddress").textContent = place.address || "";
+        document.getElementById("startPlaceSelected").classList.add("active");
+    } else {
+        const index = placeSearchTarget.dayIndex;
+
+        document.getElementById(`stay_name_${index}`).value = place.name || "";
+        document.getElementById(`stay_addr_${index}`).value = place.address || "";
+        document.getElementById(`stay_lat_${index}`).value = lat;
+        document.getElementById(`stay_lon_${index}`).value = lon;
+
+        document.getElementById(`staySearchInput_${index}`).value = place.name || "";
+        document.getElementById(`staySelectedName_${index}`).textContent = place.name || "";
+        document.getElementById(`staySelectedAddress_${index}`).textContent = place.address || "";
+        document.getElementById(`staySelected_${index}`).classList.add("active");
+    }
+
+    closePlaceSearch();
+}
+
+function updateEndDate() {
+    const startInput = document.getElementById("t_start");
+    const endInput = document.getElementById("t_end");
+    const startValue = startInput.value;
+
+    if (!startValue) {
+        endInput.disabled = true;
+        endInput.value = "";
+        endInput.removeAttribute("min");
+        rebuildDayPlanRows();
+        return;
+    }
+
+    endInput.disabled = false;
+
+    const startDate = parseLocalDate(startValue);
+
+    // 당일 여행도 가능하도록 종료일의 최소값을 시작일과 동일하게 설정
+    const minEndDate = formatDateValue(startDate);
+    endInput.min = minEndDate;
+
+    if (endInput.value && endInput.value < minEndDate) {
+        endInput.value = "";
+    }
+
+    rebuildDayPlanRows();
+}
+
+document.addEventListener("click", function (event) {
+    if (
+        activeSchedulePicker
+        && !activeSchedulePicker.contains(event.target)
+        && !event.target.closest(".time-picker-trigger")
+    ) {
+        closeSchedulePicker();
+    }
+});
+
+document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+        closeSchedulePicker();
+        closePlaceSearch();
+    }
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+    const startInput = document.getElementById("t_start");
+    const endInput = document.getElementById("t_end");
+    const placeSearchInput = document.getElementById("placeSearchInput");
+    const modal = document.getElementById("placeSearchModal");
+    const form = document.getElementById("travelCreateForm");
+
+    const today = new Date();
+    startInput.min = formatDateValue(today);
+
+    startInput.addEventListener("change", updateEndDate);
+    endInput.addEventListener("change", rebuildDayPlanRows);
+
+    placeSearchInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            searchPlaces();
+        }
+    });
+
+form.addEventListener("keydown", function (event) {
+
+    if (event.key !== "Enter") {
+        return;
+    }
+
+    const target = event.target;
+
+    // 출발지 검색
+    if (target.id === "startPlaceSearchInput") {
+        event.preventDefault();
+        openPlaceSearch("start");
+        return;
+    }
+
+    // 숙소 검색
+    const stayMatch =
+        target.id.match(/^staySearchInput_(\d+)$/);
+
+    if (stayMatch) {
+        event.preventDefault();
+
+        const dayIndex =
+            Number(stayMatch[1]);
+
+        openPlaceSearch(
+            "stay",
+            dayIndex
+        );
+
+        return;
+    }
+
+    // 그 외 입력칸에서 Enter 눌러도
+    // 여행 만들기가 실행되지 않도록 막음
+    if (target.tagName === "INPUT") {
+        event.preventDefault();
+    }
+});
+
+    modal.addEventListener("click", function (event) {
+        if (event.target === modal) {
+            closePlaceSearch();
+        }
+    });
+
+    form.addEventListener("submit", function (event) {
+        if (!document.getElementById("start_place").value) {
+            event.preventDefault();
+            alert("출발지를 검색해서 선택해주세요.");
+            return;
+        }
+
+        const startDate =
+            document.getElementById("t_start").value;
+
+        const endDate =
+            document.getElementById("t_end").value;
+
+        const firstStay =
+            document.getElementById("stay_name_0");
+
+        // 당일 여행은 숙소가 필요하지 않음.
+        // 1박 이상 여행일 때만 첫날 숙소를 필수로 검사한다.
+        if (
+            startDate !== endDate
+            && firstStay
+            && !firstStay.value
+        ) {
+            event.preventDefault();
+            alert("1일차 숙소를 검색해서 선택해주세요.");
+        }
+    });
+
+    updateEndDate();
+});
+</script>
+{% endif %}
+</body>
+</html>
