@@ -1,0 +1,17 @@
+{
+  "reply": {"text": "날짜를 반영했어요 ...", "notes": ["weather", "closed:1"]},
+  "facts": {"region": "부산", "nights": 2, "start": "2026-10-28", "people": 2,
+            "stay": {"name": "○○ 게스트하우스", "source": "recommended"},
+            "arrival": null},
+  "hint": "arrival",
+  "plan": {"days": [
+    {"day": 1, "date": "2026-10-28", "weather": {"kind": "sun", "temp": 21},
+     "excluded": [{"name": "△△ 갤러리", "reason": "weekly_off"}],
+     "stops": [{"time": "10:30", "spot_id": 12, "name": "부산역", "kind": "arrive",
+                "lat": 35.115, "lon": 129.041, "move_min": null, "cost": {"amount": 0, "cat": "move", "source": "ai"}}]}
+  ]},
+  "places": null, "transport": null,
+  "budget": {"total": 500000, "planned": 547200,
+             "limit": {"stay": 120000, "move": 200000, "food": 130000, "cafe": 20000, "ticket": 30000},
+             "by": {"stay": 110000, "move": 197200, "food": 172000, "cafe": 12000, "ticket": 56000}}
+}
