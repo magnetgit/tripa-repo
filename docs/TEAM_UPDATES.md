@@ -10,6 +10,12 @@
 
 ---
 
+## 2026-10-29 · `call_llm`을 LangChain으로 교체 — 🟩 서지윤
+- `chat_service.call_llm`이 `requests` 대신 LangChain(`ChatOpenAI`)으로 AI를 부름. 함수 이름·인자·반환값·오류 문구는 그대로
+- `requirements.txt`에 `langchain-core`, `langchain-openai` 추가 → **pull 뒤 `pip install -r pj_django/requirements.txt`**
+- 🟧 영향 없음 (`run_chat_turn` 입출력 그대로) · 🟦 영향 없음 (응답 키 그대로)
+
+
 ## 2026-10-29 · 목업 개편 (예산 성향 삭제, 리뷰 게시판, 폰·태블릿·앱) — 🟧 이수한
 
 ### 바뀐 결정
