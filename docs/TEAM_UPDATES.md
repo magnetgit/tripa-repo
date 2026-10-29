@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-10-29 · `mock.json`을 돌려주는 API 주소 추가 — 🟧 이수한
+가이드 🟧 3번. 지금은 **고정된 `mock.json` 내용을 그대로** 돌려줍니다. 화면·AI를 진짜 주소에 먼저 붙이고, 백엔드가 실제 값으로 하나씩 바꿀 예정이에요.
+
+| 주소 | 방식 | 언제 | 지금 응답 |
+|---|---|---|---|
+| `/api/chat/` | POST | 적용 전 대화 (여행 id 없음) | `mock.json` |
+| `/api/trips/<id>/` | GET | 저장된 여행 열기 (id는 아무 숫자나) | `mock.json` |
+
+- 로그인 필요: 아니면 `401` (기존 `travel_chat/`과 같은 오류 모양 `{ok: false, error, login: true}`)
+- `/api/chat/`은 POST 전용 (GET은 `405`). POST에는 기존 채팅처럼 `X-CSRFToken` 헤더 필요
+- 기존 `travel_chat/`·`travel_chat_apply/`·`travel_chat_preview/`는 **그대로**. 새 주소는 추가만 함
+- 코드: `urls.py`의 `api_chat`·`api_trip`, `views.py`의 `_read_mock()`(여기만 실제 계산으로 바꾸면 됨)
+
+### 🟦 프론트
+- [ ] 화면을 이 주소에 붙여 `mock.json` 키(`reply`, `facts`, `hint`, `plan`, `places`, `transport`, `budget`)로 그리기 시험. 기존 `travel_chat/` 화면은 그대로 두고 따로 시험
+
+### 🟩 AI
+- [ ] `run_chat_turn` 출력을 이 응답 모양으로 맞추는 작업의 기준 주소. 백엔드가 `_read_mock()` 자리를 AI 결과로 바꿀 때 함께 확인
+
 ## 2026-10-29 · 채팅 임시 저장을 회원별로 나누기 (결정) — 🟧 이수한
 배경: 여행은 지금처럼 **"이 일정 적용하기" 때 생성**하고, 그 전 대화·초안은 브라우저 탭 `sessionStorage`(`tripa_chat_v1`)에 임시 저장하는 방식을 유지하기로 함. 다만 같은 탭에서 로그아웃 → 다른 계정 로그인 시 **앞 사람 초안이 보이고, 적용하면 뒷사람 여행으로 저장되는** 문제가 있어 저장 이름에 회원 구분값을 넣기로 결정.
 

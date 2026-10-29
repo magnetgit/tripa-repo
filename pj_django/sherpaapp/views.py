@@ -4696,6 +4696,30 @@ def _decimal_or_none(value):
     return Decimal(str(value))
 
 
+def _read_mock():
+    mock_path = settings.BASE_DIR.parent/'mock.json'
+    with open(mock_path, encoding='utf-8') as f:
+        data = json.load(f)
+    return data
+
+
+@require_POST
+def api_chat(request):
+    member = _chat_member(request)
+    if not member:
+        return _chat_error('로그인이 필요해요.', 401, login=True)
+    data = _read_mock()
+    return JsonResponse(data, json_dumps_params={'ensure_ascii': False})
+
+
+def api_trip(request, trip_id):
+    member = _chat_member(request)
+    if not member:
+        return _chat_error('로그인이 필요해요.', 401, login=True)
+    data = _read_mock()
+    return JsonResponse(data, json_dumps_params={'ensure_ascii': False})
+
+
 @require_POST
 def travel_chat(request):
     member = _chat_member(request)
