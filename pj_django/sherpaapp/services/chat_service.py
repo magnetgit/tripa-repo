@@ -84,6 +84,26 @@ def _parse_date(value):
         return None
 
 
+def _to_future(day, today):
+    """연도를 잘못 적은 지난 날짜를, 오늘 이후 가장 가까운 같은 월·일로 옮긴다.
+
+    AI가 '11월 14일'을 2023-11-14처럼 옛 연도로 적는 경우를 바로잡는다.
+    """
+    if not day or day >= today:
+        return day
+
+    for year in (today.year, today.year + 1):
+        try:
+            moved = day.replace(year=year)
+        except ValueError:  # 2월 29일이 없는 해
+            continue
+
+        if moved >= today:
+            return moved
+
+    return None
+
+
 def _clean_time(value):
     if not isinstance(value, str):
         return None
@@ -246,8 +266,9 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
     draft['title'] = _clean_text(data.get('title'), 100)
 
     # ---- 날짜 ----
-    start = _parse_date(data.get('start'))
-    end = _parse_date(data.get('end'))
+    # AI가 연도를 옛날로 적어도(2023-11-14 등) 가장 가까운 미래 날짜로 맞춘다
+    start = _to_future(_parse_date(data.get('start')), today)
+    end = _to_future(_parse_date(data.get('end')), today)
 
     if start and start < today:
         notes.append('지난 날짜는 쓸 수 없어서 출발일을 비웠어요.')
@@ -793,6 +814,34 @@ def missing_fields(draft):
     return missing
 
 
+def next_hint(draft):
+    """지금 가장 먼저 물어볼 빈 항목 하나를 키로 돌려준다. 다 채워졌으면 'done'.
+
+    region(지역) → date(날짜) → concept(컨셉) → stay(숙소) → arrival(첫날 출발 시각) 순서.
+    stay·arrival은 비어 있어도 일정은 만들 수 있다. (ready에는 영향 없음)
+    """
+    if not draft.get('place'):
+        return 'region'
+
+    if not draft.get('start') or not draft.get('end'):
+        return 'date'
+
+    if not draft.get('categories'):
+        return 'concept'
+
+    start = _parse_date(draft.get('start'))
+    end = _parse_date(draft.get('end'))
+    nights = (end - start).days if start and end else 0
+
+    if nights > 0 and len(draft.get('stays') or []) < nights:
+        return 'stay'
+
+    if not draft.get('start_time'):
+        return 'arrival'
+
+    return 'done'
+
+
 _CHANGE_LABELS = (
     ('지역', ('place',)),
     ('날짜', ('start', 'end')),
@@ -1072,6 +1121,8 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
             'draft': prev,
             'missing': missing_fields(prev),
             'ready': not missing_fields(prev),
+            'ready': not missing_fields(prev),
+            'hint': next_hint(prev),
             'changed': [],
             'notes': [],
             'recommendation': None,
@@ -1134,6 +1185,8 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         'draft': new_draft,
         'missing': missing,
         'ready': not missing,
+        'ready': not missing,
+        'hint': next_hint(new_draft),
         'changed': changed_labels(prev, new_draft),
         'notes': notes,
         'recommendation': recommendation,
