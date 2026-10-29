@@ -10,6 +10,13 @@
 
 ---
 
+## 2026-10-29 · 채팅 응답에 `hint` 추가 — 🟩 서지윤
+- `travel_chat/` 응답에 `hint` 키 **추가** (기존 `missing`·`ready`는 그대로)
+- 값: `region`(지역) → `date`(날짜) → `concept`(컨셉) → `stay`(숙소 부족) → `arrival`(첫날 출발 시각) → `done`. 가장 먼저 물어볼 빈 항목 하나
+- `stay`·`arrival`은 비어 있어도 `ready`에는 영향 없음 (적용 버튼은 지금처럼)
+- 🟦 입력창 안내 문구를 `hint` 값별로 만들어 쓰면 됨 (문장은 화면이 언어별로) · 🟧 영향 없음
+
+
 ## 2026-10-29 · `call_llm`을 LangChain으로 교체 — 🟩 서지윤
 - `chat_service.call_llm`이 `requests` 대신 LangChain(`ChatOpenAI`)으로 AI를 부름. 함수 이름·인자·반환값·오류 문구는 그대로
 - `requirements.txt`에 `langchain-core`, `langchain-openai` 추가 → **pull 뒤 `pip install -r pj_django/requirements.txt`**

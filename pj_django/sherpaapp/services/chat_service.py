@@ -793,6 +793,34 @@ def missing_fields(draft):
     return missing
 
 
+def next_hint(draft):
+    """지금 가장 먼저 물어볼 빈 항목 하나를 키로 돌려준다. 다 채워졌으면 'done'.
+
+    region(지역) → date(날짜) → concept(컨셉) → stay(숙소) → arrival(첫날 출발 시각) 순서.
+    stay·arrival은 비어 있어도 일정은 만들 수 있다. (ready에는 영향 없음)
+    """
+    if not draft.get('place'):
+        return 'region'
+
+    if not draft.get('start') or not draft.get('end'):
+        return 'date'
+
+    if not draft.get('categories'):
+        return 'concept'
+
+    start = _parse_date(draft.get('start'))
+    end = _parse_date(draft.get('end'))
+    nights = (end - start).days if start and end else 0
+
+    if nights > 0 and len(draft.get('stays') or []) < nights:
+        return 'stay'
+
+    if not draft.get('start_time'):
+        return 'arrival'
+
+    return 'done'
+
+
 _CHANGE_LABELS = (
     ('지역', ('place',)),
     ('날짜', ('start', 'end')),
@@ -1072,6 +1100,8 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
             'draft': prev,
             'missing': missing_fields(prev),
             'ready': not missing_fields(prev),
+            'ready': not missing_fields(prev),
+            'hint': next_hint(prev),
             'changed': [],
             'notes': [],
             'recommendation': None,
@@ -1134,6 +1164,8 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         'draft': new_draft,
         'missing': missing,
         'ready': not missing,
+        'ready': not missing,
+        'hint': next_hint(new_draft),
         'changed': changed_labels(prev, new_draft),
         'notes': notes,
         'recommendation': recommendation,
