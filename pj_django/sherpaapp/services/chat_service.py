@@ -84,6 +84,26 @@ def _parse_date(value):
         return None
 
 
+def _to_future(day, today):
+    """연도를 잘못 적은 지난 날짜를, 오늘 이후 가장 가까운 같은 월·일로 옮긴다.
+
+    AI가 '11월 14일'을 2023-11-14처럼 옛 연도로 적는 경우를 바로잡는다.
+    """
+    if not day or day >= today:
+        return day
+
+    for year in (today.year, today.year + 1):
+        try:
+            moved = day.replace(year=year)
+        except ValueError:  # 2월 29일이 없는 해
+            continue
+
+        if moved >= today:
+            return moved
+
+    return None
+
+
 def _clean_time(value):
     if not isinstance(value, str):
         return None
@@ -246,8 +266,9 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
     draft['title'] = _clean_text(data.get('title'), 100)
 
     # ---- 날짜 ----
-    start = _parse_date(data.get('start'))
-    end = _parse_date(data.get('end'))
+    # AI가 연도를 옛날로 적어도(2023-11-14 등) 가장 가까운 미래 날짜로 맞춘다
+    start = _to_future(_parse_date(data.get('start')), today)
+    end = _to_future(_parse_date(data.get('end')), today)
 
     if start and start < today:
         notes.append('지난 날짜는 쓸 수 없어서 출발일을 비웠어요.')
