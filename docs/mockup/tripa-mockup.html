@@ -1,0 +1,1899 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>TRIPA 화면 목업</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: 상단 앱 바 + 목업 화면 탭 + 각 화면. PC 채팅 화면은 대화 | 일정 | 지도 3단, 좁으면 세로로 쌓임. 모바일 탭은 휴대폰 세로 프레임 3장. */
+:root {
+  /* 옛 버전(1차 TRIPA) style.css 색 기준 */
+  --bg: #F5F7FB;
+  --surface: #FFFFFF;
+  --surface-2: #EEF3FF;
+  --ink: #333333;
+  --ink-strong: #1F2D4A;
+  --muted: #5B6B88;
+  --line: #E4E8F0;
+  --accent: #2D6CDF;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #EEF3FF;
+  --sun: #B26A00;
+  --sun-soft: #FFF3E0;
+  --rain: #2F63A8;
+  --rain-soft: #E8EEF9;
+  --stop: #E5484D;
+  --stop-soft: #FDECEC;
+  --cat-stay: #2D6CDF;
+  --cat-move: #6B5BD6;
+  --cat-food: #E08A1E;
+  --cat-ticket: #12A594;
+  --font-display: "Noto Sans KR", Arial, sans-serif;
+  --font-body: "Noto Sans KR", Arial, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1420; --surface: #171E2C; --surface-2: #1E2A40; --ink: #E4E9F2; --ink-strong: #F2F5FA; --muted: #9AA8C2; --line: #2A3548;
+    --accent: #6A9BF0; --accent-ink: #0B1628; --accent-soft: #1C2C4A;
+    --sun: #F0B35A; --sun-soft: #3A2C16; --rain: #7EA8E3; --rain-soft: #1A2A40; --stop: #F07A7E; --stop-soft: #3A1E20;
+    --cat-stay: #6A9BF0; --cat-move: #A99BF0; --cat-food: #F0B35A; --cat-ticket: #4CC9B0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1420; --surface: #171E2C; --surface-2: #1E2A40; --ink: #E4E9F2; --ink-strong: #F2F5FA; --muted: #9AA8C2; --line: #2A3548;
+    --accent: #6A9BF0; --accent-ink: #0B1628; --accent-soft: #1C2C4A;
+    --sun: #F0B35A; --sun-soft: #3A2C16; --rain: #7EA8E3; --rain-soft: #1A2A40; --stop: #F07A7E; --stop-soft: #3A1E20;
+    --cat-stay: #6A9BF0; --cat-move: #A99BF0; --cat-food: #F0B35A; --cat-ticket: #4CC9B0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.ic { width: 18px; height: 18px; flex: none; vertical-align: -3px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ic.lg { width: 28px; height: 28px; }
+.wi { display: inline-flex; align-items: center; gap: 6px; }
+
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); max-width: 1240px; margin: 0 auto; }
+
+.appbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.appbar .wrap { display: flex; align-items: center; gap: 16px; padding-block: 12px; flex-wrap: wrap; }
+.logo { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: 0.02em; display: flex; align-items: baseline; gap: 6px; }
+.logo b { color: var(--accent); }
+.logo small { font-family: var(--font-body); font-size: 12px; color: var(--muted); letter-spacing: 0; }
+.appbar nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.appbar nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+.appbar nav a:hover { color: var(--ink); background: var(--surface-2); }
+.lang { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.lang .grp { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.lang button { border: 0; background: transparent; padding: 4px 12px; font-size: 13px; cursor: pointer; color: var(--muted); }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+.mockbar { border-bottom: 1px dashed var(--line); }
+.mockbar .wrap { display: flex; gap: 8px; align-items: center; padding-block: 10px; overflow-x: auto; }
+.mockbar span { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap; }
+.mockbar button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.mockbar button[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+main .wrap { padding-block: 28px 48px; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-strong); text-wrap: balance; margin: 0; }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+.eyebrow { font-size: 12px; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; }
+
+/* 메인 */
+.hero { display: grid; gap: 28px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
+.hero h1 { font-size: clamp(28px, 4.2vw, 44px); line-height: 1.25; }
+.hero p.lead { color: var(--muted); max-width: 34em; margin: 12px 0 0; }
+.ask { margin-top: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+.ask .small { font-size: 13px; color: var(--muted); }
+.budget { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 16px; cursor: pointer; font-size: 14px; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.askrow { display: flex; gap: 8px; }
+.askrow input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 12px 14px; }
+.btn { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 10px; padding: 10px 18px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.rotator { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-height: 36px; transition: opacity .25s; }
+.rotator button { border: 1px dashed var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+.ticket { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.ticket header { background: var(--accent); color: var(--accent-ink); padding: 12px 16px; display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-data); font-size: 13px; }
+.ticket .body { padding: 16px; display: grid; gap: 12px; }
+.ticket .route { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 22px; }
+.ticket .route i { flex: 1; border-top: 2px dotted var(--line); }
+.ticket ul { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 14px; display: grid; gap: 6px; }
+.how { margin-top: 36px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.how div { border-top: 2px solid var(--ink); padding-top: 10px; }
+.how strong { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.how p { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* 폼 */
+.formcard { max-width: 460px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
+.formcard h2 { font-size: 26px; display: flex; gap: 8px; align-items: center; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; font-weight: 600; }
+.field input, .field select { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 12px; width: 100%; }
+.req { color: var(--stop); }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.consent { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+.consent input { margin-top: 3px; }
+.formcard .msg { font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); margin: 0; }
+
+/* PC 채팅 */
+.chatgrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 0.8fr); align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.panel > h3 { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.panel > h3 .tag { font-weight: 500; font-size: 12px; color: var(--muted); }
+.msgs { padding: 16px; display: grid; gap: 12px; max-height: 540px; overflow-y: auto; }
+.bubble { max-width: 88%; padding: 10px 14px; border-radius: 14px; font-size: 14px; }
+.bubble.me { justify-self: end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+.bubble.ai { justify-self: start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+.bubble.ai small { display: flex; gap: 4px; align-items: center; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.bubble.ai small .ic { width: 14px; height: 14px; color: var(--accent); }
+.compare { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.compare th, .compare td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.compare td.num, .compare th.num { font-family: var(--font-data); text-align: right; font-variant-numeric: tabular-nums; }
+.compare tr.best td { color: var(--accent); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+.composer { border-top: 1px solid var(--line); padding: 12px 16px 14px; display: grid; gap: 6px; }
+.composer form { display: flex; gap: 8px; }
+.composer input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+.hint { font-size: 12px; color: var(--sun); display: flex; gap: 6px; align-items: center; margin: 0; }
+.hint .ic { width: 15px; height: 15px; }
+
+.facts { padding: 12px 16px; display: grid; grid-template-columns: auto auto 1fr; gap: 6px 8px; font-size: 14px; border-bottom: 1px solid var(--line); margin: 0; align-items: center; }
+.facts .ic { color: var(--muted); }
+.facts dt { color: var(--muted); font-size: 13px; }
+.facts dd { margin: 0; }
+.pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--sun-soft); color: var(--sun); margin-left: 6px; vertical-align: 1px; }
+.pill.ok { background: var(--accent-soft); color: var(--accent); }
+.days { display: flex; gap: 6px; padding: 12px 16px 0; flex-wrap: wrap; }
+.days button { border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; display: grid; text-align: left; }
+.days button[aria-selected="true"] { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.days small { font-size: 11px; opacity: 0.8; }
+.weather { margin: 12px 16px 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.weather.rain { background: var(--rain-soft); color: var(--rain); }
+.weather.sun { background: var(--sun-soft); color: var(--sun); }
+.weather.none { background: var(--surface-2); color: var(--muted); }
+.stops { list-style: none; margin: 0; padding: 12px 16px 16px; display: grid; }
+.stops li { display: grid; grid-template-columns: 48px 14px minmax(0, 1fr); gap: 10px; align-items: start; }
+.stops time { font-family: var(--font-data); font-size: 13px; color: var(--muted); padding-top: 10px; font-variant-numeric: tabular-nums; }
+.stops .dot { position: relative; align-self: stretch; }
+.stops .dot::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0; border-left: 2px solid var(--line); }
+.stops .dot::after { content: ""; position: absolute; left: 2px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+.stops li:first-child .dot::before { top: 14px; }
+.stops li:last-child .dot::before { bottom: calc(100% - 14px); }
+.stop { padding: 8px 0 12px; border-bottom: 1px solid var(--line); min-width: 0; }
+.stops li:last-child .stop { border-bottom: 0; }
+.stop strong { font-weight: 600; }
+.stop .meta { font-size: 12px; color: var(--muted); display: flex; gap: 4px; align-items: center; }
+.stop .meta .ic { width: 14px; height: 14px; }
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 4px; margin-left: 4px; display: inline-flex; gap: 3px; align-items: center; vertical-align: 1px; }
+.badge .ic { width: 12px; height: 12px; }
+.badge.indoor { background: var(--rain-soft); color: var(--rain); }
+.badge.stay { background: var(--accent-soft); color: var(--accent); }
+.excluded { margin: 0 16px 14px; padding: 8px 12px; border-radius: 8px; background: var(--stop-soft); color: var(--stop); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.applybar { display: flex; gap: 8px; padding: 0 16px 16px; flex-wrap: wrap; }
+.mapbox { padding: 12px; }
+.mapbox svg { width: 100%; height: auto; display: block; border-radius: 10px; }
+.legend { padding: 0 16px 16px; font-size: 13px; color: var(--muted); }
+
+.annot { margin-top: 20px; font-size: 13px; color: var(--muted); border-left: 3px solid var(--sun); padding: 4px 12px; max-width: 70ch; }
+
+/* 아이콘 규칙 */
+.icongrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.iconcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: center; }
+.iconcard .sw { width: 44px; height: 44px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.iconcard strong { display: block; font-size: 14px; }
+.iconcard span { font-size: 12px; color: var(--muted); }
+.iconcard code { font-family: var(--font-data); font-size: 11px; color: var(--muted); }
+.rules { margin: 0 0 20px; padding-left: 20px; max-width: 70ch; display: grid; gap: 4px; font-size: 14px; }
+
+/* 모바일 프레임 */
+.phones { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+.phonecol { display: grid; gap: 8px; justify-items: center; }
+.phonecol > p { margin: 0; font-size: 13px; color: var(--muted); }
+.phone { width: 300px; max-width: 100%; height: 620px; border: 8px solid var(--ink); border-radius: 36px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; position: relative; font-size: 13px; }
+.phone .notch { height: 22px; display: flex; justify-content: center; align-items: center; background: var(--surface); }
+.phone .notch i { width: 70px; height: 6px; border-radius: 4px; background: var(--line); }
+.ptop { background: var(--surface); border-bottom: 1px solid var(--line); padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ptop .logo { font-size: 17px; }
+.ptop .langmini { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+.ptop .langmini .ic { width: 14px; height: 14px; }
+.pbody { flex: 1; overflow-y: auto; padding: 14px; display: grid; gap: 12px; align-content: start; }
+.pbody h2 { font-size: 22px; line-height: 1.3; }
+.pbody .bubble { font-size: 13px; max-width: 90%; }
+.pbody .askrow input { padding: 10px; }
+.strip { display: flex; gap: 6px; overflow-x: auto; padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.strip span { display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
+.strip span .ic { width: 14px; height: 14px; color: var(--muted); }
+.strip span.todo { border-style: dashed; color: var(--sun); border-color: var(--sun); }
+.strip span.todo .ic { color: var(--sun); }
+.pcomposer { background: var(--surface); border-top: 1px solid var(--line); padding: 8px 12px; display: grid; gap: 4px; }
+.pcomposer div { display: flex; gap: 6px; }
+.pcomposer input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 12px; font-size: 13px; }
+.pcomposer button { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 999px; width: 36px; display: grid; place-items: center; }
+.pcomposer .hint { font-size: 11px; }
+.tabbar { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--line); padding: 6px 4px 10px; }
+.tabbar span { display: grid; justify-items: center; gap: 2px; font-size: 10px; color: var(--muted); }
+.tabbar span.on { color: var(--accent); font-weight: 600; }
+.tabbar .ic { width: 20px; height: 20px; }
+.pday { display: flex; gap: 4px; }
+.pday span { flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 8px; padding: 4px 0; font-size: 12px; }
+.pday span.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.pbody .stops { padding: 0; }
+.pbody .stops li { grid-template-columns: 40px 14px minmax(0, 1fr); gap: 8px; }
+.pbody .weather, .pbody .excluded { margin: 0; }
+.psticky { background: var(--surface); border-top: 1px solid var(--line); padding: 10px 14px; display: flex; gap: 8px; }
+.psticky .btn { flex: 1; padding: 10px; }
+
+/* 장소 추천 카드 */
+.bubble.ai.wide { max-width: 96%; }
+.recs { display: grid; gap: 8px; margin-top: 10px; }
+.rec { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.rec.off { opacity: 0.7; }
+.rec .thumb { width: 52px; height: 52px; border-radius: 10px; display: grid; place-items: center; background: var(--sun-soft); color: var(--cat-food); }
+.rec .thumb .ic { width: 24px; height: 24px; }
+.rec .nm { font-weight: 600; font-size: 14px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.rec .sub { font-size: 12px; color: var(--muted); display: flex; gap: 4px 10px; flex-wrap: wrap; margin-top: 2px; }
+.rec .sub span { display: inline-flex; gap: 3px; align-items: center; }
+.rec .sub .ic { width: 13px; height: 13px; }
+.rec .state { font-size: 12px; margin-top: 4px; display: inline-flex; gap: 4px; align-items: center; }
+.rec .state .ic { width: 13px; height: 13px; }
+.rec .state.open { color: var(--accent); }
+.rec .state.closed { color: var(--stop); }
+.rec .state.unknown { color: var(--sun); }
+.rec .park { font-size: 12px; margin-top: 3px; display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
+.rec .park .ic { width: 13px; height: 13px; }
+.rec .park.good { color: var(--rain); font-weight: 600; }
+.rec .park.hard { color: var(--stop); }
+.rec.hi { border-color: var(--rain); }
+.recbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+.recbar .chip { padding: 4px 10px; font-size: 12px; display: inline-flex; gap: 4px; align-items: center; }
+.recbar .chip .ic { width: 14px; height: 14px; }
+.crowd { font-size: 12px; display: inline-flex; gap: 4px; align-items: center; margin-top: 3px; }
+.crowd .ic { width: 13px; height: 13px; }
+.crowd.busy { color: var(--stop); }
+.crowd.mid { color: var(--sun); }
+.crowd.calm { color: var(--accent); }
+.crowd b { font-weight: 600; }
+.rec .acts { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.rec .acts .btn { padding: 6px 12px; font-size: 12px; display: inline-flex; gap: 4px; align-items: center; }
+.rec .acts .btn .ic { width: 14px; height: 14px; }
+.rec .acts .btn:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+.rec .acts .btn.done { background: var(--accent-soft); color: var(--accent); }
+
+/* 예산 */
+.budgetstrip { margin: 12px 16px 0; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); display: grid; gap: 8px; }
+.budgetstrip .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.budgetstrip .row b { font-family: var(--font-data); font-size: 15px; font-variant-numeric: tabular-nums; }
+.budgetstrip button.link { border: 0; background: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0; display: inline-flex; gap: 4px; align-items: center; }
+.bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--line); position: relative; }
+.bar i { display: block; height: 100%; }
+.bar .cap { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.over { color: var(--stop); font-weight: 600; }
+.under { color: var(--accent); font-weight: 600; }
+.cost { margin-left: auto; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 1px 10px; font-family: var(--font-data); font-size: 12px; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.cost small { font-family: var(--font-body); font-size: 10px; color: var(--muted); }
+.cost.user small { color: var(--accent); }
+.cost.free { color: var(--muted); cursor: default; }
+.costedit { margin-left: auto; width: 110px; border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px; font-family: var(--font-data); font-size: 12px; background: var(--bg); }
+.stop .head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.daytotal { margin: 0 16px 14px; display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 10px; }
+.daytotal b { font-family: var(--font-data); color: var(--ink); font-variant-numeric: tabular-nums; }
+.budgetgrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: start; }
+.bigs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 16px; }
+.bigs div { display: grid; gap: 2px; }
+.bigs span { font-size: 12px; color: var(--muted); }
+.bigs b { font-family: var(--font-data); font-size: 22px; font-variant-numeric: tabular-nums; }
+.budgetinput { padding: 0 16px 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.budgetinput label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.budgetinput input { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: var(--font-data); font-size: 15px; width: 160px; }
+.budgetinput .per { font-size: 13px; padding-bottom: 8px; }
+.catlist { list-style: none; margin: 0; padding: 0 16px 16px; display: grid; gap: 8px; }
+.catlist li { display: grid; grid-template-columns: 14px 20px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 14px; }
+.catlist .sw { width: 10px; height: 10px; border-radius: 3px; }
+.catlist b { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.catlist em { font-style: normal; font-size: 12px; color: var(--muted); width: 40px; text-align: right; }
+.suggest { margin: 0 16px 16px; padding: 12px 14px; border-radius: 10px; background: var(--sun-soft); display: grid; gap: 10px; font-size: 14px; }
+.suggest.ok { background: var(--accent-soft); }
+.suggest p { margin: 0; display: flex; gap: 8px; align-items: flex-start; }
+.suggest .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.suggest .btn { padding: 6px 14px; font-size: 13px; }
+.costtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.costtable th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; padding: 10px 8px 6px; border-bottom: 1px solid var(--line); }
+.costtable td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.costtable tr.dayrow td { background: var(--surface-2); font-weight: 600; font-size: 13px; }
+.costtable td.num { text-align: right; white-space: nowrap; }
+.costtable input { width: 104px; text-align: right; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 4px 6px; font-family: var(--font-data); font-size: 13px; font-variant-numeric: tabular-nums; }
+.costtable input:hover, .costtable input:focus { border-color: var(--line); background: var(--bg); }
+.costtable .src { font-size: 11px; color: var(--muted); }
+.costtable .src.user { color: var(--accent); }
+.costtable .nm { display: flex; gap: 6px; align-items: center; }
+.pbudget { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.pbudget .row { display: flex; justify-content: space-between; font-size: 12px; }
+.pbudget b { font-family: var(--font-data); }
+
+/* AI 비용 예측 근거 */
+.aipanel { margin-top: 16px; }
+.pipe { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.pipe span { display: inline-flex; gap: 4px; align-items: center; background: var(--surface-2); border-radius: 999px; padding: 3px 10px; }
+.pipe span .ic { width: 14px; height: 14px; }
+.pipe i { font-style: normal; }
+.predbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 16px 0; }
+.predbar .chip { padding: 4px 12px; font-size: 13px; }
+.predgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 12px 16px 16px; }
+.pred { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.pred .top { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.pred .top strong { font-size: 14px; min-width: 0; }
+.pred .sw { width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center; background: var(--surface-2); }
+.pred .sw .ic { width: 16px; height: 16px; }
+.pred .amt { font-family: var(--font-data); font-size: 18px; font-variant-numeric: tabular-nums; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.pred .amt small { font-family: var(--font-body); font-size: 12px; color: var(--muted); }
+.pred p { margin: 0; font-size: 13px; }
+.pred .srcline { font-size: 11px; color: var(--muted); display: flex; gap: 4px; align-items: center; }
+.pred .srcline .ic { width: 12px; height: 12px; }
+.conf { font-size: 11px; border-radius: 999px; padding: 1px 8px; margin-left: auto; white-space: nowrap; flex: none; }
+.conf.official { background: var(--accent-soft); color: var(--accent); }
+.conf.market { background: var(--rain-soft); color: var(--rain); }
+.conf.avg { background: var(--sun-soft); color: var(--sun); }
+.conf.low { background: var(--stop-soft); color: var(--stop); }
+.predsum { margin: 0 16px 16px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.predsum b { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* 예산 성향별 추천 기준 */
+.stylehead { display: grid; gap: 12px; margin-bottom: 16px; }
+.stylehead .ask { margin-top: 0; }
+.stylehead .askline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.stylehead .askline .bubble { max-width: none; }
+.rulebox { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; }
+.rulebox h3 { margin: 0; font-size: 15px; display: flex; gap: 6px; align-items: center; }
+.rulebox ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+.rulebox .formula { font-family: var(--font-data); font-size: 12px; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; color: var(--ink); overflow-x: auto; white-space: nowrap; }
+.stylegrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.picks { padding: 12px 16px 16px; display: grid; gap: 10px; }
+.pick { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; }
+.pick .rank { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-family: var(--font-data); font-size: 14px; }
+.pick.later .rank { background: var(--surface-2); color: var(--muted); }
+.pick.out { opacity: 0.75; border-style: dashed; }
+.pick.out .rank { background: var(--stop-soft); color: var(--stop); }
+.pick .nm { font-weight: 600; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pick .nums { display: flex; gap: 4px 12px; flex-wrap: wrap; font-size: 13px; margin-top: 2px; }
+.pick .nums span { display: inline-flex; gap: 4px; align-items: center; }
+.pick .nums b { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.pick .nums .ic { width: 14px; height: 14px; color: var(--muted); }
+.kw { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.kw span { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.kw span.neg { background: var(--stop-soft); color: var(--stop); }
+.kw span.none { background: var(--surface-2); color: var(--muted); }
+.pick .why { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.pick .why b { color: var(--ink); font-weight: 600; }
+.scorebar { height: 6px; border-radius: 999px; background: var(--line); margin-top: 6px; overflow: hidden; }
+.scorebar i { display: block; height: 100%; background: var(--accent); }
+.sublabel { font-size: 12px; color: var(--muted); margin: 4px 0 0; letter-spacing: 0.04em; }
+.feas { margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 10px; }
+.feas h3 { margin: 0; font-size: 15px; display: flex; gap: 6px; align-items: center; }
+.feas table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.feas th, .feas td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.feas th { font-size: 12px; color: var(--muted); font-weight: 500; }
+.ok2 { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.mid2 { color: var(--sun); font-weight: 600; white-space: nowrap; }
+.no2 { color: var(--stop); font-weight: 600; white-space: nowrap; }
+@media (max-width: 760px) { .stylegrid { grid-template-columns: minmax(0, 1fr); } }
+
+/* 카테고리 예산 */
+.cattop { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.alloc { padding: 12px 16px 16px; display: grid; gap: 10px; }
+.allocrow { display: grid; grid-template-columns: 20px minmax(0, 1fr) 130px; gap: 10px; align-items: center; font-size: 14px; }
+.allocrow .ic { color: var(--muted); }
+.allocrow input { width: 100%; text-align: right; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 8px; font-family: var(--font-data); font-size: 14px; font-variant-numeric: tabular-nums; }
+.allocrow small { display: block; font-size: 11px; color: var(--muted); }
+.allocsum { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.allocsum b { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.allocacts { display: flex; gap: 8px; flex-wrap: wrap; }
+.allocacts .btn { padding: 6px 14px; font-size: 13px; }
+.flow { padding: 12px 16px 16px; display: grid; gap: 8px; font-size: 14px; }
+.flow ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.flow .formula { font-family: var(--font-data); font-size: 12px; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; white-space: normal; }
+.catcards { margin-top: 16px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.catcard .head2 { padding: 12px 16px 0; display: grid; gap: 6px; }
+.catcard .nums2 { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.catcard .nums2 b { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.catcard .bar i.fill { background: var(--accent); }
+.catcard .bar i.overfill { background: var(--stop); }
+.catcard .guide { margin: 8px 16px 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: 12px; display: flex; gap: 6px; align-items: flex-start; }
+.catcard .guide .ic { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--accent); }
+.slots { list-style: none; margin: 0; padding: 8px 16px 12px; display: grid; }
+.slots li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; align-items: center; }
+.slots li:last-child { border-bottom: 0; }
+.slots .when { font-size: 11px; color: var(--muted); display: block; }
+.slots .amt2 { font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.slots .amt2 small { display: block; font-family: var(--font-body); font-size: 10px; color: var(--muted); }
+.slots li.swapped .amt2 { color: var(--accent); }
+.slots li.hot .amt2 { color: var(--stop); }
+.catcard .suggest { margin: 0 16px 16px; }
+@media (max-width: 760px) { .cattop { grid-template-columns: minmax(0, 1fr); } .catcards { grid-template-columns: minmax(0, 1fr); } }
+
+/* 옛 버전 왼쪽 메뉴 */
+.shellwrap.has-side { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.side { position: sticky; top: 112px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px 16px; display: flex; flex-direction: column; gap: 6px; min-height: 520px; }
+.side-logo { font-weight: 700; font-size: 24px; color: var(--accent); text-decoration: none; display: flex; gap: 6px; align-items: center; margin-bottom: 18px; }
+.side-logo .ic { width: 24px; height: 24px; }
+.side-title { font-size: 12px; color: var(--muted); margin: 0 0 6px; letter-spacing: 0.08em; }
+.side-menu { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.side-menu a { display: flex; gap: 8px; align-items: center; padding: 11px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 15px; }
+.side-menu a:hover { background: var(--accent-soft); color: var(--accent); }
+.side-menu a.active { background: var(--accent); color: var(--accent-ink); }
+.newtag { font-style: normal; font-size: 10px; margin-left: auto; padding: 1px 6px; border-radius: 999px; background: var(--stop); color: #fff; }
+.side-note { font-size: 11px; color: var(--muted); margin: 8px 4px 0; }
+.side-user { margin-top: auto; display: flex; gap: 8px; align-items: center; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; text-decoration: none; font-size: 14px; }
+.viewarea { min-width: 0; }
+
+/* 리뷰 게시판 */
+.boardhead { display: grid; gap: 6px; margin-bottom: 16px; }
+.boardhead h2 { font-size: 26px; }
+.boardbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.boardbar .chip { padding: 5px 14px; font-size: 13px; }
+.boardbar select { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.boardgrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: start; }
+.boardside { display: grid; gap: 16px; }
+.reviews { display: grid; }
+.review { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.review:last-child { border-bottom: 0; }
+.review .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.review .top strong { font-size: 15px; }
+.review .catchip { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.review .verified { font-size: 11px; color: var(--accent); display: inline-flex; gap: 3px; align-items: center; margin-left: auto; }
+.review .verified .ic { width: 13px; height: 13px; }
+.review .meta2 { font-size: 12px; color: var(--muted); }
+.review p { margin: 0; font-size: 14px; }
+.review .acts2 { display: flex; gap: 6px; align-items: center; }
+.review .acts2 button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.review .acts2 button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.starrow { color: #F5A524; display: inline-flex; gap: 1px; }
+.starrow .ic { width: 15px; height: 15px; fill: currentColor; stroke: none; }
+.starrow .off { color: var(--line); }
+.writebox { padding-bottom: 16px; }
+.writebox .field { padding: 10px 16px 0; }
+.writebox .btn { margin: 12px 16px 0; }
+.writebox .msg { margin: 10px 16px 0; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); }
+.stars { display: flex; gap: 4px; }
+.stars button { border: 0; background: none; padding: 2px; cursor: pointer; color: var(--line); }
+.stars button.on { color: #F5A524; }
+.stars .ic { width: 24px; height: 24px; fill: currentColor; stroke: none; }
+.seg .chip { padding: 4px 12px; font-size: 13px; }
+
+
+/* 폰 지도 화면 */
+.mmap { flex: 1; position: relative; min-height: 0; background: var(--surface-2); overflow: hidden; }
+.mmap-top { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 2; }
+.mmap-top .pday span { background: var(--surface); cursor: pointer; }
+.mmap-top .pday span.on { background: var(--ink-strong); color: #fff; }
+.mmap-canvas svg { width: 100%; height: 100%; display: block; }
+.mmap-canvas { position: absolute; inset: 0; }
+.kakaotag { position: absolute; left: 8px; bottom: 168px; z-index: 2; font-size: 10px; background: rgba(255,255,255,.85); color: #555; padding: 1px 6px; border-radius: 4px; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 160px; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -4px 14px rgba(0,0,0,.12); padding: 6px 12px 8px; z-index: 3; overflow-y: auto; }
+.sheet .grab { display: block; width: 36px; height: 4px; border-radius: 4px; background: var(--line); margin: 0 auto 6px; }
+.sheet-h { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+.sheet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sheet-list li { display: grid; grid-template-columns: 20px 40px minmax(0, 1fr); gap: 6px; align-items: center; font-size: 12px; }
+.sheet-list b { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 10px; font-family: var(--font-data); }
+.sheet-list time { font-family: var(--font-data); color: var(--muted); font-size: 11px; }
+
+/* 태블릿 일정|지도 전환 */
+.tseg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 3px; }
+.tseg button { border: 0; background: transparent; border-radius: 8px; padding: 6px 0; font-size: 12px; cursor: pointer; color: var(--muted); display: inline-flex; gap: 4px; align-items: center; justify-content: center; }
+.tseg button .ic { width: 14px; height: 14px; }
+.tseg button[aria-selected="true"] { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+#t-plan { display: grid; gap: 10px; }
+#t-map { display: grid; gap: 8px; }
+#t-map[hidden] { display: none; }
+.tmap { height: 250px; border-radius: 10px; overflow: hidden; position: relative; }
+.tmap svg { width: 100%; height: 100%; display: block; }
+
+/* 태블릿·앱 */
+.tablet { width: 560px; max-width: 100%; height: 620px; border: 10px solid var(--ink-strong); border-radius: 26px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; font-size: 13px; }
+.tbody { flex: 1; display: grid; grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr); min-height: 0; }
+.rail { background: var(--surface); border-right: 1px solid var(--line); display: grid; align-content: start; gap: 6px; padding: 10px 6px; }
+.rail span { display: grid; place-items: center; height: 38px; border-radius: 10px; color: var(--muted); }
+.rail span.on { background: var(--accent); color: var(--accent-ink); }
+.tcol { padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; overflow: hidden; border-right: 1px solid var(--line); min-width: 0; }
+.tcol.chatcol { grid-template-rows: minmax(0, 1fr) auto; align-content: stretch; }
+.tcol .pcomposer { grid-template-columns: minmax(0, 1fr); padding: 8px 0 0; background: transparent; border-top: 1px solid var(--line); }
+.tcol .pcomposer input { width: 100%; }
+.tcol .msgs2 { display: grid; gap: 10px; align-content: start; overflow-y: auto; min-height: 0; }
+.tcol .bubble { font-size: 12px; max-width: 92%; overflow-wrap: anywhere; }
+.tcol .stops { padding: 0; }
+.tcol .stops li { grid-template-columns: 38px 14px minmax(0, 1fr); gap: 6px; }
+.tcol .weather { margin: 0; }
+.applock { background: linear-gradient(160deg, var(--accent) 0%, var(--ink-strong) 100%); color: #fff; align-content: start; }
+.applock .clock { font-size: 44px; font-weight: 300; text-align: center; margin: 10px 0 4px; }
+.push { background: rgba(255, 255, 255, 0.92); color: #1F2D4A; border-radius: 14px; padding: 10px 12px; display: grid; gap: 2px; font-size: 12px; }
+.push b { color: var(--accent); font-size: 11px; }
+.push b .ic { width: 13px; height: 13px; }
+.appicons { display: grid; justify-items: center; gap: 4px; margin-top: 16px; }
+.appicon { width: 56px; height: 56px; border-radius: 14px; background: #fff; color: #2D6CDF; display: grid; place-items: center; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.appicon .ic { width: 30px; height: 30px; }
+.appicons small { font-size: 11px; }
+.offline { font-size: 11px; justify-content: center; opacity: .9; margin: 6px 0 0; }
+
+@media (max-width: 1080px) {
+  .chatgrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .chatgrid .mapcol { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .hero, .how, .chatgrid, .budgetgrid { grid-template-columns: minmax(0, 1fr); }
+  .bigs b { font-size: 18px; }
+  .msgs { max-height: none; }
+  .appbar nav { order: 3; width: 100%; margin-left: 0; }
+  .shellwrap.has-side { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .boardgrid { grid-template-columns: minmax(0, 1fr); }
+  .lang { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 10h8M8 13h5"/></symbol>
+    <symbol id="i-plan" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M7.5 14h3M7.5 17h6"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="i-stay" viewBox="0 0 24 24"><path d="M3 19V6M3 15h18v4M21 15v-2.5A3.5 3.5 0 0 0 17.5 9H11v6"/><circle cx="7" cy="11.5" r="1.8"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></symbol>
+    <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15.5a4 4 0 0 1-.3-8A5.5 5.5 0 0 1 17.2 8a3.8 3.8 0 0 1 .3 7.5z"/><path d="M8.5 18.5l-1 2.5M12.5 18.5l-1 2.5M16.5 18.5l-1 2.5"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 9.6 4.2 4.2 0 0 1 17.5 18z"/></symbol>
+    <symbol id="i-closed" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 12.5l5 5M14.5 12.5l-5 5"/></symbol>
+    <symbol id="i-indoor" viewBox="0 0 24 24"><path d="M3.5 11L12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/></symbol>
+    <symbol id="i-train" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="14" rx="3.5"/><path d="M6 10h12"/><circle cx="9" cy="13.5" r=".9"/><circle cx="15" cy="13.5" r=".9"/><path d="M8.5 17l-2 4M15.5 17l2 4"/></symbol>
+    <symbol id="i-bus" viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="14" rx="2.5"/><path d="M4.5 11h15M4.5 7h15"/><circle cx="8" cy="14.3" r=".9"/><circle cx="16" cy="14.3" r=".9"/><path d="M7 17.5V20M17 17.5V20"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M4 16.5h16v-4l-2.2-5.2A1.5 1.5 0 0 0 16.4 6.3H7.6a1.5 1.5 0 0 0-1.4 1L4 12.5z"/><path d="M4 12.5h16"/><circle cx="7.8" cy="16.5" r="1.8"/><circle cx="16.2" cy="16.5" r="1.8"/></symbol>
+    <symbol id="i-rent" viewBox="0 0 24 24"><path d="M3 18h13v-3.5l-1.8-4.2a1.3 1.3 0 0 0-1.2-.8H6.1a1.3 1.3 0 0 0-1.2.8L3 14.5z"/><circle cx="6.2" cy="18" r="1.5"/><circle cx="12.8" cy="18" r="1.5"/><circle cx="18.5" cy="6" r="2.5"/><path d="M16.7 7.8L13.5 11M14.7 9.8l1 1"/></symbol>
+    <symbol id="i-budget" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M7.8 9l1.6 6 2.6-5 2.6 5 1.6-6M7 11.5h10"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14a4.5 4.5 0 0 1 5.5 4.5"/></symbol>
+    <symbol id="i-arrive" viewBox="0 0 24 24"><path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2.2 3.7 2.2 3.8h-11"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/></symbol>
+    <symbol id="i-lang" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.5 3.5 5.3 3.5 8.5s-1.1 6-3.5 8.5c-2.4-2.5-3.5-5.3-3.5-8.5s1.1-6 3.5-8.5z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3M12 14.5v2.5"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/></symbol>
+    <symbol id="i-ai" viewBox="0 0 24 24"><path d="M12 3.5l1.7 5 5 1.7-5 1.7-1.7 5-1.7-5-5-1.7 5-1.7z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-7-6 16-2.5-6.5z"/></symbol>
+    <symbol id="i-food" viewBox="0 0 24 24"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M17 21V3c-2 1.5-3 4-3 7v2h3"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3.5 8.5V6.5h17v2a2.5 2.5 0 0 0 0 5v2h-17v-2a2.5 2.5 0 0 0 0-5z"/><path d="M14 6.5v2M14 11v2M14 15.5v2"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16.5" height="11" rx="2"/><path d="M16 13.5h2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8 12.3l2.7 2.7L16 9.5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.4"/></symbol>
+    <symbol id="i-parking" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M10 16.5v-9h3a2.8 2.8 0 0 1 0 5.6h-3"/></symbol>
+    <symbol id="i-crowd" viewBox="0 0 24 24"><path d="M4 20h16"/><rect x="5.5" y="13" width="3" height="5" rx="1"/><rect x="10.5" y="9" width="3" height="9" rx="1"/><rect x="15.5" y="5" width="3" height="13" rx="1"/></symbol>
+    <symbol id="i-mountain" viewBox="0 0 24 24"><path d="M2.5 19.5L9 8l4 6.5 2.5-3.5 6 8.5z"/><path d="M7.2 11.2L9 12.5l1.6-1.4"/></symbol>
+    <symbol id="i-board" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.6L12 16.7l-5.1 2.7 1-5.6-4.1-4 5.7-.8z"/></symbol>
+    <symbol id="i-suitcase" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5.5v2M3.5 12.5h17"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+  </defs>
+</svg>
+
+<header class="appbar">
+  <div class="wrap">
+    <div class="logo"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b><small data-i18n="tagline">대화로 짜는 국내 여행</small></div>
+    <nav>
+      <a href="#chat" data-go="chat"><svg class="ic"><use href="#i-plan"/></svg><span data-i18n="navMy">내 여행</span></a>
+      <a href="#signup" data-go="signup"><svg class="ic"><use href="#i-user"/></svg><span data-i18n="navSignup">회원가입</span></a>
+      <a href="#reset" data-go="reset"><svg class="ic"><use href="#i-lock"/></svg><span data-i18n="navLogin">로그인</span></a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <svg class="ic"><use href="#i-lang"/></svg>
+      <span class="grp">
+        <button type="button" id="lang-ko" aria-pressed="true">한국어</button>
+        <button type="button" id="lang-en" aria-pressed="false">English</button>
+      </span>
+    </div>
+  </div>
+</header>
+
+<div class="mockbar">
+  <div class="wrap" role="tablist" aria-label="목업 화면">
+    <span data-i18n="mockLabel">목업 화면</span>
+    <button type="button" role="tab" data-view="main" aria-selected="true" data-i18n="tabMain">메인</button>
+    <button type="button" role="tab" data-view="chat" aria-selected="false" data-i18n="tabChat">채팅 + 일정</button>
+    <button type="button" role="tab" data-view="budget" aria-selected="false" data-i18n="tabBudget">예산 관리</button>
+    <button type="button" role="tab" data-view="board" aria-selected="false" data-i18n="tabBoard">리뷰 게시판</button>
+    <button type="button" role="tab" data-view="cat" aria-selected="false" data-i18n="tabCat">카테고리 예산</button>
+    <button type="button" role="tab" data-view="mobile" aria-selected="false" data-i18n="tabMobile">모바일 화면</button>
+    <button type="button" role="tab" data-view="signup" aria-selected="false" data-i18n="tabSignup">회원가입</button>
+    <button type="button" role="tab" data-view="reset" aria-selected="false" data-i18n="tabReset">비밀번호 찾기</button>
+    <button type="button" role="tab" data-view="icons" aria-selected="false" data-i18n="tabIcons">아이콘 규칙</button>
+  </div>
+</div>
+
+<main>
+  <div class="wrap shellwrap" id="shell">
+    <aside class="side" id="side" hidden>
+      <a class="side-logo" href="#main" data-go="main"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</a>
+      <p class="side-title">MENU</p>
+      <ul class="side-menu">
+        <li><a href="#chat" data-go="chat" data-side="list"><svg class="ic"><use href="#i-suitcase"/></svg><span data-i18n="sMy">내 여행</span></a></li>
+        <li><a href="#chat" data-go="chat" data-side="chat"><svg class="ic"><use href="#i-plus"/></svg><span data-i18n="sCreate">여행 만들기</span></a></li>
+        <li><a href="#chat" data-go="chat" data-side="plan"><svg class="ic"><use href="#i-plan"/></svg><span data-i18n="sPlan">일정 관리</span></a></li>
+        <li><a href="#budget" data-go="budget" data-side="budget"><svg class="ic"><use href="#i-wallet"/></svg><span data-i18n="sBudget">비용 관리</span></a></li>
+        <li><a href="#cat" data-go="cat" data-side="cat"><svg class="ic"><use href="#i-budget"/></svg><span data-i18n="sCat">카테고리 예산</span></a></li>
+        <li><a href="#board" data-go="board" data-side="board"><svg class="ic"><use href="#i-board"/></svg><span data-i18n="sBoard">리뷰 게시판</span><em class="newtag">NEW</em></a></li>
+      </ul>
+      <p class="side-note" data-i18n="sNote">장소 검색 메뉴는 없앴어요</p>
+      <a class="side-user" href="#signup" data-go="signup"><svg class="ic"><use href="#i-user"/></svg><span data-i18n="sUser">지수 님</span></a>
+    </aside>
+    <div class="viewarea">
+
+    <!-- 메인 -->
+    <section class="view" id="view-main">
+      <div class="hero">
+        <div>
+          <p class="eyebrow" data-i18n="heroEyebrow">입력은 예산 성향 하나면 충분해요</p>
+          <h1 data-i18n="heroTitle">어디로, 며칠 가는지만 말해주세요. 일정은 TRIPA가 짤게요.</h1>
+          <p class="lead" data-i18n="heroLead">숙소, 날짜, 도착 시간은 생각나는 대로 덧붙이면 됩니다. 알려줄수록 휴무일과 날씨까지 반영해 일정이 정교해져요.</p>
+          <form class="ask" id="ask-form">
+            <div class="askrow">
+              <input id="ask-input" type="text" autocomplete="off" data-i18n-ph="askPh" placeholder="예: 강릉 1박 2일, 아이랑 갈 만한 곳 위주로">
+              <button class="btn" type="submit" data-i18n="askBtn">일정 짜기</button>
+            </div>
+            <div style="display:grid;gap:6px">
+              <p class="note" data-i18n="tryLabel">이렇게 물어볼 수도 있어요</p>
+              <div class="rotator" id="rotator" aria-live="polite"></div>
+            </div>
+          </form>
+        </div>
+        <aside class="ticket">
+          <header><span data-i18n="ticketHead">최근 만든 일정 예시</span><span>10.28 – 10.30</span></header>
+          <div class="body">
+            <div class="route"><span data-i18n="cSeoul">서울</span><i></i><span data-i18n="cBusan">부산</span></div>
+            <ul>
+              <li class="wi"><svg class="ic"><use href="#i-people"/></svg><span data-i18n="t1">2박 3일 · 2명 · 가성비</span></li>
+              <li class="wi"><svg class="ic"><use href="#i-rain"/></svg><span data-i18n="t2">둘째 날 비 예보로 실내 코스로 변경</span></li>
+              <li class="wi"><svg class="ic"><use href="#i-closed"/></svg><span data-i18n="t3">수요일 정기 휴무 장소 1곳 제외</span></li>
+              <li class="wi"><svg class="ic"><use href="#i-route"/></svg><span data-i18n="t4">KTX · 고속버스 · 자가용 비용 비교 포함</span></li>
+            </ul>
+            <button class="btn ghost" type="button" data-go="chat" data-i18n="ticketBtn">이 일정 열어보기</button>
+          </div>
+        </aside>
+      </div>
+      <div class="how">
+        <div><strong><svg class="ic"><use href="#i-chat"/></svg><span data-i18n="h1t">말하는 만큼만 입력</span></strong><p data-i18n="h1p">처음엔 지역과 기간만. 나머지는 입력창 아래 안내가 하나씩 알려줘요.</p></div>
+        <div><strong><svg class="ic"><use href="#i-closed"/></svg><span data-i18n="h2t">쉬는 날은 미리 빼고</span></strong><p data-i18n="h2p">방문 날짜에 정기·임시 휴무인 장소는 추천하지 않아요.</p></div>
+        <div><strong><svg class="ic"><use href="#i-rain"/></svg><span data-i18n="h3t">7일 안이면 날씨까지</span></strong><p data-i18n="h3p">출발이 일주일 안이면 비 예보에 맞춰 실내 장소를 먼저 넣어요.</p></div>
+      </div>
+      <p class="annot" data-i18n="annotMain">목업 메모: 예시 질문은 4초마다 바뀌고, 누르면 그 문장으로 채팅 화면이 열립니다(FR-16). 예산 성향(가성비/고급)은 10/28 회의에서 뺐고, 예산은 채팅이나 예산 화면에서 카테고리별로 정합니다.</p>
+    </section>
+
+    <!-- PC 채팅 -->
+    <section class="view" id="view-chat" hidden>
+      <div class="chatgrid">
+        <div class="panel">
+          <h3><span class="wi"><svg class="ic"><use href="#i-chat"/></svg><span data-i18n="chatTitle">대화</span></span><span class="tag" data-i18n="chatTag">React 화면</span></h3>
+          <div class="msgs" id="msgs">
+            <div class="bubble me" data-i18n="m1">부산 2박 3일 일정 짜줘</div>
+            <div class="bubble ai"><span data-i18n="m2"></span><small><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="m2s"></span></small></div>
+            <div class="bubble me" data-i18n="m3"></div>
+            <div class="bubble ai"><span data-i18n="m4"></span><small><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="m4s"></span></small></div>
+            <div class="bubble me" data-i18n="m5"></div>
+            <div class="bubble ai">
+              <span data-i18n="m6"></span>
+              <div class="tablewrap">
+                <table class="compare">
+                  <thead><tr><th data-i18n="cmMode">수단</th><th data-i18n="cmTime">소요</th><th class="num" data-i18n="cmPer">1인</th><th class="num" data-i18n="cmTotal">2인 합계</th></tr></thead>
+                  <tbody>
+                    <tr><td class="wi"><svg class="ic"><use href="#i-train"/></svg>KTX</td><td>2h 40m</td><td class="num">59,800</td><td class="num">119,600</td></tr>
+                    <tr class="best"><td class="wi"><svg class="ic"><use href="#i-bus"/></svg><span data-i18n="cmBus">고속버스</span></td><td>4h 20m</td><td class="num">39,700</td><td class="num">79,400</td></tr>
+                    <tr><td class="wi"><svg class="ic"><use href="#i-car"/></svg><span data-i18n="cmCar">자가용</span></td><td>4h 50m</td><td class="num">38,500</td><td class="num">77,000</td></tr>
+                    <tr><td class="wi"><svg class="ic"><use href="#i-rent"/></svg><span data-i18n="cmRent">렌터카</span></td><td>4h 50m</td><td class="num">71,000</td><td class="num">142,000</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <small><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="m6s"></span></small>
+            </div>
+            <div class="bubble me" data-i18n="m7"></div>
+            <div class="bubble ai wide">
+              <span data-i18n="m8"></span>
+              <div class="recs" data-recs></div>
+              <small><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="m8s"></span></small>
+            </div>
+          </div>
+          <div class="composer">
+            <form id="chat-form">
+              <input id="chat-input" type="text" autocomplete="off" data-i18n-ph="chatPh" placeholder="메시지를 입력하세요">
+              <button class="btn" type="submit" data-i18n="send">보내기</button>
+            </form>
+            <p class="hint" id="hint"></p>
+          </div>
+        </div>
+        <div class="panel">
+          <h3><span class="wi"><svg class="ic"><use href="#i-plan"/></svg><span data-i18n="planTitle">일정 초안</span></span><span class="tag" data-i18n="planTag">적용 전 미리보기</span></h3>
+          <dl class="facts" id="facts"></dl>
+          <div class="budgetstrip" id="budgetstrip"></div>
+          <div class="days" role="tablist" id="days"></div>
+          <div class="weather" id="weather"></div>
+          <ol class="stops" id="stops"></ol>
+          <p class="daytotal" id="daytotal"></p>
+          <p class="excluded" id="excluded" hidden></p>
+          <div class="applybar">
+            <button class="btn" type="button" id="apply-btn" data-i18n="apply">이 일정 적용하기</button>
+            <button class="btn ghost" type="button" id="edit-btn" data-i18n="editHint">채팅으로 고치기</button>
+          </div>
+        </div>
+        <div class="panel mapcol">
+          <h3><span class="wi"><svg class="ic"><use href="#i-map"/></svg><span data-i18n="mapTitle">지도</span></span><span class="tag" data-i18n="mapTag">Kakao 지도 자리</span></h3>
+          <div class="mapbox" id="mapbox"></div>
+          <div class="legend wi" id="legend"></div>
+        </div>
+      </div>
+      <p class="annot" data-i18n="annotChat"></p>
+    </section>
+
+    <!-- 예산 관리 -->
+    <section class="view" id="view-budget" hidden>
+      <div class="budgetgrid">
+        <div class="panel">
+          <h3><span class="wi"><svg class="ic"><use href="#i-budget"/></svg><span data-i18n="bTitle">여행 예산</span></span><span class="tag" data-i18n="bTag">부산 · 2박 3일 · 2명</span></h3>
+          <div class="bigs" id="bigs"></div>
+          <div style="padding:0 16px 16px"><div class="bar" id="bigbar"></div></div>
+          <div class="budgetinput">
+            <label><span data-i18n="bTotal">총 예산 (원)</span><input id="budget-input" type="number" step="10000" min="0" value="500000"></label>
+            <span class="per" id="perperson"></span>
+          </div>
+          <ul class="catlist" id="catlist"></ul>
+          <div class="suggest" id="suggest"></div>
+        </div>
+        <div class="panel">
+          <h3><span class="wi"><svg class="ic"><use href="#i-wallet"/></svg><span data-i18n="bListTitle">장소별 금액</span></span><span class="tag" data-i18n="bListTag">금액을 눌러 바로 고치기</span></h3>
+          <div class="tablewrap" style="padding:0 8px 8px"><table class="costtable" id="costtable"></table></div>
+        </div>
+      </div>
+      <div class="panel aipanel">
+        <h3><span class="wi"><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="pdTitle">AI 비용 예측 근거</span></span><span class="tag" data-i18n="pdTag">OpenAI + LangChain 검색 · 2026.10.28 기준 예시</span></h3>
+        <div class="pipe" id="pipe"></div>
+        <div class="predbar" id="predbar" role="group"></div>
+        <div class="predgrid" id="predgrid"></div>
+        <div class="predsum" id="predsum"></div>
+      </div>
+      <p class="annot" data-i18n="annotBudget"></p>
+    </section>
+
+    <!-- 카테고리 예산 -->
+    <section class="view" id="view-cat" hidden>
+      <div class="cattop">
+        <div class="panel">
+          <h3><span class="wi"><svg class="ic"><use href="#i-budget"/></svg><span data-i18n="ctAllocT">카테고리별 예산 정하기</span></span><span class="tag" data-i18n="bTag">부산 · 2박 3일 · 2명</span></h3>
+          <div class="alloc" id="alloc"></div>
+        </div>
+        <div class="panel">
+          <h3><span class="wi"><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="ctFlowT">AI가 장소를 고르는 방식</span></span></h3>
+          <div class="flow" id="flow"></div>
+        </div>
+      </div>
+      <div class="catcards" id="catcards"></div>
+      <p class="annot" data-i18n="annotCat"></p>
+    </section>
+
+    <!-- 리뷰 게시판 -->
+    <section class="view" id="view-board" hidden>
+      <div class="boardhead">
+        <h2 class="wi"><svg class="ic lg"><use href="#i-board"/></svg><span data-i18n="bdTitle">리뷰 게시판</span></h2>
+        <p class="note" data-i18n="bdLead">다녀온 여행의 장소에만 리뷰를 쓸 수 있어요. 모인 리뷰는 TRIPA 추천에 반영돼요.</p>
+        <div class="boardbar" id="boardbar"></div>
+      </div>
+      <div class="boardgrid">
+        <div class="panel">
+          <h3><span class="wi"><svg class="ic"><use href="#i-chat"/></svg><span data-i18n="bdList">방문 리뷰</span></span><span class="tag" id="bdCount"></span></h3>
+          <div class="reviews" id="reviews"></div>
+        </div>
+        <div class="boardside">
+          <div class="panel">
+            <h3><span class="wi"><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="bdRecT">리뷰 기반 추천</span></span><span class="tag" data-i18n="bdRecTag">부산 · 다음 여행에</span></h3>
+            <div class="picks" id="bdRecs"></div>
+          </div>
+          <form class="panel writebox" id="review-form">
+            <h3><span class="wi"><svg class="ic"><use href="#i-edit"/></svg><span data-i18n="bdWriteT">리뷰 쓰기</span></span><span class="tag" data-i18n="bdWriteTag">10.28 부산 여행에서 방문</span></h3>
+            <div class="field"><label for="rv-place" data-i18n="bdPlace">방문한 장소</label><select id="rv-place"></select></div>
+            <div class="field"><label data-i18n="bdRate">별점</label><div class="stars" id="rv-stars" role="radiogroup"></div></div>
+            <div class="field"><label for="rv-text" data-i18n="bdText">한 줄 리뷰</label><input id="rv-text" type="text" maxlength="80" autocomplete="off"></div>
+            <div class="field"><label data-i18n="bdTags">이런 점이 좋았어요</label><div class="seg" id="rv-tags"></div></div>
+            <button class="btn" type="submit" data-i18n="bdSubmit">리뷰 올리기</button>
+            <p class="msg" id="rv-msg" hidden></p>
+          </form>
+        </div>
+      </div>
+      <p class="annot" data-i18n="annotBoard"></p>
+    </section>
+
+    <!-- 모바일 -->
+    <section class="view" id="view-mobile" hidden>
+      <div class="phones">
+        <div class="phonecol">
+          <div class="phone">
+            <div class="notch"><i></i></div>
+            <div class="ptop"><span class="logo"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b></span><span class="langmini"><svg class="ic"><use href="#i-lang"/></svg><span data-i18n="langShort">한국어</span></span></div>
+            <div class="pbody">
+              <p class="eyebrow" style="margin:0" data-i18n="heroEyebrow"></p>
+              <h2 data-i18n="heroTitle"></h2>
+              <div class="askrow"><input type="text" readonly data-i18n-ph="askPh"></div>
+              <button class="btn" type="button" data-i18n="askBtn"></button>
+              <p class="note" data-i18n="tryLabel"></p>
+              <div class="rotator" id="rotator-m"></div>
+            </div>
+            <div class="tabbar">
+              <span class="on"><svg class="ic"><use href="#i-chat"/></svg><span data-i18n="mTabChat">대화</span></span>
+              <span><svg class="ic"><use href="#i-plan"/></svg><span data-i18n="mTabPlan">일정</span></span>
+              <span><svg class="ic"><use href="#i-map"/></svg><span data-i18n="mTabMap">지도</span></span>
+              <span><svg class="ic"><use href="#i-board"/></svg><span data-i18n="mTabBoard">게시판</span></span>
+              <span><svg class="ic"><use href="#i-user"/></svg><span data-i18n="mTabMe">내 정보</span></span>
+            </div>
+          </div>
+          <p data-i18n="pCap1">① 메인</p>
+        </div>
+
+        <div class="phonecol">
+          <div class="phone">
+            <div class="notch"><i></i></div>
+            <div class="ptop"><span class="logo"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b></span><span class="langmini"><svg class="ic"><use href="#i-lang"/></svg><span data-i18n="langShort">한국어</span></span></div>
+            <div class="strip" aria-label="trip so far">
+              <span><svg class="ic"><use href="#i-map"/></svg><span data-i18n="sRegion">부산 2박 3일</span></span>
+              <span><svg class="ic"><use href="#i-plan"/></svg>10.28–30</span>
+              <span><svg class="ic"><use href="#i-people"/></svg><span data-i18n="sPeople">2명</span></span>
+              <span class="todo"><svg class="ic"><use href="#i-stay"/></svg><span data-i18n="sStay">숙소 추천 중</span></span>
+              <span><svg class="ic"><use href="#i-budget"/></svg><span data-i18n="vBudget"></span></span>
+            </div>
+            <div class="pbody">
+              <div class="bubble me" data-i18n="m1"></div>
+              <div class="bubble ai"><span data-i18n="m2"></span><small><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="m2s"></span></small></div>
+              <div class="bubble me" data-i18n="m3"></div>
+              <div class="bubble ai"><span data-i18n="m4"></span><small><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="m4s"></span></small></div>
+            </div>
+            <div class="pcomposer">
+              <div><input type="text" readonly data-i18n-ph="chatPh"><button type="button" aria-label="send"><svg class="ic"><use href="#i-send"/></svg></button></div>
+              <p class="hint"><svg class="ic"><use href="#i-stay"/></svg><span data-i18n="hintStay"></span></p>
+            </div>
+            <div class="tabbar">
+              <span class="on"><svg class="ic"><use href="#i-chat"/></svg><span data-i18n="mTabChat"></span></span>
+              <span><svg class="ic"><use href="#i-plan"/></svg><span data-i18n="mTabPlan"></span></span>
+              <span><svg class="ic"><use href="#i-map"/></svg><span data-i18n="mTabMap"></span></span>
+              <span><svg class="ic"><use href="#i-board"/></svg><span data-i18n="mTabBoard">게시판</span></span>
+              <span><svg class="ic"><use href="#i-user"/></svg><span data-i18n="mTabMe"></span></span>
+            </div>
+          </div>
+          <p data-i18n="pCap2">② 대화 · 위에 모인 정보, 아래 안내</p>
+        </div>
+
+        <div class="phonecol">
+          <div class="phone">
+            <div class="notch"><i></i></div>
+            <div class="ptop"><span class="logo"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b></span><span class="langmini"><svg class="ic"><use href="#i-lang"/></svg><span data-i18n="langShort">한국어</span></span></div>
+            <div class="pbody">
+              <div class="pday"><span data-i18n="d1"></span><span class="on" data-i18n="d2"></span><span data-i18n="d3"></span></div>
+              <div class="weather rain"><svg class="ic"><use href="#i-rain"/></svg><span data-i18n="wRain"></span></div>
+              <div class="pbudget" id="pbudget-m"></div>
+              <ol class="stops" id="stops-m"></ol>
+            </div>
+            <div class="psticky"><button class="btn ghost" type="button"><svg class="ic"><use href="#i-chat"/></svg></button><button class="btn" type="button" data-i18n="apply"></button></div>
+            <div class="tabbar">
+              <span><svg class="ic"><use href="#i-chat"/></svg><span data-i18n="mTabChat"></span></span>
+              <span class="on"><svg class="ic"><use href="#i-plan"/></svg><span data-i18n="mTabPlan"></span></span>
+              <span><svg class="ic"><use href="#i-map"/></svg><span data-i18n="mTabMap"></span></span>
+              <span><svg class="ic"><use href="#i-board"/></svg><span data-i18n="mTabBoard">게시판</span></span>
+              <span><svg class="ic"><use href="#i-user"/></svg><span data-i18n="mTabMe"></span></span>
+            </div>
+          </div>
+          <p data-i18n="pCap3">③ 일정 · 2일차 비 예보</p>
+        </div>
+
+        <div class="phonecol">
+          <div class="phone">
+            <div class="notch"><i></i></div>
+            <div class="ptop"><span class="logo"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b></span><span class="langmini"><svg class="ic"><use href="#i-lang"/></svg><span data-i18n="langShort">한국어</span></span></div>
+            <div class="mmap">
+              <div class="mmap-top"><div class="pday" id="mapday-m"></div></div>
+              <div class="mmap-canvas" id="map-m"></div>
+              <span class="kakaotag" data-i18n="kakaoTag">Kakao 지도</span>
+              <div class="sheet">
+                <i class="grab"></i>
+                <p class="sheet-h" id="sheet-h"></p>
+                <ol class="sheet-list" id="sheet-list"></ol>
+              </div>
+            </div>
+            <div class="tabbar">
+              <span><svg class="ic"><use href="#i-chat"/></svg><span data-i18n="mTabChat"></span></span>
+              <span><svg class="ic"><use href="#i-plan"/></svg><span data-i18n="mTabPlan"></span></span>
+              <span class="on"><svg class="ic"><use href="#i-map"/></svg><span data-i18n="mTabMap"></span></span>
+              <span><svg class="ic"><use href="#i-board"/></svg><span data-i18n="mTabBoard"></span></span>
+              <span><svg class="ic"><use href="#i-user"/></svg><span data-i18n="mTabMe"></span></span>
+            </div>
+          </div>
+          <p data-i18n="pCap6">④ 지도 · 날짜별 핀과 동선, 아래 시트로 장소 목록</p>
+        </div>
+
+        <div class="phonecol">
+          <div class="tablet">
+            <div class="ptop"><span class="logo"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b></span><span class="langmini"><svg class="ic"><use href="#i-lang"/></svg><span data-i18n="langShort">한국어</span></span></div>
+            <div class="tbody">
+              <nav class="rail">
+                <span class="on"><svg class="ic"><use href="#i-chat"/></svg></span>
+                <span><svg class="ic"><use href="#i-plan"/></svg></span>
+                <span><svg class="ic"><use href="#i-wallet"/></svg></span>
+                <span><svg class="ic"><use href="#i-board"/></svg></span>
+                <span><svg class="ic"><use href="#i-user"/></svg></span>
+              </nav>
+              <div class="tcol chatcol">
+                <div class="msgs2"><div class="bubble me" data-i18n="m3"></div>
+                <div class="bubble ai"><span data-i18n="m4"></span></div></div>
+                <div class="pcomposer"><div><input type="text" readonly data-i18n-ph="chatPh"><button type="button" aria-label="send"><svg class="ic"><use href="#i-send"/></svg></button></div></div>
+              </div>
+              <div class="tcol">
+                <div class="tseg" id="tseg" role="tablist"></div>
+                <div class="pday"><span data-i18n="d1"></span><span class="on" data-i18n="d2"></span><span data-i18n="d3"></span></div>
+                <div id="t-plan">
+                  <div class="weather rain"><svg class="ic"><use href="#i-rain"/></svg><span data-i18n="wRain"></span></div>
+                  <ol class="stops" id="stops-t"></ol>
+                </div>
+                <div id="t-map" hidden>
+                  <div class="tmap" id="map-t"></div>
+                  <ol class="sheet-list" id="tmap-list"></ol>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p data-i18n="pCap4">⑤ 태블릿 · 대화와 일정 2단, 왼쪽 아이콘 메뉴</p>
+        </div>
+
+        <div class="phonecol">
+          <div class="phone">
+            <div class="notch"><i></i></div>
+            <div class="pbody applock">
+              <p class="clock">17:20</p>
+              <div class="push"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b><span data-i18n="push1">내일 부산 2일차: 오전 비 70%. 실내 코스로 바꿔 둘까요?</span></div>
+              <div class="push"><b class="wi"><svg class="ic"><use href="#i-mountain"/></svg>TRIPA</b><span data-i18n="push2">부산 여행은 어떠셨어요? 다녀온 장소에 리뷰를 남겨 주세요.</span></div>
+              <div class="appicons"><span class="appicon"><svg class="ic"><use href="#i-mountain"/></svg></span><small>TRIPA</small></div>
+              <p class="offline wi"><svg class="ic"><use href="#i-check"/></svg><span data-i18n="offline">적용한 일정은 인터넷 없이도 열려요</span></p>
+            </div>
+          </div>
+          <p data-i18n="pCap5">⑥ 앱 · 홈 화면 아이콘, 알림, 오프라인 일정</p>
+        </div>
+      </div>
+      <p class="annot" data-i18n="annotMobile">목업 메모: 휴대폰 세로 기준(가로 360px 전후)입니다. PC의 3단(대화·일정·지도)을 아래 탭바 4개로 나누고, '모인 정보'는 대화 화면 위쪽에 가로로 넘기는 칩으로 줄였습니다. 아직 비어 있는 정보(숙소)는 점선 칩과 입력창 아래 안내로 같은 아이콘을 씁니다.</p>
+    </section>
+
+    <!-- 회원가입 -->
+    <section class="view" id="view-signup" hidden>
+      <form class="formcard" id="signup-form" novalidate>
+        <h2><svg class="ic lg"><use href="#i-user"/></svg><span data-i18n="suTitle">회원가입</span></h2>
+        <div class="field"><label for="su-id"><span data-i18n="suEmail">이메일(아이디)</span> <span class="req">*</span></label><input id="su-id" type="email" value="jisu@example.com"></div>
+        <div class="field"><label for="su-pw"><span data-i18n="suPw">비밀번호</span> <span class="req">*</span></label><input id="su-pw" type="password" value="password12"></div>
+        <div class="field"><label for="su-nick"><span data-i18n="suNick">닉네임</span> <span class="req">*</span></label><input id="su-nick" type="text" value="지수"></div>
+        <div class="field">
+          <label><span data-i18n="suGender">성별</span> <span class="req">*</span></label>
+          <div class="seg" id="su-gender">
+            <button type="button" class="chip" aria-pressed="false" data-i18n="gF">여성</button>
+            <button type="button" class="chip" aria-pressed="false" data-i18n="gM">남성</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="su-age"><span data-i18n="suAge">나이대</span> <span class="req">*</span></label>
+          <select id="su-age">
+            <option value="" data-i18n="ageSel">선택하세요</option>
+            <option value="10" data-i18n="a10">10대</option><option value="20" selected data-i18n="a20">20대</option><option value="30" data-i18n="a30">30대</option><option value="40" data-i18n="a40">40대</option><option value="50" data-i18n="a50">50대</option><option value="60" data-i18n="age60">60대 이상</option>
+          </select>
+        </div>
+        <label class="consent" for="su-agree"><input id="su-agree" type="checkbox"><span data-i18n="suConsent"></span></label>
+        <button class="btn" type="submit" data-i18n="suBtn">가입하기</button>
+        <p class="msg" id="su-msg" hidden></p>
+      </form>
+      <p class="annot" data-i18n="annotSignup"></p>
+    </section>
+
+    <!-- 비밀번호 찾기 -->
+    <section class="view" id="view-reset" hidden>
+      <form class="formcard" id="reset-form">
+        <h2><svg class="ic lg"><use href="#i-lock"/></svg><span data-i18n="rsTitle">비밀번호 찾기</span></h2>
+        <p class="note" data-i18n="rsLead"></p>
+        <div class="field"><label for="rs-email" class="wi"><svg class="ic"><use href="#i-mail"/></svg><span data-i18n="suEmail"></span></label><input id="rs-email" type="email" value="jisu@example.com"></div>
+        <button class="btn" type="submit" data-i18n="rsBtn">재설정 링크 보내기</button>
+        <p class="msg" id="rs-msg" hidden data-i18n="rsDone"></p>
+      </form>
+      <p class="annot" data-i18n="annotReset"></p>
+    </section>
+
+    <!-- 아이콘 규칙 -->
+    <section class="view" id="view-icons" hidden>
+      <h2 style="font-size:26px;margin-bottom:12px" data-i18n="icTitle">기능별 아이콘 규칙</h2>
+      <ol class="rules">
+        <li data-i18n="r1">한 기능에는 한 아이콘만 씁니다. 메뉴, 칩, 안내 문구, 표, 모바일 탭바 어디서든 같은 그림입니다.</li>
+        <li data-i18n="r2">아이콘은 한 파일(SVG 묶음)에 모아 두고 이름(i-stay 등)으로 불러 씁니다. 새로 그리지 않습니다.</li>
+        <li data-i18n="r3">선 두께 1.8, 둥근 끝, 24×24 격자로 통일합니다. 색은 글자색을 따라가고, 상태색(비·휴무·추천)만 바꿉니다.</li>
+        <li data-i18n="r4">다른 기능처럼 보일 수 있는 그림은 쓰지 않습니다. 예: 일정(달력)과 휴무(달력+X)는 X 표시로만 구분합니다.</li>
+      </ol>
+      <div class="icongrid" id="icongrid"></div>
+      <p class="annot" data-i18n="annotIcons">목업 메모: 오른쪽 회색 글자가 코드에서 부르는 이름입니다. React 화면과 Django 템플릿이 같은 SVG 파일을 쓰면 두 화면의 아이콘이 어긋나지 않습니다.</p>
+    </section>
+
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const T = {
+    ko: {
+      tagline: "대화로 짜는 국내 여행", navMy: "내 여행", navSignup: "회원가입", navLogin: "로그인", langShort: "한국어",
+      mockLabel: "목업 화면", tabMain: "메인", tabSignup: "회원가입", tabChat: "채팅 + 일정", tabReset: "비밀번호 찾기", tabMobile: "모바일 화면", tabIcons: "아이콘 규칙",
+      heroEyebrow: "지역과 기간만 말하면 시작돼요",
+      heroTitle: "어디로, 며칠 가는지만 말해주세요. 일정은 TRIPA가 짤게요.",
+      heroLead: "숙소, 날짜, 도착 시간은 생각나는 대로 덧붙이면 됩니다. 알려줄수록 휴무일과 날씨까지 반영해 일정이 정교해져요.",
+      budgetLabel: "예산 성향", budgetCheap: "가성비", budgetLux: "비싸도 괜찮음",
+      askPh: "예: 강릉 1박 2일, 아이랑 갈 만한 곳 위주로", askBtn: "일정 짜기", tryLabel: "이렇게 물어볼 수도 있어요",
+      ticketHead: "최근 만든 일정 예시", cSeoul: "서울", cBusan: "부산",
+      t1: "2박 3일 · 2명 · 예산 50만 원", t2: "둘째 날 비 예보로 실내 코스로 변경", t3: "수요일 정기 휴무 장소 1곳 제외", t4: "KTX · 고속버스 · 자가용 비용 비교 포함", ticketBtn: "이 일정 열어보기",
+      h1t: "말하는 만큼만 입력", h1p: "처음엔 지역과 기간만. 나머지는 입력창 아래 안내가 하나씩 알려줘요.",
+      h2t: "쉬는 날은 미리 빼고", h2p: "방문 날짜에 정기·임시 휴무인 장소는 추천하지 않아요.",
+      h3t: "7일 안이면 날씨까지", h3p: "출발이 일주일 안이면 비 예보에 맞춰 실내 장소를 먼저 넣어요.",
+      annotMain: "목업 메모: 예시 질문은 4초마다 바뀌고, 누르면 그 문장으로 채팅 화면이 열립니다(FR-16). 예산 성향(가성비/고급)은 10/28 회의에서 뺐고, 예산은 채팅이나 예산 화면에서 카테고리별로 정합니다.",
+      suTitle: "회원가입", suEmail: "이메일(아이디)", suPw: "비밀번호", suNick: "닉네임", suGender: "성별", gF: "여성", gM: "남성", suAge: "나이대", ageSel: "선택하세요",
+      a10: "10대", a20: "20대", a30: "30대", a40: "40대", a50: "50대", age60: "60대 이상",
+      suConsent: "[필수] 성별·나이대를 맞춤 장소 추천에 사용하는 데 동의합니다. 생년월일은 받지 않아요.", suBtn: "가입하기",
+      suErrGender: "성별을 선택해주세요.", suErrAge: "나이대를 선택해주세요.", suErrAgree: "맞춤 추천을 위해 수집 동의가 필요해요.", suOk: "가입이 완료됐어요. 이제 여행을 만들어보세요.",
+      annotSignup: "목업 메모: 성별을 고르지 않거나 동의하지 않으면 가입 버튼이 오류 안내를 띄웁니다(FR-01). 1차 기존 회원은 다음 로그인 때 이 두 항목만 따로 입력합니다.",
+      chatTitle: "대화", chatTag: "React 화면",
+      m1: "부산 2박 3일 일정 짜줘", m2: "해운대 근처 게스트하우스를 숙소로 넣어 2박 3일 일정을 만들었어요. 오른쪽에서 날짜별 일정을 확인해보세요.", m2s: "추천 숙소 기준 · 날짜 없음",
+      m3: "10월 28일 수요일에 2명이서 출발해", m4: "날짜를 반영했어요. 출발이 7일 안이라 날씨도 확인했는데, 29일에 비 예보가 있어 둘째 날은 실내 장소 위주로 바꿨어요. 수요일에 쉬는 갤러리 한 곳은 뺐어요.", m4s: "날씨 반영 · 휴무 1곳 제외",
+      m5: "서울에서 부산 가는 방법도 비교해줘", m6: "2명 기준 편도 비용이에요. 고속버스가 가장 저렴하고, 시간이 중요하면 KTX를 추천해요.",
+      cmMode: "수단", cmTime: "소요", cmPer: "1인", cmTotal: "2인 합계", cmBus: "고속버스", cmCar: "자가용", cmRent: "렌터카",
+      m6s: "예시 금액(원) · 자가용은 연료비+통행료 추정, 렌터카는 기준 대여료 포함",
+      chatPh: "메시지를 입력하세요", send: "보내기",
+      hintStay: "예약해둔 숙소가 있다면 알려주세요", hintArrive: "도착 시간을 알려주시면 첫날 일정을 맞춰드려요", hintDone: "필요한 정보가 모두 모였어요. 고칠 점이 있으면 말씀해주세요",
+      planTitle: "일정 초안", planTag: "적용 전 미리보기", apply: "이 일정 적용하기", editHint: "채팅으로 고치기", applied: "일정에 적용했어요",
+      fRegion: "지역", fDates: "날짜", fPeople: "인원", fStay: "숙소", fArrive: "도착", fBudget: "예산",
+      vRegion: "부산 · 2박 3일", vDates: "10.28(수) – 10.30(금)", vPeople: "2명", vStayRec: "○○ 게스트하우스", vStayMine: "해운대 △△ 호텔", vArriveNone: "10:00", vArrive: "부산역 10:30", vBudget: "50만 원 · 카테고리별",
+      pRec: "추천", pMine: "예약함", pDefault: "기본값",
+      d1: "1일차", d2: "2일차", d3: "3일차",
+      wSun: "맑음 21°C · 예보 반영", wRain: "비 70% · 18°C · 실내 장소 우선으로 바꿨어요", wCloud: "흐림 19°C · 예보 반영",
+      exc: "수요일 정기 휴무: △△ 갤러리를 일정에서 뺐어요",
+      indoor: "실내", stay: "숙소", min: "분",
+      mapTitle: "지도", mapTag: "Kakao 지도 자리", lgStops: "곳", lgTransit: "대중교통 기준",
+      annotChat: "목업 메모: 입력창 아래 노란 안내는 비어 있는 정보 중 하나만 보여줍니다(숙소 → 날짜 → 도착 시간). 메시지에 '숙소'나 '도착'을 넣어 보내보면 안내와 아이콘이 함께 바뀝니다. 금액과 장소는 모두 예시입니다.",
+      aiStay: "알려주신 호텔을 숙소로 바꾸고 동선을 다시 짰어요.", aiArrive: "첫날 시작 시간을 도착 시간에 맞췄어요.", aiOther: "요청을 반영해 초안을 다시 만들었어요. (목업 응답)",
+      rsTitle: "비밀번호 찾기", rsLead: "가입한 이메일로 재설정 링크를 보내드려요. 링크는 30분 동안 한 번만 쓸 수 있어요.", rsBtn: "재설정 링크 보내기",
+      rsDone: "입력한 이메일이 가입되어 있다면 재설정 링크를 보냈어요. 메일함을 확인해주세요.",
+      annotReset: "목업 메모: 가입되지 않은 이메일을 넣어도 같은 문구가 나와서 다른 사람의 가입 여부를 알 수 없습니다(FR-15).",
+      mTabChat: "대화", mTabPlan: "일정", mTabMap: "지도", mTabMe: "내 정보",
+      sRegion: "부산 2박 3일", sPeople: "2명", sStay: "숙소 추천 중",
+      pCap1: "① 메인", pCap2: "② 대화 · 위에 모인 정보, 아래 안내", pCap3: "③ 일정 · 2일차 비 예보",
+      annotMobile: "목업 메모: 휴대폰 세로 기준(가로 360px 전후)입니다. PC의 3단(대화·일정·지도)을 아래 탭바 4개로 나누고, '모인 정보'는 대화 화면 위쪽에 가로로 넘기는 칩으로 줄였습니다. 아직 비어 있는 정보(숙소)는 점선 칩과 입력창 아래 안내에 같은 아이콘을 씁니다.",
+      icTitle: "기능별 아이콘 규칙",
+      r1: "한 기능에는 한 아이콘만 씁니다. 메뉴, 칩, 안내 문구, 표, 모바일 탭바 어디서든 같은 그림입니다.",
+      r2: "아이콘은 한 파일(SVG 묶음)에 모아 두고 이름(i-stay 등)으로 불러 씁니다. 화면마다 새로 그리지 않습니다.",
+      r3: "선 두께 1.8, 둥근 끝, 24×24 격자로 통일합니다. 색은 글자색을 따라가고, 상태색(비·휴무·추천)만 바꿉니다.",
+      r4: "다른 기능처럼 보일 수 있는 그림은 피합니다. 일정(달력)과 휴무(달력+X)는 X 표시로만 구분합니다.",
+      annotIcons: "목업 메모: 오른쪽 회색 글자가 코드에서 부르는 이름입니다. React 화면과 Django 템플릿이 같은 SVG 파일을 쓰면 두 화면의 아이콘이 어긋나지 않습니다.",
+      icons: [
+        ["i-chat","대화","채팅 화면, 탭바, 메인 안내"],["i-plan","일정·날짜","일정 초안, 내 여행, 날짜 칩"],["i-map","지역·지도","지역 칩, 지도 패널, 탭바"],
+        ["i-stay","숙소","숙소 칩, 숙소 안내, 일정의 숙소 표시"],["i-arrive","도착·출발","도착 안내, 도착 칩"],["i-people","인원","인원 칩"],
+        ["i-budget","예산 성향","예산 선택, 예산 칩"],["i-closed","휴무 제외","휴무 안내, 메인 소개"],["i-indoor","실내 장소","일정의 실내 표시"],
+        ["i-sun","날씨: 맑음","날씨 줄"],["i-cloud","날씨: 흐림","날씨 줄"],["i-rain","날씨: 비","날씨 줄, 실내 전환 안내"],
+        ["i-train","KTX·열차","이동수단 비교"],["i-bus","고속·시외버스","이동수단 비교"],["i-car","자가용","이동수단 비교"],
+        ["i-rent","렌터카","이동수단 비교(자동차+열쇠)"],["i-route","이동·경로","구간 이동 시간, 비교 요약"],["i-ai","AI가 반영한 내용","AI 답변 아래 요약"],
+        ["i-lang","언어 설정","상단 언어 전환"],["i-user","회원","회원가입, 내 정보 탭"],["i-lock","로그인·비밀번호","로그인, 비밀번호 찾기"],
+        ["i-mail","이메일","재설정 메일 입력"],["i-send","보내기","모바일 전송 버튼"]
+      ],
+      examples: ["부산 2박 3일 일정 짜줘", "비 오는 날 갈 만한 전주 실내 코스", "아이랑 경주 1박 2일, 예산 30만 원", "서울에서 강릉 가는 제일 싼 방법은?", "부모님 모시고 여수 2박 3일"]
+    },
+    en: {
+      tagline: "Plan Korea trips by chatting", navMy: "My trips", navSignup: "Sign up", navLogin: "Log in", langShort: "English",
+      mockLabel: "Mockup screens", tabMain: "Home", tabSignup: "Sign up", tabChat: "Chat + itinerary", tabReset: "Reset password", tabMobile: "Mobile", tabIcons: "Icon rules",
+      heroEyebrow: "Just say where and how long to start",
+      heroTitle: "Tell us where and for how long. TRIPA plans the rest.",
+      heroLead: "Add your hotel, dates or arrival time whenever they come to mind. The more you share, the better the plan gets, down to closed days and the weather.",
+      budgetLabel: "Budget style", budgetCheap: "Best value", budgetLux: "Price doesn't matter",
+      askPh: "e.g. Gangneung, 2 days, kid-friendly spots", askBtn: "Plan my trip", tryLabel: "You can also ask",
+      ticketHead: "Sample itinerary", cSeoul: "Seoul", cBusan: "Busan",
+      t1: "3 days · 2 people · best value", t2: "Day 2 switched indoors for rain", t3: "1 place closed on Wednesdays removed", t4: "KTX, express bus and car costs compared", ticketBtn: "Open this itinerary",
+      h1t: "Type only what you know", h1p: "Start with a place and a length of stay. A hint under the input asks for the rest, one item at a time.",
+      h2t: "Closed places left out", h2p: "Places on a regular or temporary day off are never suggested for that date.",
+      h3t: "Weather within 7 days", h3p: "If you leave within a week, rainy days get indoor places first.",
+      annotMain: "Mockup note: sample questions rotate every 4 seconds and open the chat with that sentence (FR-16). Budget styles were dropped on Oct 28; budgets are set per category in chat or on the budget screen.",
+      suTitle: "Sign up", suEmail: "Email (ID)", suPw: "Password", suNick: "Nickname", suGender: "Gender", gF: "Female", gM: "Male", suAge: "Age group", ageSel: "Select",
+      a10: "Teens", a20: "20s", a30: "30s", a40: "40s", a50: "50s", age60: "60s+",
+      suConsent: "[Required] I agree that my gender and age group are used for personalized recommendations. We never ask for your birth date.", suBtn: "Create account",
+      suErrGender: "Select your gender.", suErrAge: "Select your age group.", suErrAgree: "Consent is required for personalized recommendations.", suOk: "Your account is ready. Start planning a trip.",
+      annotSignup: "Mockup note: without gender or consent, the button shows an error (FR-01). Existing members from version 1 fill in these two fields once at their next login.",
+      chatTitle: "Chat", chatTag: "React view",
+      m1: "Plan 3 days in Busan", m2: "I planned a 3-day trip with a budget guesthouse near Haeundae as your stay. Check the day-by-day plan on the right.", m2s: "Suggested stay · no dates yet",
+      m3: "We're 2 people leaving Wednesday, Oct 28", m4: "Dates added. You leave within 7 days, so I checked the weather: rain is expected on the 29th, so Day 2 is now mostly indoors. I removed one gallery that closes on Wednesdays.", m4s: "Weather applied · 1 closed place removed",
+      m5: "Compare ways to get from Seoul to Busan", m6: "One-way costs for 2 people. The express bus is cheapest; KTX is best if time matters.",
+      cmMode: "Mode", cmTime: "Time", cmPer: "Per person", cmTotal: "Total (2)", cmBus: "Express bus", cmCar: "Own car", cmRent: "Rental car",
+      m6s: "Sample amounts (KRW) · car = estimated fuel + tolls, rental includes a reference daily rate",
+      chatPh: "Type a message", send: "Send",
+      hintStay: "Already booked a place to stay? Let us know", hintArrive: "Tell us your arrival time and we'll fit Day 1 around it", hintDone: "We have everything we need. Tell us if you'd like changes",
+      planTitle: "Draft itinerary", planTag: "Preview before applying", apply: "Apply this itinerary", editHint: "Edit by chatting", applied: "Applied to your trip",
+      fRegion: "Where", fDates: "Dates", fPeople: "People", fStay: "Stay", fArrive: "Arrival", fBudget: "Budget",
+      vRegion: "Busan · 3 days", vDates: "Oct 28 (Wed) – Oct 30 (Fri)", vPeople: "2", vStayRec: "○○ Guesthouse", vStayMine: "Haeundae △△ Hotel", vArriveNone: "10:00", vArrive: "Busan Station 10:30", vBudget: "₩500k · per category",
+      pRec: "Suggested", pMine: "Booked", pDefault: "Default",
+      d1: "Day 1", d2: "Day 2", d3: "Day 3",
+      wSun: "Sunny 21°C · forecast applied", wRain: "Rain 70% · 18°C · indoor places first", wCloud: "Cloudy 19°C · forecast applied",
+      exc: "Closed on Wednesdays: △△ Gallery was removed",
+      indoor: "Indoor", stay: "Stay", min: "min",
+      mapTitle: "Map", mapTag: "Kakao Map goes here", lgStops: "stops", lgTransit: "by public transit",
+      annotChat: "Mockup note: the yellow hint under the input shows one missing item at a time (stay → dates → arrival). Send a message containing 'hotel' or 'arrive' and the hint and its icon change together. All amounts and places are examples.",
+      aiStay: "I switched your stay to that hotel and re-planned the route.", aiArrive: "Day 1 now starts at your arrival time.", aiOther: "I updated the draft with your request. (mockup reply)",
+      rsTitle: "Reset password", rsLead: "We'll email a reset link to your sign-up address. It works once, for 30 minutes.", rsBtn: "Send reset link",
+      rsDone: "If that email is registered, a reset link is on its way. Check your inbox.",
+      annotReset: "Mockup note: unregistered emails get the same message, so nobody can tell whether an address has an account (FR-15).",
+      mTabChat: "Chat", mTabPlan: "Plan", mTabMap: "Map", mTabMe: "Me",
+      sRegion: "Busan · 3 days", sPeople: "2 people", sStay: "Stay suggested",
+      pCap1: "① Home", pCap2: "② Chat · trip so far on top, hint below", pCap3: "③ Plan · rain on Day 2",
+      annotMobile: "Mockup note: portrait phone, about 360px wide. The three desktop columns (chat, plan, map) become four bottom tabs, and 'trip so far' shrinks to swipeable chips above the chat. Missing info (stay) uses the same icon in its dashed chip and in the hint under the input.",
+      icTitle: "One icon per feature",
+      r1: "Each feature has exactly one icon, used the same way in menus, chips, hints, tables and the mobile tab bar.",
+      r2: "All icons live in one SVG sprite and are called by name (i-stay and so on). Nobody draws a new one per screen.",
+      r3: "1.8 stroke, round caps, 24×24 grid. Icons take the text color; only status colors (rain, closed, suggested) change.",
+      r4: "Avoid shapes that read as another feature. Plan (calendar) and Closed (calendar + X) differ only by the X.",
+      annotIcons: "Mockup note: the grey text is the name used in code. If the React view and the Django templates share one SVG file, icons never drift between them.",
+      icons: [
+        ["i-chat","Chat","chat view, tab bar, home"],["i-plan","Plan · dates","draft plan, my trips, date chip"],["i-map","Region · map","region chip, map panel, tab bar"],
+        ["i-stay","Stay","stay chip, stay hint, stay stops"],["i-arrive","Arrival · departure","arrival hint and chip"],["i-people","People","people chip"],
+        ["i-budget","Budget style","budget picker and chip"],["i-closed","Closed day removed","closed notice, home"],["i-indoor","Indoor place","indoor badge"],
+        ["i-sun","Weather: sunny","weather line"],["i-cloud","Weather: cloudy","weather line"],["i-rain","Weather: rain","weather line, indoor switch"],
+        ["i-train","KTX · train","transport comparison"],["i-bus","Express · intercity bus","transport comparison"],["i-car","Own car","transport comparison"],
+        ["i-rent","Rental car","transport comparison (car + key)"],["i-route","Travel · route","leg times, comparison summary"],["i-ai","What AI applied","summary under AI replies"],
+        ["i-lang","Language","language switch"],["i-user","Member","sign-up, Me tab"],["i-lock","Log in · password","log in, reset password"],
+        ["i-mail","Email","reset email field"],["i-send","Send","mobile send button"]
+      ],
+      examples: ["Plan 3 days in Busan", "Indoor spots in Jeonju for a rainy day", "Gyeongju for 2 days with kids, on a budget", "Cheapest way from Seoul to Gangneung?", "3 days in Yeosu with my parents"]
+    }
+  };
+  T.ko.names = {
+    d1: [["10:30","부산역 도착","arrive"],["11:20","초량 이바구길",""],["12:40","돼지국밥 점심",""],["14:10","흰여울문화마을",""],["17:00","체크인","stay"],["19:00","광안리 해변 저녁",""]],
+    d2: [["09:30","부산시립미술관","indoor"],["12:00","센텀 맛집 점심","indoor"],["13:30","부산영화체험박물관","indoor"],["16:00","스파랜드","indoor"],["19:00","해운대 시장 저녁",""]],
+    d3: [["09:00","체크아웃","stay"],["10:00","해동용궁사",""],["13:00","기장 시장 점심",""],["16:30","부산역 출발","arrive"]]
+  };
+  T.en.names = {
+    d1: [["10:30","Arrive at Busan Station","arrive"],["11:20","Choryang Ibagu-gil",""],["12:40","Pork soup lunch",""],["14:10","Huinnyeoul Culture Village",""],["17:00","Check in","stay"],["19:00","Dinner at Gwangalli Beach",""]],
+    d2: [["09:30","Busan Museum of Art","indoor"],["12:00","Lunch in Centum","indoor"],["13:30","Busan Cinema Experience Museum","indoor"],["16:00","Spa Land","indoor"],["19:00","Dinner at Haeundae Market",""]],
+    d3: [["09:00","Check out","stay"],["10:00","Haedong Yonggungsa",""],["13:00","Lunch at Gijang Market",""],["16:30","Depart Busan Station","arrive"]]
+  };
+
+  Object.assign(T.ko, {
+    tabBudget: "예산 관리",
+    bTitle: "여행 예산", bTag: "부산 · 2박 3일 · 2명", bTotal: "총 예산 (원)", bListTitle: "장소별 금액", bListTag: "금액을 눌러 바로 고치기",
+    bigBudget: "총 예산", bigPlanned: "계획 금액", bigLeft: "남은 금액", bigOver: "초과 금액",
+    perPerson: "1인당 예산 {a} · 계획 1인당 {b}",
+    catStay: "숙소", catMove: "이동", catFood: "식비", catTicket: "입장·체험",
+    bShort: "총 예산 {a} · 2명", bMore: "예산 자세히", planned: "계획 {a}", overBy: "{a} 초과", leftBy: "{a} 남음",
+    dayTotal: "{d} 합계", free: "무료", srcAi: "AI 추정", srcUser: "직접 입력",
+    swapName: "부산박물관",
+    sugOver: "예산을 {a} 넘었어요. 2일차 스파랜드(36,000원) 대신 무료인 부산박물관을 넣으면 {b} 남아요. 둘 다 실내라 비 예보에도 맞아요.",
+    sugApply: "이렇게 바꾸기", sugOver2: "예산을 {a} 넘었어요. 2일차 스파랜드(36,000원) 대신 무료인 부산박물관을 넣으면 초과가 {b}로 줄어요.", sugKeep: "그대로 두기", sugDone: "스파랜드를 부산박물관으로 바꿨어요. 예산 안으로 들어왔어요.", sugUndo: "되돌리기", sugDoneOver: "스파랜드를 부산박물관으로 바꿨어요. 아직 {a} 넘어서, 금액을 고치거나 총 예산을 조정해보세요.",
+    sugOk: "계획 금액이 예산 안에 있어요.", sugKept: "초과된 채로 두었어요. 총 예산을 올리거나 금액을 직접 고칠 수 있어요.",
+    thPlace: "장소", thCat: "분류", thAmt: "금액 (2명)", thSrc: "출처",
+    moveHead: "이동 (서울 ↔ 부산, 시내)", mvBus: "고속버스 왕복 (이동수단 비교에서 선택)", mvLocal: "시내 대중교통 3일",
+    aiBudget: "총 예산을 반영했어요. 지금 계획은 예산을 35,200원 넘어서, 오른쪽 예산 줄에서 바꿀 방법을 제안해드렸어요.",
+    annotBudget: "목업 메모: 1차 TRIPA의 비용 관리(pay 테이블)를 다시 살린 화면입니다(FR-11). 장소별 금액은 처음에 AI가 장소 가격대와 분류 평균으로 채우고(AI 추정), 사용자가 고치면 '직접 입력'으로 바뀌어 일정을 다시 짜도 유지됩니다. 금액은 코드가 계산하고, LLM은 초과 시 바꿀 장소를 후보 안에서 고르는 문장만 씁니다. 금액은 모두 예시입니다.",
+    pCap3: "③ 일정 · 비 예보와 예산",
+    annotChat: "목업 메모: 입력창 아래 노란 안내는 비어 있는 정보 중 하나만 보여줍니다(숙소 → 날짜 → 도착 시간). 일정 위 예산 줄은 총 예산과 계획 금액을 비교하고, 장소 옆 금액을 누르면 바로 고칠 수 있습니다. 메시지에 '숙소', '도착', '예산'을 넣어 보내보세요. 금액과 장소는 모두 예시입니다."
+  });
+  Object.assign(T.en, {
+    tabBudget: "Budget",
+    bTitle: "Trip budget", bTag: "Busan · 3 days · 2 people", bTotal: "Total budget (KRW)", bListTitle: "Cost per place", bListTag: "Tap an amount to edit",
+    bigBudget: "Budget", bigPlanned: "Planned", bigLeft: "Left", bigOver: "Over",
+    perPerson: "Budget per person {a} · planned per person {b}",
+    catStay: "Stay", catMove: "Transport", catFood: "Food", catTicket: "Tickets",
+    bShort: "Budget {a} · 2 people", bMore: "Budget details", planned: "Planned {a}", overBy: "{a} over", leftBy: "{a} left",
+    dayTotal: "{d} total", free: "Free", srcAi: "AI estimate", srcUser: "Edited",
+    swapName: "Busan Museum",
+    sugOver: "You're {a} over budget. Swap Spa Land on Day 2 (₩36,000) for the free Busan Museum and you'll have {b} left. Both are indoors, so the rain forecast still fits.",
+    sugApply: "Make the swap", sugOver2: "You're {a} over budget. Swapping Spa Land on Day 2 (₩36,000) for the free Busan Museum cuts the overage to {b}.", sugKeep: "Keep as is", sugDone: "Spa Land was swapped for Busan Museum. You're back within budget.", sugUndo: "Undo", sugDoneOver: "Spa Land was swapped for Busan Museum. Still {a} over: edit amounts or adjust the total.",
+    sugOk: "Your plan fits the budget.", sugKept: "Kept over budget. You can raise the total or edit amounts yourself.",
+    thPlace: "Place", thCat: "Type", thAmt: "Amount (2)", thSrc: "Source",
+    moveHead: "Transport (Seoul ↔ Busan, local)", mvBus: "Express bus round trip (from comparison)", mvLocal: "Local transit, 3 days",
+    aiBudget: "Budget added. The plan is ₩35,200 over, so the budget bar on the right now suggests a swap.",
+    annotBudget: "Mockup note: this brings back version 1's cost tracking (pay table, FR-11). The AI fills each place's amount from its price level and type averages (AI estimate); edits become 'Edited' and survive re-planning. Code does the math; the LLM only writes the swap suggestion, picking from existing candidates. All amounts are examples.",
+    pCap3: "③ Plan · rain and budget",
+    annotChat: "Mockup note: the yellow hint shows one missing item at a time (stay → dates → arrival). The budget bar above the plan compares the total with planned costs, and the amount next to each place can be edited in place. Try messages containing 'hotel', 'arrive' or 'budget'. All amounts and places are examples."
+  });
+  T.ko.icons.push(["i-crowd","혼잡도","일정·추천 카드의 붐빔/한산 안내"],["i-parking","주차","추천 카드 주차 정보, 주차 조건"],["i-check","영업·가능","추천 카드 영업 표시"],["i-info","정보 없음·확인 필요","추천 카드 안내"],["i-food","식비","예산 분류, 음식점, 추천 카드"],["i-ticket","입장·체험","예산 분류, 입장료"],["i-wallet","장소별 금액","예산 관리 목록"],["i-edit","금액 고치기","직접 입력"]);
+  T.en.icons.push(["i-crowd","Crowd level","busy/quiet notes on plan and cards"],["i-parking","Parking","place card parking, parking filter"],["i-check","Open · available","place card status"],["i-info","No info · check","place card note"],["i-food","Food","budget type, restaurants, place cards"],["i-ticket","Tickets","budget type, admission"],["i-wallet","Cost per place","budget list"],["i-edit","Edit amount","edited amounts"]);
+  T.ko.icons[6] = ["i-budget","예산","예산 성향, 총 예산, 예산 줄"];
+  T.en.icons[6] = ["i-budget","Budget","budget style, total, budget bar"];
+
+  const COST = {
+    d1: [[0, "move"], [0, "ticket"], [22000, "food"], [0, "ticket"], [110000, "stay"], [46000, "food"]],
+    d2: [[0, "ticket"], [28000, "food"], [20000, "ticket"], [36000, "ticket"], [40000, "food"]],
+    d3: [[0, "stay"], [0, "ticket"], [36000, "food"], [0, "move"]]
+  };
+  const MOVE = [["mvBus", 158800], ["mvLocal", 38400]];
+  const CATS = [["stay", "i-stay", "catStay"], ["move", "i-route", "catMove"], ["food", "i-food", "catFood"], ["ticket", "i-ticket", "catTicket"]];
+
+  // AI 비용 예측 근거: 실제 서비스에서는 LangChain 검색 도구가 채우는 자리. 아래 금액·출처는 2026-10-28 웹 자료로 만든 예시.
+  Object.assign(T.ko, {
+    pdTitle: "AI 비용 예측 근거", pdTag: "OpenAI + LangChain 검색 · 2026.10.28 기준 예시",
+    pipe: ["장소별 가격 검색", "금액·날짜·출처 추출(JSON)", "합계는 코드가 계산", "못 찾거나 오래된 값은 '확인 필요'"],
+    pdAll: "전체", pdCafe: "카페", pdTwo: "2명", pdRange: "범위 {a}", pdFixed: "정해진 요금",
+    confOfficial: "공식 요금", confMarket: "예매 사이트 시세", confAvg: "평균으로 추정", confLow: "정보 부족 · 확인 필요",
+    pdSum: "AI 예측 합계 (카페 제외) {a}", pdSumRange: "예상 범위 {a} ~ {b}",
+    annotBudget: "목업 메모: 1차 TRIPA의 비용 관리(pay 테이블)를 다시 살린 화면입니다(FR-11). 장소별 금액은 AI가 채우고(AI 추정), 사용자가 고치면 '직접 입력'으로 바뀌어 일정을 다시 짜도 유지됩니다. 아래 'AI 비용 예측 근거'는 OpenAI + LangChain 검색 도구가 장소마다 가격을 찾아 금액·범위·출처·신뢰도를 남기는 모습입니다. 이 목업의 금액과 출처는 2026년 10월 28일 실제 인터넷 자료로 만든 예시이고, 합계 계산은 LLM이 아니라 코드가 합니다."
+  });
+  Object.assign(T.en, {
+    pdTitle: "Why the AI estimated these costs", pdTag: "OpenAI + LangChain search · sample as of Oct 28, 2026",
+    pipe: ["Search prices per place", "Extract amount, date, source (JSON)", "Code adds up totals", "Missing or stale values flagged"],
+    pdAll: "All", pdCafe: "Cafe", pdTwo: "2 people", pdRange: "Range {a}", pdFixed: "Fixed price",
+    confOfficial: "Official price", confMarket: "Booking site rate", confAvg: "Estimated from averages", confLow: "Not enough info · check",
+    pdSum: "AI estimate total (excl. cafe) {a}", pdSumRange: "Expected range {a} – {b}",
+    annotBudget: "Mockup note: this brings back version 1's cost tracking (pay table, FR-11). The AI fills each place's amount (AI estimate); edits become 'Edited' and survive re-planning. 'Why the AI estimated these costs' shows the OpenAI + LangChain search tool finding a price for each place and keeping the amount, range, source and confidence. Amounts and sources here are samples built from real web data on Oct 28, 2026, and totals are computed by code, not the LLM."
+  });
+  // [분류, 아이콘, 금액(2명), 최소, 최대, 신뢰도, ko{이름,근거,출처}, en{...}]
+  const PRED = [
+    ["stay", "i-stay", 110000, 83000, 138000, "market",
+      { n: "○○ 게스트하우스 2박 (2인실)", b: "해운대 게스트하우스 2인 1박 최저가 41,754~42,939원, 한 곳 평균 68,842원 → 1박 55,000원 × 2박", s: "호텔스컴바인 시세 · 날짜별로 다름" },
+      { n: "○○ Guesthouse, 2 nights (double)", b: "Haeundae guesthouses for 2: lowest ₩41,754–42,939 a night, one averaging ₩68,842 → ₩55,000 × 2 nights", s: "HotelsCombined rates · vary by date" }],
+    ["food", "i-food", 22000, 18000, 26000, "avg",
+      { n: "1일차 점심 · 돼지국밥", b: "부산 냉면 평균 11,714원(2026년 4월), 한식 한 끼 8,000~13,000원 → 1인 11,000원", s: "한국소비자원 참가격 · 메뉴별 가게 가격 아님" },
+      { n: "Day 1 lunch · pork soup", b: "Busan naengmyeon average ₩11,714 (Apr 2026); a Korean sit-down meal ₩8,000–13,000 → ₩11,000 each", s: "Korea Consumer Agency price survey · not a shop menu" }],
+    ["food", "i-food", 46000, 40000, 70000, "low",
+      { n: "1일차 저녁 · 광안리 해변", b: "해산물 식당 가격을 찾지 못해 식비 카테고리 상한(끼니당 2명 26,000원) 안에서 1인 23,000원으로 추정", s: "검색 결과 없음 · 방문 전 확인" },
+      { n: "Day 1 dinner · Gwangalli Beach", b: "No seafood restaurant prices found, so ₩23,000 each for a best-value trip", s: "No search results · check before you go" }],
+    ["food", "i-food", 40000, 30000, 50000, "avg",
+      { n: "2일차 저녁 · 해운대 시장", b: "시장 어묵 1개 1,200~1,400원(2025년 8월 보도) 등 분식·포장마차 메뉴 조합 → 1인 20,000원", s: "서울신문 보도 · 1년 넘은 자료" },
+      { n: "Day 2 dinner · Haeundae Market", b: "Fish cakes ₩1,200–1,400 each (Aug 2025 report) plus street food → ₩20,000 each", s: "Seoul Shinmun report · over a year old" }],
+    ["cafe", "i-food", 12000, 9400, 18000, "avg",
+      { n: "2일차 오후 · 오션뷰 카페 (추천 시)", b: "프랜차이즈 아메리카노 4,700원(2026년 6월), 오션뷰 카페는 9,000원 사례 → 1잔 6,000원", s: "가격 비교 블로그·카페 리뷰 · 매장 메뉴판 확인 필요" },
+      { n: "Day 2 afternoon · ocean-view cafe (if added)", b: "Chain americano ₩4,700 (Jun 2026); ocean-view cafes up to ₩9,000 → ₩6,000 a cup", s: "Price blog and cafe reviews · check the menu" }],
+    ["ticket", "i-ticket", 20000, 20000, 20000, "official",
+      { n: "부산영화체험박물관", b: "성인 10,000원 × 2명. 부산시민은 7,000원. 월요일 휴관", s: "문화체육관광부 문화시설 안내" },
+      { n: "Busan Cinema Experience Museum", b: "Adults ₩10,000 × 2. Busan residents ₩7,000. Closed Mondays", s: "Ministry of Culture venue listing" }],
+    ["ticket", "i-ticket", 36000, 36000, 52000, "market",
+      { n: "스파랜드 센텀시티", b: "정가 성인 25,000~26,000원, 예매처 할인가 18,000원부터 → 할인가 × 2명. 입장 후 4시간 넘으면 추가 요금", s: "인터파크·와그 판매가 · 날짜별 할인" },
+      { n: "Spa Land Centum City", b: "List price ₩25,000–26,000; booking sites from ₩18,000 → discount × 2. Extra charge after 4 hours", s: "Interpark and Waug listings · discounts vary" }],
+    ["ticket", "i-ticket", 0, 0, 0, "official",
+      { n: "해동용궁사", b: "입장 무료. 자가용이면 주차 30분 2,000원, 이후 10분당 500원", s: "여행 안내 기사(2026년 8월)" },
+      { n: "Haedong Yonggungsa", b: "Free entry. By car, parking ₩2,000 for 30 min, then ₩500 per 10 min", s: "Travel article (Aug 2026)" }],
+    ["ticket", "i-ticket", 0, 0, 10000, "low",
+      { n: "부산시립미술관", b: "관람료 정보를 찾지 못했어요. 무료로 두고 기획전은 따로 요금이 있을 수 있다고 표시", s: "검색 결과 없음 · 공식 홈페이지 확인" },
+      { n: "Busan Museum of Art", b: "No admission info found. Shown as free, with a note that special exhibitions may charge", s: "No search results · check the official site" }],
+    ["move", "i-bus", 158800, 158800, 173200, "official",
+      { n: "고속버스 왕복 (서울경부 ↔ 부산, 우등)", b: "우등 39,700원 × 2명 × 왕복. 10월 1일 운임 상한 9% 인상 발표 → 반영되면 약 173,200원", s: "아주경제(2026년 9월)·터미널 시간표" },
+      { n: "Express bus round trip (Seoul ↔ Busan, deluxe)", b: "Deluxe ₩39,700 × 2 × round trip. A 9% fare cap rise from Oct 1 → about ₩173,200 if applied", s: "Aju News (Sep 2026), terminal timetable" }],
+    ["move", "i-route", 38400, 31000, 38400, "avg",
+      { n: "시내 대중교통 3일", b: "도시철도 1,600원(2024년 10월 기준) × 하루 4번 × 3일 × 2명. 환승 할인 전 금액", s: "KNN 보도 · 오래된 자료라 다시 확인" },
+      { n: "Local transit, 3 days", b: "Metro ₩1,600 (Oct 2024) × 4 rides a day × 3 days × 2. Before transfer discounts", s: "KNN report · old data, recheck" }]
+  ];
+  const PCATS = [["all", "pdAll"], ["stay", "catStay"], ["food", "catFood"], ["cafe", "pdCafe"], ["ticket", "catTicket"], ["move", "catMove"]];
+  const confKey = { official: "confOfficial", market: "confMarket", avg: "confAvg", low: "confLow" };
+  let predCat = "all";
+  function renderPred() {
+    $("#pipe").innerHTML = t("pipe").map((s, i) => `${i ? "<i>→</i>" : ""}<span>${i === 0 ? icon("i-ai") : ""}${esc(s)}</span>`).join("");
+    $("#predbar").innerHTML = PCATS.map(([k, key]) => `<button type="button" class="chip" data-pcat="${k}" aria-pressed="${predCat === k}">${esc(t(key))}</button>`).join("");
+    const list = PRED.filter(p => predCat === "all" || p[0] === predCat);
+    $("#predgrid").innerHTML = list.map(([cat, ic, amt, lo, hi, conf, ko, en]) => {
+      const d = state.lang === "ko" ? ko : en;
+      const color = cat === "cafe" ? "food" : cat;
+      const range = lo === hi ? t("pdFixed") : t("pdRange").replace("{a}", `${fmt(lo)} ~ ${fmt(hi)}`);
+      return `<div class="pred"><div class="top"><span class="sw" style="color:var(--cat-${color})">${icon(ic)}</span><strong>${esc(d.n)}</strong><span class="conf ${conf}">${esc(t(confKey[conf]))}</span></div>
+        <div class="amt">${esc(amt ? fmt(amt) : t("free"))}<small>${esc(t("pdTwo"))} · ${esc(range)}</small></div>
+        <p>${esc(d.b)}</p>
+        <div class="srcline">${icon("i-info")}<span>${esc(d.s)}</span></div></div>`;
+    }).join("");
+    const main = PRED.filter(p => p[0] !== "cafe");
+    const sum = i => main.reduce((s, p) => s + p[i], 0);
+    $("#predsum").innerHTML = `<span>${esc(t("pdSum").replace("{a}", fmt(sum(2))))}</span><b>${esc(t("pdSumRange").replace("{a}", fmt(sum(3))).replace("{b}", fmt(sum(4))))}</b>`;
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-pcat]"); if (b) { predCat = b.dataset.pcat; renderPred(); } });
+
+  // 카테고리 예산: 카테고리 금액을 먼저 정하고, 장소는 그 안에서 고른다. 금액은 'AI 비용 예측 근거'와 같은 예시.
+  Object.assign(T.ko, {
+    tabCat: "카테고리 예산",
+    ctAllocT: "카테고리별 예산 정하기", ctFlowT: "AI가 장소를 고르는 방식",
+    ctTotal: "총 예산", ctSum: "배분 합계 {a}", ctLeft: "미배분 {a}", ctOverAlloc: "총 예산보다 {a} 많이 배분했어요", ctEven: "총 예산과 딱 맞아요",
+    ctReset: "AI 기본 배분", ctMove: "남는 금액 옮기기", ctPlanned: "계획 {a}", ctBudget: "예산 {a}", ctOver: "{a} 초과", ctUnder: "{a} 남음",
+    ctSwapped: "바꿈", ctFree: "무료", ctSwap: "바꾸기", ctUndo: "되돌리기",
+    ctSug: "{w} {from}을(를) {to}(으)로 바꾸면 {s} 줄어요.", ctSugNone: "같은 카테고리 안에는 더 싼 대안이 없어요. 카테고리 예산을 올리거나 남는 금액을 옮겨주세요.", ctOk: "카테고리 예산 안에 있어요.",
+    ctDefNote: "2박 3일 · 2명 · 서울 출발 기준 비율",
+    guide: {
+      stay: "1박 {a} 이하 숙소로 검색해요 (2박)",
+      move: "왕복 교통비를 먼저 확정하고, 남은 {a}을 시내 교통에 써요",
+      food: "끼니당 2명 {a}(1인 {b}) 이하 식당으로 검색해요 (5끼)",
+      cafe: "1회 2명 {a} 이하 카페로 검색해요",
+      ticket: "유료 장소는 남은 {a} 안에서만 넣고, 넘으면 무료 장소로 대체해요"
+    },
+    flow: ["총 예산을 카테고리로 나눠요. 처음엔 AI가 일정 길이·인원·출발지를 보고 기본 비율을 제안하고, 사용자가 금액을 고쳐요.", "카테고리 예산을 장소 수로 나눠 '한 곳당 상한'을 만들어요. 예: 식비 130,000원 ÷ 5끼 = 끼니당 26,000원(2명).", "LangChain 검색에 상한을 조건으로 넣어요. 예: \"해운대 근처 저녁, 1인 13,000원 이하, 평점 4.0 이상\".", "카테고리가 넘치면 같은 카테고리 안에서만 더 싼 대안을 제안해요. 다른 카테고리의 돈은 사용자가 옮길 때만 움직여요."],
+    flowF: "한 곳당 상한 = (카테고리 예산 − 이미 확정한 금액) ÷ 남은 장소 수  ·  계산은 코드, 검색과 문장은 LLM",
+    flowNote: "성향(가성비/고급) 방식과 달리 리뷰 분석 없이 '가격 상한'만 있으면 돼서, 웹 검색 결과와 Google 가격대 정보로 구현할 수 있어요.",
+    annotCat: "목업 메모: 예산 성향(가성비/고급) 대신 카테고리별 금액으로 추천 범위를 정하는 안입니다. 왼쪽 금액을 바꾸면 각 카드의 상한과 초과 여부가 바로 바뀝니다. 식비와 문화·입장이 처음부터 넘치도록 해 두었으니 [바꾸기]나 [남는 금액 옮기기]를 눌러보세요. 장소와 금액은 'AI 비용 예측 근거'와 같은 예시이고, 대안 식당 중 하오돼지국밥·해운대가야밀면은 실제 가게 가격(dafood), 나머지는 예시입니다."
+  });
+  Object.assign(T.en, {
+    tabCat: "Category budget",
+    ctAllocT: "Set a budget per category", ctFlowT: "How the AI picks places",
+    ctTotal: "Total budget", ctSum: "Allocated {a}", ctLeft: "Unallocated {a}", ctOverAlloc: "Allocated {a} more than the total", ctEven: "Matches the total exactly",
+    ctReset: "AI default split", ctMove: "Move leftovers", ctPlanned: "Planned {a}", ctBudget: "Budget {a}", ctOver: "{a} over", ctUnder: "{a} left",
+    ctSwapped: "Swapped", ctFree: "Free", ctSwap: "Swap", ctUndo: "Undo",
+    ctSug: "Swap {from} ({w}) for {to} to save {s}.", ctSugNone: "No cheaper option in this category. Raise its budget or move leftovers here.", ctOk: "Within the category budget.",
+    ctDefNote: "Split for 3 days · 2 people · from Seoul",
+    guide: {
+      stay: "Searching stays up to {a} a night (2 nights)",
+      move: "Round trip fixed first; the remaining {a} goes to local transit",
+      food: "Searching restaurants up to {a} per meal for 2 ({b} each, 5 meals)",
+      cafe: "Searching cafes up to {a} per visit for 2",
+      ticket: "Paid places only within the remaining {a}; otherwise free places"
+    },
+    flow: ["Split the total into categories. The AI suggests a default from trip length, group size and origin; the user edits the amounts.", "Divide each category by its number of places to get a per-place cap. E.g. food ₩130,000 ÷ 5 meals = ₩26,000 per meal for 2.", "The cap goes into the LangChain search, e.g. \"dinner near Haeundae, ₩13,000 or less each, rated 4.0+\".", "If a category runs over, cheaper options come only from the same category. Money moves between categories only when the user moves it."],
+    flowF: "Per-place cap = (category budget − amounts already fixed) ÷ places left  ·  code computes, the LLM searches and writes",
+    flowNote: "Unlike budget styles, this needs only a price cap, no review analysis, so web search results and Google price levels are enough.",
+    annotCat: "Mockup note: instead of budget styles, amounts per category set the search range. Change an amount on the left and each card's cap and status update. Food and tickets start over budget on purpose: try [Swap] or [Move leftovers]. Places and amounts match 'Why the AI estimated these costs'; among the cheaper options, Hao Dwaeji Gukbap and Haeundae Gaya Milmyeon use real shop prices (dafood), the rest are examples."
+  });
+  const CAT2 = [
+    { k: "stay", ic: "i-stay", key: "catStay", def: 120000, slots: [
+      { w: ["1·2일차 밤", "Nights 1–2"], n: ["○○ 게스트하우스 2박", "○○ Guesthouse, 2 nights"], amt: 110000 }] },
+    { k: "move", ic: "i-route", key: "catMove", def: 200000, slots: [
+      { w: ["왕복", "Round trip"], n: ["고속버스 우등 왕복", "Deluxe express bus, round trip"], amt: 158800, fixed: true },
+      { w: ["3일", "3 days"], n: ["시내 대중교통", "Local transit"], amt: 38400 }] },
+    { k: "food", ic: "i-food", key: "catFood", def: 130000, slots: [
+      { w: ["1일차 점심", "Day 1 lunch"], n: ["돼지국밥", "Pork soup"], amt: 22000, alt: [["하오돼지국밥 (9,000원 × 2)", "Hao Dwaeji Gukbap (₩9,000 × 2)"], 18000] },
+      { w: ["1일차 저녁", "Day 1 dinner"], n: ["광안리 해산물", "Gwangalli seafood"], amt: 46000, alt: [["광안리 밀면·국밥집", "Gwangalli noodle or soup place"], 24000] },
+      { w: ["2일차 점심", "Day 2 lunch"], n: ["센텀 맛집", "Lunch in Centum"], amt: 28000, alt: [["센텀 백화점 푸드코트", "Centum department store food court"], 20000] },
+      { w: ["2일차 저녁", "Day 2 dinner"], n: ["해운대 시장", "Haeundae Market"], amt: 40000, alt: [["해운대가야밀면 (10,000원 × 2)", "Haeundae Gaya Milmyeon (₩10,000 × 2)"], 20000] },
+      { w: ["3일차 점심", "Day 3 lunch"], n: ["기장 시장", "Gijang Market"], amt: 36000, alt: [["기장 칼국수집", "Gijang noodle house"], 24000] }] },
+    { k: "cafe", ic: "i-food", key: "pdCafe", color: "food", def: 20000, slots: [
+      { w: ["2일차 오후", "Day 2 afternoon"], n: ["○○ 오션뷰 카페", "○○ Ocean View Cafe"], amt: 12000 }] },
+    { k: "ticket", ic: "i-ticket", key: "catTicket", def: 30000, slots: [
+      { w: ["2일차", "Day 2"], n: ["부산영화체험박물관", "Busan Cinema Experience Museum"], amt: 20000 },
+      { w: ["2일차", "Day 2"], n: ["스파랜드", "Spa Land"], amt: 36000, alt: [["부산박물관 (무료)", "Busan Museum (free)"], 0] },
+      { w: ["2일차", "Day 2"], n: ["부산시립미술관", "Busan Museum of Art"], amt: 0 },
+      { w: ["3일차", "Day 3"], n: ["해동용궁사", "Haedong Yonggungsa"], amt: 0 }] }
+  ];
+  const cs = { total: 500000, b: {}, sw: {} };
+  const resetCat = () => { const base = CAT2.reduce((s, c) => s + c.def, 0); CAT2.forEach(c => { cs.b[c.k] = Math.round(c.def / base * cs.total / 1000) * 1000; }); };
+  resetCat();
+  const L = () => state.lang === "ko" ? 0 : 1;
+  const slotAmt = (c, i) => cs.sw[c.k + i] ? c.slots[i].alt[1] : c.slots[i].amt;
+  const catPlanned = c => c.slots.reduce((s, _, i) => s + slotAmt(c, i), 0);
+  function catGuide(c) {
+    const b = cs.b[c.k]; const g = t("guide")[c.k];
+    if (c.k === "stay") return g.replace("{a}", fmt(b / 2));
+    if (c.k === "move") { const fixed = c.slots.filter(s => s.fixed).reduce((s, x) => s + x.amt, 0); return g.replace("{a}", fmt(Math.max(0, b - fixed))); }
+    if (c.k === "food") { const per = b / c.slots.length; return g.replace("{a}", fmt(per)).replace("{b}", fmt(per / 2)); }
+    if (c.k === "cafe") return g.replace("{a}", fmt(b));
+    const paid = c.slots.filter((s, i) => slotAmt(c, i) > 0 && !s.alt).reduce((s, x) => s + x.amt, 0);
+    return g.replace("{a}", fmt(Math.max(0, b - paid)));
+  }
+  function renderCat() {
+    const sum = CAT2.reduce((s, c) => s + cs.b[c.k], 0); const diff = cs.total - sum;
+    $("#alloc").innerHTML =
+      `<div class="allocrow"><span>${icon("i-wallet")}</span><span><strong>${esc(t("ctTotal"))}</strong></span><input type="number" step="10000" min="0" value="${cs.total}" data-ctotal aria-label="${esc(t("ctTotal"))}"></div>` +
+      CAT2.map(c => `<div class="allocrow"><span style="color:var(--cat-${c.color || c.k})">${icon(c.ic)}</span><span>${esc(t(c.key))}<small>${Math.round(cs.b[c.k] / Math.max(cs.total, 1) * 100)}%</small></span><input type="number" step="10000" min="0" value="${cs.b[c.k]}" data-cb="${c.k}" aria-label="${esc(t(c.key))}"></div>`).join("") +
+      `<div class="allocsum"><span>${esc(t("ctSum").replace("{a}", fmt(sum)))}</span><span class="${diff < 0 ? "over" : diff > 0 ? "" : "under"}">${esc(diff < 0 ? t("ctOverAlloc").replace("{a}", fmt(-diff)) : diff > 0 ? t("ctLeft").replace("{a}", fmt(diff)) : t("ctEven"))}</span></div>` +
+      `<div class="allocacts"><button type="button" class="btn ghost" data-creset>${esc(t("ctReset"))}</button><button type="button" class="btn ghost" data-cmove>${esc(t("ctMove"))}</button><span class="note" style="align-self:center">${esc(t("ctDefNote"))}</span></div>`;
+    $("#flow").innerHTML = `<ol>${t("flow").map(x => `<li>${esc(x)}</li>`).join("")}</ol><div class="formula">${esc(t("flowF"))}</div><p class="note">${esc(t("flowNote"))}</p>`;
+    $("#catcards").innerHTML = CAT2.map(c => {
+      const b = cs.b[c.k], p = catPlanned(c), over = p - b, base = Math.max(b, p, 1);
+      const bar = `<div class="bar"><i class="${over > 0 ? "overfill" : "fill"}" style="width:${(p / base * 100).toFixed(1)}%"></i>${over > 0 ? `<span class="cap" style="left:${(b / base * 100).toFixed(1)}%"></span>` : ""}</div>`;
+      const opts = c.slots.map((s, i) => ({ s, i })).filter(o => o.s.alt && !cs.sw[c.k + o.i]).sort((a, z) => (z.s.amt - z.s.alt[1]) - (a.s.amt - a.s.alt[1]));
+      const hotI = over > 0 && opts.length ? opts[0].i : -1;
+      const rows = c.slots.map((s, i) => {
+        const sw = cs.sw[c.k + i]; const a = slotAmt(c, i);
+        const nm = sw ? s.alt[0][L()] : s.n[L()];
+        const tag = sw ? `<small>${esc(t("ctSwapped"))} · <button type="button" class="link" style="border:0;background:none;color:var(--accent);padding:0;font-size:10px;cursor:pointer" data-cundo="${c.k + i}">${esc(t("ctUndo"))}</button></small>` : "";
+        return `<li class="${sw ? "swapped" : i === hotI ? "hot" : ""}"><span>${esc(nm)}<span class="when">${esc(s.w[L()])}</span></span><span class="amt2">${esc(a ? fmt(a) : t("ctFree"))}${tag}</span></li>`;
+      }).join("");
+      let sug;
+      if (over <= 0) sug = `<div class="suggest ok"><p>${icon("i-check")}<span>${esc(t("ctOk"))}</span></p></div>`;
+      else if (opts.length) {
+        const o = opts[0];
+        sug = `<div class="suggest"><p>${icon("i-ai")}<span>${esc(t("ctSug").replace("{w}", o.s.w[L()]).replace("{from}", o.s.n[L()]).replace("{to}", o.s.alt[0][L()]).replace("{s}", fmt(o.s.amt - o.s.alt[1])))}</span></p><div class="acts"><button type="button" class="btn" data-cswap="${c.k + o.i}">${esc(t("ctSwap"))}</button></div></div>`;
+      } else sug = `<div class="suggest"><p>${icon("i-budget")}<span>${esc(t("ctSugNone"))}</span></p></div>`;
+      return `<div class="panel catcard"><h3><span class="wi"><span style="color:var(--cat-${c.color || c.k})">${icon(c.ic)}</span><span>${esc(t(c.key))}</span></span><span class="tag ${over > 0 ? "over" : "under"}">${esc(over > 0 ? t("ctOver").replace("{a}", fmt(over)) : t("ctUnder").replace("{a}", fmt(-over)))}</span></h3>
+        <div class="head2"><div class="nums2"><span>${esc(t("ctPlanned").replace("{a}", ""))}<b>${esc(fmt(p))}</b></span><span>${esc(t("ctBudget").replace("{a}", ""))}<b>${esc(fmt(b))}</b></span></div>${bar}</div>
+        <p class="guide">${icon("i-ai")}<span>${esc(catGuide(c))}</span></p>
+        <ul class="slots">${rows}</ul>${sug}</div>`;
+    }).join("");
+  }
+  document.addEventListener("click", e => {
+    const sw = e.target.closest("[data-cswap]"); if (sw) { cs.sw[sw.dataset.cswap] = true; renderCat(); return; }
+    const un = e.target.closest("[data-cundo]"); if (un) { delete cs.sw[un.dataset.cundo]; renderCat(); return; }
+    if (e.target.closest("[data-creset]")) { cs.sw = {}; resetCat(); renderCat(); return; }
+    if (e.target.closest("[data-cmove]")) {
+      let spare = cs.total - CAT2.reduce((s, c) => s + cs.b[c.k], 0); if (spare < 0) spare = 0;
+      CAT2.forEach(c => { const p = catPlanned(c); if (cs.b[c.k] > p) { spare += cs.b[c.k] - p; cs.b[c.k] = p; } });
+      CAT2.map(c => [c, catPlanned(c) - cs.b[c.k]]).filter(x => x[1] > 0).sort((a, z) => z[1] - a[1]).forEach(([c, need]) => { const g = Math.min(need, spare); cs.b[c.k] += g; spare -= g; });
+      renderCat();
+    }
+  });
+  document.addEventListener("change", e => {
+    const tot = e.target.closest("[data-ctotal]"); if (tot) { cs.total = Math.max(0, Number(tot.value) || 0); renderCat(); return; }
+    const ci = e.target.closest("[data-cb]"); if (ci) { cs.b[ci.dataset.cb] = Math.max(0, Number(ci.value) || 0); renderCat(); }
+  });
+
+  const VIEWS = ["main", "chat", "budget", "cat", "board", "mobile", "signup", "reset", "icons"];
+  const SIDE_VIEWS = { chat: "chat", budget: "budget", cat: "cat", board: "board" };
+  const state = { style: "cheap", parking: false, lang: "ko", day: "d1", stayMine: false, arrive: false, exIndex: 0, budget: 500000, cost: {}, swap: false, keep: false };
+  const fmt = n => state.lang === "ko" ? Math.round(n).toLocaleString("ko-KR") + "원" : "₩" + Math.round(n).toLocaleString("en-US");
+  const amtOf = (day, i) => { const k = day + ":" + i; if (k in state.cost) return state.cost[k]; if (state.swap && day === "d2" && i === 3) return 0; return COST[day][i][0]; };
+  const srcOf = (day, i) => (day + ":" + i) in state.cost ? "user" : "ai";
+  const moveAmt = j => ("mv:" + j) in state.cost ? state.cost["mv:" + j] : MOVE[j][1];
+  function totals() {
+    const by = { stay: 0, move: 0, food: 0, ticket: 0 };
+    Object.keys(COST).forEach(d => COST[d].forEach((c, i) => { by[c[1]] += amtOf(d, i); }));
+    MOVE.forEach((m, j) => { by.move += moveAmt(j); });
+    return { by, total: by.stay + by.move + by.food + by.ticket };
+  }
+  const dayTotal = d => COST[d].reduce((s, c, i) => s + amtOf(d, i), 0);
+  function barHTML() {
+    const { by, total } = totals(); const base = Math.max(total, state.budget, 1);
+    const segs = CATS.map(([k]) => `<i style="width:${(by[k] / base * 100).toFixed(2)}%;background:var(--cat-${k})"></i>`).join("");
+    const cap = total > state.budget ? `<span class="cap" style="left:${(state.budget / base * 100).toFixed(2)}%"></span>` : "";
+    return segs + cap;
+  }
+  function statusHTML() {
+    const { total } = totals(); const diff = state.budget - total;
+    return diff < 0 ? `<span class="over">${esc(t("overBy").replace("{a}", fmt(-diff)))}</span>` : `<span class="under">${esc(t("leftBy").replace("{a}", fmt(diff)))}</span>`;
+  }
+  function renderBudgetAll() { renderBudgetStrip(); renderPlan(); renderBudget(); renderMobilePlan(); }
+
+  Object.assign(T.ko, {
+    m7: "2일차 오후에 해운대 근처 카페 추천해줘",
+    m8: "2일차 오후(스파랜드 다음)에 갈 만한 해운대 근처 카페예요. 비 예보가 있어 실내만 골랐어요.",
+    m8s: "TRIPA 장소 DB 우선 · 부족하면 Kakao 검색",
+    recPref: "취향 점수 높음", recWalk: "도보 {n}분", recNoPrice: "금액 정보 없음", recIndoor: "실내",
+    recOpen: "29일(목) 영업", recClosed: "목요일 휴무 · 이날은 넣을 수 없어요", recUnknown: "휴무 정보 없음 · 방문 전 확인",
+    recDb: "TRIPA 추천", recKakao: "Kakao 검색 결과",
+    recAdd: "2일차에 넣기", crowdBusy: "{t} 사람 많을 수 있어요", crowdMid: "{t} 조금 붐벼요", crowdCalm: "{t} 한산해요", crowdQuiet: "한산한 때 {q}", recFilter: "조건", recParkChip: "주차 편한 곳 우선", recParkGood: "무료 주차 {n}대 · 주차 편함", recParkHard: "전용 주차 없음 · 공영주차장 도보 {n}분", recParkNone: "주차 정보 없음", aiPark: "주차하기 편한 곳을 앞으로 올려 다시 찾았어요. 주차장이 넓은 곳부터 보여드려요.", recAdded: "2일차 {t}에 넣었어요",
+    aiAdded: "2일차 {t}에 {n} 일정을 넣고, 저녁까지의 이동 시간과 예산을 다시 계산했어요.",
+    annotChat: "목업 메모: 입력창 아래 노란 안내는 비어 있는 정보 중 하나만 보여줍니다(숙소 → 날짜 → 도착 시간). 채팅으로 '카페 추천해줘'처럼 요청하면 AI 답 아래에 장소 카드가 나오고, [2일차에 넣기]를 누르면 일정·지도·예산이 함께 다시 계산됩니다. 그날 휴무인 곳은 버튼이 막혀 있습니다. '주차 편한 곳 우선'을 켜거나 '주차하기 편한 곳'이라고 말하면 주차장이 넓은 곳이 위로 올라옵니다. 핫플레이스에는 붐비는 시간과 한산한 때가 함께 표시됩니다(날짜별 붐빔은 한국관광공사 집중률 예측, 시간대는 장소별 방문 경향). 금액과 장소는 모두 예시입니다.",
+    aiRec: "말씀하신 조건으로 찾아봤어요. 넣고 싶은 곳의 버튼을 누르면 일정에 바로 들어가요."
+  });
+  Object.assign(T.en, {
+    m7: "Recommend a cafe near Haeundae for Day 2 afternoon",
+    m8: "Cafes near Haeundae for Day 2 afternoon (after Spa Land). Rain is forecast, so these are all indoors.",
+    m8s: "TRIPA place DB first · Kakao search if needed",
+    recPref: "Good taste match", recWalk: "{n} min walk", recNoPrice: "No price info", recIndoor: "Indoor",
+    recOpen: "Open on Thu 29", recClosed: "Closed Thursdays · can't add for this day", recUnknown: "No closing-day info · check before you go",
+    recDb: "TRIPA pick", recKakao: "Kakao search result",
+    recAdd: "Add to Day 2", crowdBusy: "Likely busy {t}", crowdMid: "A bit busy {t}", crowdCalm: "Quiet {t}", crowdQuiet: "Quieter {q}", recFilter: "Filter", recParkChip: "Easy parking first", recParkGood: "Free parking, {n} spaces · easy", recParkHard: "No own lot · public lot {n} min walk", recParkNone: "No parking info", aiPark: "Re-searched with easy parking first. Places with big lots are on top.", recAdded: "Added to Day 2 at {t}",
+    aiAdded: "Added {n} to Day 2 at {t} and recalculated travel time and budget up to dinner.",
+    annotChat: "Mockup note: the yellow hint shows one missing item at a time (stay → dates → arrival). Ask in chat, e.g. 'recommend a cafe', and place cards appear under the reply; tapping [Add to Day 2] recalculates the plan, map and budget. Places closed that day can't be added. Turn on 'Easy parking first' or ask for easy parking to move places with big lots to the top. Hot spots show when they get busy and when it's quieter (daily crowding from the tourism agency's forecast, hours from each place's visit pattern). All amounts and places are examples.",
+    aiRec: "Here's what I found for that. Tap a place's button to drop it straight into your plan."
+  });
+  const REC = [
+    { id: "r1", ko: "○○ 오션뷰 카페", en: "○○ Ocean View Cafe", amt: 12000, walk: 8, state: "open", src: "db", pref: true, park: ["hard", 6] },
+    { id: "r4", ko: "◇◇ 드라이브인 카페", en: "◇◇ Drive-in Cafe", amt: 13000, walk: 14, state: "open", src: "db", pref: false, park: ["good", 40], parkOnly: true },
+    { id: "r2", ko: "△△ 북카페", en: "△△ Book Cafe", amt: 10000, walk: 5, state: "closed", src: "db", pref: false, park: ["good", 12] },
+    { id: "r3", ko: "□□ 로스터리", en: "□□ Roastery", amt: null, walk: 11, state: "unknown", src: "kakao", pref: false, park: ["none", 0] }
+  ];
+  const CROWD = {
+    "흰여울문화마을": { lv: "busy", ko: ["오후 2–4시", "오전 9–11시"], en: ["2–4 pm", "9–11 am"] },
+    "해운대 시장 저녁": { lv: "busy", ko: ["저녁 7–8시", "오후 5시 전"], en: ["7–8 pm", "before 5 pm"] },
+    "해동용궁사": { lv: "busy", ko: ["오전 10–12시", "오전 9시 전"], en: ["10 am–noon", "before 9 am"] },
+    "스파랜드": { lv: "mid", ko: ["오후 4–6시", "평일 오전"], en: ["4–6 pm", "weekday mornings"] },
+    "부산시립미술관": { lv: "calm", ko: ["오전", ""], en: ["in the morning", ""] },
+    "○○ 오션뷰 카페": { lv: "busy", ko: ["오후 3–5시", "오전 11시 전"], en: ["3–5 pm", "before 11 am"] },
+    "◇◇ 드라이브인 카페": { lv: "calm", ko: ["저녁", ""], en: ["in the evening", ""] }
+  };
+  function crowdHTML(koName) {
+    const c = CROWD[koName]; if (!c) return "";
+    const [tm, q] = c[state.lang];
+    const main = t(c.lv === "busy" ? "crowdBusy" : c.lv === "mid" ? "crowdMid" : "crowdCalm").replace("{t}", tm);
+    return `<div class="crowd ${c.lv}">${icon("i-crowd")}<span>${esc(main)}${q ? ` · <b>${esc(t("crowdQuiet").replace("{q}", q))}</b>` : ""}</span></div>`;
+  }
+  const added = {};
+  const recName = r => r[state.lang];
+  function renderRecs() {
+    $$("[data-recs]").forEach(box => {
+      const order = { good: 0, none: 1, hard: 2 };
+      const list = REC.filter(r => !r.parkOnly || state.parking).slice().sort((a, b) => state.parking ? order[a.park[0]] - order[b.park[0]] : 0);
+      const bar = `<div class="recbar"><span>${esc(t("recFilter"))}</span><button type="button" class="chip" data-parking aria-pressed="${state.parking}">${icon("i-parking")}<span>${esc(t("recParkChip"))}</span></button></div>`;
+      box.innerHTML = bar + list.map(r => {
+        const pk = r.park[0] === "good" ? ["good", t("recParkGood").replace("{n}", r.park[1])] : r.park[0] === "hard" ? ["hard", t("recParkHard").replace("{n}", r.park[1])] : ["", t("recParkNone")];
+        const st = r.state === "open" ? ["open", "i-check", "recOpen"] : r.state === "closed" ? ["closed", "i-closed", "recClosed"] : ["unknown", "i-info", "recUnknown"];
+        const btn = added[r.id]
+          ? `<button type="button" class="btn done" disabled>${icon("i-plan")}<span>${esc(t("recAdded").replace("{t}", added[r.id]))}</span></button>`
+          : `<button type="button" class="btn" data-rec="${r.id}" ${r.state === "closed" ? "disabled" : ""}>${icon("i-plan")}<span>${esc(t("recAdd"))}</span></button>`;
+        return `<div class="rec${r.state === "closed" ? " off" : ""}${state.parking && r.park[0] === "good" ? " hi" : ""}"><div class="thumb">${icon("i-food")}</div><div>
+          <div class="nm">${esc(recName(r))}${r.pref ? `<span class="pill ok">${esc(t("recPref"))}</span>` : ""}</div>
+          <div class="sub"><span>${icon("i-indoor")}${esc(t("recIndoor"))}</span><span>${icon("i-budget")}${esc(r.amt ? fmt(r.amt) : t("recNoPrice"))}</span><span>${icon("i-route")}${esc(t("recWalk").replace("{n}", r.walk))}</span><span>${esc(r.src === "db" ? t("recDb") : t("recKakao"))}</span></div>
+          <div class="state ${st[0]}">${icon(st[1])}<span>${esc(t(st[2]))}</span></div>
+          <div class="park ${pk[0]}">${icon("i-parking")}<span>${esc(pk[1])}</span></div>
+          ${crowdHTML(r.ko)}
+          <div class="acts">${btn}</div></div></div>`;
+      }).join("");
+    });
+  }
+  function addRec(id) {
+    const r = REC.find(x => x.id === id); if (!r || added[id] || r.state === "closed") return;
+    const time = Object.keys(added).length ? "18:20" : "17:40";
+    const at = 4;
+    const shifted = {};
+    Object.keys(state.cost).forEach(k => { const [d, i] = k.split(":"); shifted[d === "d2" && Number(i) >= at ? `d2:${Number(i) + 1}` : k] = state.cost[k]; });
+    state.cost = shifted;
+    T.ko.names.d2.splice(at, 0, [time, r.ko, "indoor"]); T.en.names.d2.splice(at, 0, [time, r.en, "indoor"]);
+    COST.d2.splice(at, 0, [r.amt || 0, "food"]);
+    added[id] = time; state.day = "d2";
+    renderRecs(); renderDays(); renderMap(); renderBudgetAll();
+    addBubble("ai", t("aiAdded").replace("{n}", recName(r)).replace("{t}", time));
+  }
+  document.addEventListener("click", e => {
+    const pkb = e.target.closest("[data-parking]"); if (pkb) { state.parking = !state.parking; renderRecs(); return; }
+    const b = e.target.closest("[data-rec]"); if (b && !b.disabled) addRec(b.dataset.rec);
+  });
+
+  // 리뷰 게시판: 다녀온(적용한) 여행의 장소에만 리뷰 → 추천에 반영. 장소·리뷰는 모두 가상 예시.
+  Object.assign(T.ko, {
+    tabBoard: "리뷰 게시판", sMy: "내 여행", sCreate: "여행 만들기", sPlan: "일정 관리", sBudget: "비용 관리", sCat: "카테고리 예산", sBoard: "리뷰 게시판", sNote: "장소 검색 메뉴는 없앴어요", sUser: "지수 님",
+    mTabBoard: "게시판",
+    bdTitle: "리뷰 게시판", bdLead: "다녀온 여행의 장소에만 리뷰를 쓸 수 있어요. 모인 리뷰는 TRIPA 추천에 반영돼요.",
+    bdList: "방문 리뷰", bdCount: "{n}개", bdRecT: "리뷰 기반 추천", bdRecTag: "부산 · 다음 여행에",
+    bdWriteT: "리뷰 쓰기", bdWriteTag: "10.28 부산 여행에서 방문", bdPlace: "방문한 장소", bdRate: "별점", bdText: "한 줄 리뷰", bdTags: "이런 점이 좋았어요", bdSubmit: "리뷰 올리기",
+    bdNeedStar: "별점을 골라 주세요.", bdDone: "리뷰를 올렸어요. 목록 맨 위에서 확인할 수 있어요.",
+    bdAll: "전체", bdStay: "숙소", bdFood: "식당", bdCafe: "카페", bdSight: "관광지", bdSortNew: "최신순", bdSortRate: "평점순",
+    bdVerified: "방문 인증", bdHelpful: "도움돼요 {n}", bdVisit: "{d} 여행에서 방문 · {who}",
+    bdRecWhy: "게시판 평점 {r} · 리뷰 {n}개 · '{k}' 언급이 많아요", bdAdd: "다음 여행에 담기", bdAdded: "담았어요",
+    tagsAll: ["깨끗해요", "친절해요", "조용해요", "가성비 좋아요", "전망 좋아요", "다시 갈래요"],
+    annotBoard: "목업 메모: 이전 버전의 '장소 검색' 메뉴를 없애고 이 게시판을 새로 넣었습니다. 리뷰는 '이 일정 적용하기'로 저장한 여행의 장소에만 쓸 수 있어서(방문 인증) 광고성 글을 줄입니다. 오른쪽 '리뷰 기반 추천'은 게시판 평점과 자주 나온 좋은 점 키워드로 고르고, 채팅 추천 카드에도 같은 점수를 씁니다. 장소 이름과 리뷰는 모두 가상 예시입니다.",
+    pCap4: "⑤ 태블릿 · 대화와 일정 2단, 일정칸은 [일정 | 지도] 전환", pCap5: "⑥ 앱 · 홈 화면 아이콘, 알림, 오프라인 일정",
+    push1: "내일 부산 2일차: 오전 비 70%. 실내 코스로 바꿔 둘까요?", push2: "부산 여행은 어떠셨어요? 다녀온 장소에 리뷰를 남겨 주세요.", offline: "적용한 일정은 인터넷 없이도 열려요",
+    annotMobile: "목업 메모: 폰(가로 360px 전후)은 아래 탭바 5개(대화·일정·지도·게시판·내 정보), 태블릿(가로 768px 전후)은 왼쪽 아이콘 메뉴 + 대화와 일정 2단, PC(1080px 이상)는 옛 버전과 같은 왼쪽 메뉴입니다. ④ 지도는 카카오맵 JavaScript SDK가 그리는 자리(웹·PWA는 지금 코드 그대로, 배포 도메인 등록 필요)이고, 날짜를 바꾸면 핀과 아래 시트가 함께 바뀝니다. 지도는 인터넷이 있어야 보여서 오프라인에서는 아래 시트(목록)만 남깁니다. ⑥은 앱으로 확장했을 때 더해지는 것(홈 화면 아이콘, 날씨·리뷰 알림, 오프라인 일정)입니다. 화면 크기별 배치는 예시이고 프론트가 정합니다."
+  });
+  Object.assign(T.en, {
+    tabBoard: "Review board", sMy: "My trips", sCreate: "New trip", sPlan: "Itinerary", sBudget: "Costs", sCat: "Category budget", sBoard: "Review board", sNote: "Place search was removed", sUser: "Jisu",
+    mTabBoard: "Board",
+    bdTitle: "Review board", bdLead: "You can review only places from trips you took. Reviews feed TRIPA's recommendations.",
+    bdList: "Visit reviews", bdCount: "{n}", bdRecT: "Picks from reviews", bdRecTag: "Busan · for next time",
+    bdWriteT: "Write a review", bdWriteTag: "Visited on the Oct 28 Busan trip", bdPlace: "Place visited", bdRate: "Rating", bdText: "One-line review", bdTags: "What was good", bdSubmit: "Post review",
+    bdNeedStar: "Pick a rating.", bdDone: "Review posted. It's at the top of the list.",
+    bdAll: "All", bdStay: "Stays", bdFood: "Food", bdCafe: "Cafes", bdSight: "Sights", bdSortNew: "Newest", bdSortRate: "Top rated",
+    bdVerified: "Visited", bdHelpful: "Helpful {n}", bdVisit: "Visited on the {d} trip · {who}",
+    bdRecWhy: "Board rating {r} · {n} reviews · often says '{k}'", bdAdd: "Save for next trip", bdAdded: "Saved",
+    tagsAll: ["Clean", "Friendly", "Quiet", "Good value", "Great view", "Would go again"],
+    annotBoard: "Mockup note: the old 'Place search' menu is gone and this board replaces it. Only places from trips saved with 'Apply this itinerary' can be reviewed (visit check), which cuts down on ads. 'Picks from reviews' uses board ratings and frequent positive keywords; chat place cards use the same score. All places and reviews are made up.",
+    pCap4: "⑤ Tablet · chat and plan side by side, plan column toggles Plan | Map", pCap5: "⑥ App · home-screen icon, alerts, offline plan",
+    push1: "Tomorrow, Busan Day 2: 70% rain in the morning. Switch to indoor spots?", push2: "How was Busan? Leave a review for the places you visited.", offline: "Applied plans open without internet",
+    annotMobile: "Mockup note: phones (~360px) get 5 bottom tabs (chat, plan, map, board, me); tablets (~768px) get an icon rail with chat and plan side by side; desktop (1080px+) keeps the old left menu. ④ is where the Kakao Map JavaScript SDK draws (web and PWA use today's code; register the deployed domain); switching days updates pins and the bottom sheet together. Maps need internet, so offline only the sheet (list) stays. ⑥ shows what an app adds: home-screen icon, weather and review alerts, offline plans. Layouts per size are examples; the front end decides."
+  });
+  T.ko.icons.push(["i-mountain","로고","상단·왼쪽 메뉴 로고, 앱 아이콘"],["i-board","리뷰 게시판","왼쪽 메뉴, 모바일 탭바"],["i-star","별점","리뷰 별점"],["i-suitcase","내 여행","왼쪽 메뉴"],["i-bell","알림","앱 푸시 알림"]);
+  T.en.icons.push(["i-mountain","Logo","header and side menu logo, app icon"],["i-board","Review board","side menu, mobile tab bar"],["i-star","Rating","review stars"],["i-suitcase","My trips","side menu"],["i-bell","Alerts","app push alerts"]);
+
+  const BCATS = [["all", "bdAll"], ["stay", "bdStay"], ["food", "bdFood"], ["cafe", "bdCafe"], ["sight", "bdSight"]];
+  const REVIEWS = [
+    { cat: "food", ko: "○○ 돼지국밥", en: "○○ Pork Soup", r: 5, who: "여행자 A", whoEn: "Traveler A", d: "10.21", tags: [0, 3], ko2: "국물이 깔끔하고 회전이 빨라서 아침에 좋았어요.", en2: "Clean broth and quick service, great for breakfast.", help: 12 },
+    { cat: "cafe", ko: "△△ 북카페", en: "△△ Book Cafe", r: 4, who: "여행자 B", whoEn: "Traveler B", d: "10.19", tags: [2, 4], ko2: "창가 자리가 조용해서 비 오는 날 쉬기 좋아요. 목요일은 쉬어요.", en2: "Quiet window seats, nice on a rainy day. Closed Thursdays.", help: 8 },
+    { cat: "stay", ko: "□□ 게스트하우스", en: "□□ Guesthouse", r: 3, who: "여행자 C", whoEn: "Traveler C", d: "10.14", tags: [1], ko2: "사장님은 친절했지만 방음이 아쉬웠어요.", en2: "Friendly host, but thin walls.", help: 5 },
+    { cat: "sight", ko: "◇◇ 전망대", en: "◇◇ Lookout", r: 5, who: "여행자 D", whoEn: "Traveler D", d: "10.12", tags: [4, 5], ko2: "해 질 무렵 가면 사람은 많지만 풍경이 최고예요.", en2: "Crowded at sunset, but the view is the best.", help: 15 },
+    { cat: "food", ko: "☆☆ 밀면", en: "☆☆ Milmyeon", r: 4, who: "여행자 E", whoEn: "Traveler E", d: "10.10", tags: [3], ko2: "양이 많고 1만 원 안쪽이라 부담 없어요.", en2: "Big portions under ₩10,000.", help: 4 }
+  ];
+  const BREC = [
+    { ko: "◇◇ 전망대", en: "◇◇ Lookout", r: "4.8", n: 14, k: 4, cat: "sight" },
+    { ko: "○○ 돼지국밥", en: "○○ Pork Soup", r: "4.6", n: 21, k: 3, cat: "food" },
+    { ko: "△△ 북카페", en: "△△ Book Cafe", r: "4.4", n: 9, k: 2, cat: "cafe" }
+  ];
+  const bs = { cat: "all", sort: "new", star: 0, tags: [], helped: {}, saved: {} };
+  const starRow = n => `<span class="starrow" aria-label="${n}/5">${[1, 2, 3, 4, 5].map(i => `<svg class="ic${i > n ? " off" : ""}"><use href="#i-star"/></svg>`).join("")}</span>`;
+  function renderBoard() {
+    const ko = state.lang === "ko";
+    $("#boardbar").innerHTML = BCATS.map(([k, key]) => `<button type="button" class="chip" data-bcat="${k}" aria-pressed="${bs.cat === k}">${esc(t(key))}</button>`).join("") +
+      `<select id="bd-sort" aria-label="sort"><option value="new"${bs.sort === "new" ? " selected" : ""}>${esc(t("bdSortNew"))}</option><option value="rate"${bs.sort === "rate" ? " selected" : ""}>${esc(t("bdSortRate"))}</option></select>`;
+    let list = REVIEWS.map((r, i) => ({ r, i })).filter(o => bs.cat === "all" || o.r.cat === bs.cat);
+    if (bs.sort === "rate") list = list.slice().sort((a, b) => b.r.r - a.r.r);
+    $("#bdCount").textContent = t("bdCount").replace("{n}", list.length);
+    const catName = c => t(BCATS.find(x => x[0] === c)[1]);
+    $("#reviews").innerHTML = list.map(({ r, i }) => `<div class="review"><div class="top"><strong>${esc(ko ? r.ko : r.en)}</strong><span class="catchip">${esc(catName(r.cat))}</span>${starRow(r.r)}<span class="verified">${icon("i-check")}${esc(t("bdVerified"))}</span></div>
+      <p>${esc(ko ? r.ko2 : r.en2)}</p>
+      <div class="kw">${r.tags.map(x => `<span>${esc(t("tagsAll")[x])}</span>`).join("")}</div>
+      <div class="acts2"><span class="meta2">${esc(t("bdVisit").replace("{d}", r.d).replace("{who}", ko ? r.who : r.whoEn))}</span><button type="button" data-help="${i}" aria-pressed="${!!bs.helped[i]}">${esc(t("bdHelpful").replace("{n}", r.help + (bs.helped[i] ? 1 : 0)))}</button></div></div>`).join("");
+    $("#bdRecs").innerHTML = BREC.map((p, i) => `<div class="pick"><span class="rank">${i + 1}</span><div>
+      <div class="nm">${esc(ko ? p.ko : p.en)}<span class="catchip" style="font-size:11px;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted)">${esc(catName(p.cat))}</span></div>
+      <p class="why">${esc(t("bdRecWhy").replace("{r}", p.r).replace("{n}", p.n).replace("{k}", t("tagsAll")[p.k]))}</p>
+      <div class="acts" style="margin-top:6px"><button type="button" class="btn ${bs.saved[i] ? "ghost" : ""}" style="padding:5px 12px;font-size:12px" data-bsave="${i}">${esc(bs.saved[i] ? t("bdAdded") : t("bdAdd"))}</button></div></div></div>`).join("");
+    const places = T[state.lang].names.d1.concat(T[state.lang].names.d2, T[state.lang].names.d3).filter(x => x[2] !== "arrive" && x[2] !== "stay").map(x => x[1]);
+    const keep = $("#rv-place").value;
+    $("#rv-place").innerHTML = places.map(p => `<option${p === keep ? " selected" : ""}>${esc(p)}</option>`).join("");
+    $("#rv-stars").innerHTML = [1, 2, 3, 4, 5].map(i => `<button type="button" role="radio" aria-checked="${bs.star === i}" aria-label="${i}" class="${i <= bs.star ? "on" : ""}" data-star="${i}"><svg class="ic"><use href="#i-star"/></svg></button>`).join("");
+    $("#rv-tags").innerHTML = t("tagsAll").map((x, i) => `<button type="button" class="chip" data-rtag="${i}" aria-pressed="${bs.tags.includes(i)}">${esc(x)}</button>`).join("");
+  }
+  document.addEventListener("click", e => {
+    const c = e.target.closest("[data-bcat]"); if (c) { bs.cat = c.dataset.bcat; renderBoard(); return; }
+    const hp = e.target.closest("[data-help]"); if (hp) { const i = hp.dataset.help; bs.helped[i] = !bs.helped[i]; renderBoard(); return; }
+    const sv = e.target.closest("[data-bsave]"); if (sv) { bs.saved[sv.dataset.bsave] = true; renderBoard(); return; }
+    const st = e.target.closest("[data-star]"); if (st) { bs.star = Number(st.dataset.star); renderBoard(); return; }
+    const tg = e.target.closest("[data-rtag]"); if (tg) { const i = Number(tg.dataset.rtag); bs.tags = bs.tags.includes(i) ? bs.tags.filter(x => x !== i) : bs.tags.concat(i); renderBoard(); }
+  });
+  document.addEventListener("change", e => { if (e.target.id === "bd-sort") { bs.sort = e.target.value; renderBoard(); } });
+  document.addEventListener("submit", e => {
+    if (e.target.id !== "review-form") return;
+    e.preventDefault(); const m = $("#rv-msg"); m.hidden = false;
+    if (!bs.star) { m.textContent = t("bdNeedStar"); return; }
+    const name = $("#rv-place").value, txt = $("#rv-text").value.trim() || "—";
+    REVIEWS.unshift({ cat: "sight", ko: name, en: name, r: bs.star, who: "지수", whoEn: "Jisu", d: "10.28", tags: bs.tags.slice(), ko2: txt, en2: txt, help: 0 });
+    bs.star = 0; bs.tags = []; $("#rv-text").value = ""; bs.cat = "all"; bs.sort = "new";
+    renderBoard(); m.textContent = t("bdDone");
+  });
+
+  // 폰 지도 화면: 실제로는 카카오맵 JavaScript SDK(웹·PWA)가 그리는 자리. 여기는 그림.
+  Object.assign(T.ko, { kakaoTag: "Kakao 지도", pCap6: "④ 지도 · 날짜별 핀과 동선, 아래 시트로 장소 목록", sheetH: "{d} · {n}곳 · 핀을 누르면 장소 카드가 열려요" });
+  Object.assign(T.en, { kakaoTag: "Kakao Map", pCap6: "④ Map · pins and route per day, place list in a bottom sheet", sheetH: "{d} · {n} stops · tap a pin to open its card" });
+  let mapDay = "d2";
+  const MPTS = { d1: [[40,300],[90,250],[140,265],[170,330],[250,190],[220,150]], d2: [[250,190],[268,120],[284,160],[258,215],[236,150]], d3: [[250,190],[296,90],[304,60],[140,265]] };
+  function renderMobileMap() {
+    const pts = MPTS[mapDay];
+    const path = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
+    const dots = pts.map((p, i) => `<g><circle cx="${p[0]}" cy="${p[1]}" r="11" fill="var(--accent)" stroke="#fff" stroke-width="2.5"/><text x="${p[0]}" y="${p[1] + 4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="IBM Plex Mono, monospace">${i + 1}</text></g>`).join("");
+    $("#map-m").innerHTML = mapSVG(pts, path, dots);
+    renderTabletMap();
+    $("#mapday-m").innerHTML = ["d1", "d2", "d3"].map(d => `<span data-mapday="${d}" class="${d === mapDay ? "on" : ""}">${esc(t(d))}</span>`).join("");
+    const names = T[state.lang].names[mapDay];
+    $("#sheet-h").textContent = t("sheetH").replace("{d}", t(mapDay)).replace("{n}", names.length);
+    $("#sheet-list").innerHTML = names.map(([tm, nm], i) => `<li><b>${i + 1}</b><time>${tm}</time><span>${esc(nm)}</span></li>`).join("");
+  }
+  document.addEventListener("click", e => { const d = e.target.closest("[data-mapday]"); if (d) { mapDay = d.dataset.mapday; renderMobileMap(); } });
+
+  // 태블릿 일정칸의 [일정 | 지도] 전환. 지도는 폰 지도와 같은 그림을 쓴다(실제로는 카카오맵 JS SDK).
+  Object.assign(T.ko, { tsPlan: "일정", tsMap: "지도" });
+  Object.assign(T.en, { tsPlan: "Plan", tsMap: "Map" });
+  let tView = "plan";
+  function mapSVG(pts, path, dots) {
+    return `<svg viewBox="0 0 320 470" preserveAspectRatio="xMidYMid slice" role="img" aria-label="map"><rect width="320" height="470" fill="#EEF2F7"/>
+      <path d="M0 380 C70 360 120 410 180 395 S280 360 320 372 L320 470 L0 470 Z" fill="#CFE1F7"/>
+      <path d="M0 120 C80 100 140 140 200 110 S290 70 320 80" fill="none" stroke="#FFFFFF" stroke-width="9"/>
+      <path d="M60 0 C80 120 70 240 110 470" fill="none" stroke="#FFFFFF" stroke-width="7"/>
+      <path d="M0 250 L320 230" fill="none" stroke="#F7E3B5" stroke-width="6"/>
+      <rect x="180" y="250" width="70" height="40" rx="6" fill="#DDEFD9"/>
+      <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 5" stroke-linecap="round"/>${dots}</svg>`;
+  }
+  function renderTabletMap() {
+    $("#tseg").innerHTML = [["plan", "i-plan", "tsPlan"], ["map", "i-map", "tsMap"]].map(([k, ic, key]) => `<button type="button" role="tab" data-tview="${k}" aria-selected="${tView === k}">${icon(ic)}<span>${esc(t(key))}</span></button>`).join("");
+    $("#t-plan").hidden = tView !== "plan"; $("#t-map").hidden = tView !== "map";
+    const pts = MPTS.d2;
+    const path = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
+    const dots = pts.map((p, i) => `<g><circle cx="${p[0]}" cy="${p[1]}" r="12" fill="var(--accent)" stroke="#fff" stroke-width="2.5"/><text x="${p[0]}" y="${p[1] + 4}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="IBM Plex Mono, monospace">${i + 1}</text></g>`).join("");
+    $("#map-t").innerHTML = mapSVG(pts, path, dots);
+    $("#tmap-list").innerHTML = T[state.lang].names.d2.map(([tm, nm], i) => `<li><b>${i + 1}</b><time>${tm}</time><span>${esc(nm)}</span></li>`).join("");
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-tview]"); if (b) { tView = b.dataset.tview; renderTabletMap(); } });
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const t = k => T[state.lang][k] ?? k;
+  const icon = (id, cls = "ic") => `<svg class="${cls}"><use href="#${id}"/></svg>`;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function applyLang() {
+    document.documentElement.lang = state.lang;
+    $$("[data-i18n]").forEach(el => { const v = t(el.dataset.i18n); if (typeof v === "string") el.textContent = v; });
+    $$("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+    $("#lang-ko").setAttribute("aria-pressed", state.lang === "ko");
+    $("#lang-en").setAttribute("aria-pressed", state.lang === "en");
+    renderRotator(); renderFacts(); renderDays(); renderPlan(); renderHint(); renderMap(); renderIcons(); renderMobilePlan(); renderBudgetStrip(); renderBudget(); renderRecs(); renderPred(); renderCat(); renderBoard();
+    try { localStorage.setItem("tripa-lang", state.lang); } catch (e) {}
+  }
+
+  function renderRotator() {
+    const ex = t("examples");
+    [["#rotator", 2], ["#rotator-m", 1]].forEach(([sel, n]) => {
+      const box = $(sel); box.innerHTML = "";
+      for (let o = 0; o < n; o++) {
+        const q = ex[(state.exIndex + o) % ex.length];
+        const b = document.createElement("button"); b.type = "button"; b.innerHTML = icon("i-chat") + "<span></span>";
+        b.lastChild.textContent = q; b.addEventListener("click", () => startChat(q)); box.appendChild(b);
+      }
+    });
+  }
+  setInterval(() => {
+    if (document.hidden) return;
+    $$(".rotator").forEach(b => b.style.opacity = 0.2);
+    setTimeout(() => { state.exIndex = (state.exIndex + 1) % t("examples").length; renderRotator(); $$(".rotator").forEach(b => b.style.opacity = 1); }, 250);
+  }, 4000);
+
+  function startChat(text) { show("chat"); if (text) addBubble("me", text); }
+  $("#ask-form").addEventListener("submit", e => { e.preventDefault(); const v = $("#ask-input").value.trim(); startChat(v || t("m1")); });
+
+  function show(name) {
+    VIEWS.forEach(v => { $("#view-" + v).hidden = v !== name; });
+    const side = SIDE_VIEWS[name];
+    $("#side").hidden = !side; $("#shell").classList.toggle("has-side", !!side);
+    $$(".side-menu a").forEach(a => a.classList.toggle("active", a.dataset.side === (side === "chat" ? "plan" : side)));
+    $$(".mockbar [data-view]").forEach(b => b.setAttribute("aria-selected", b.dataset.view === name));
+    window.scrollTo(0, 0);
+  }
+  $$(".mockbar [data-view]").forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
+  $$("[data-go]").forEach(a => a.addEventListener("click", e => { e.preventDefault(); show(a.dataset.go); }));
+  $("#edit-btn").addEventListener("click", () => $("#chat-input").focus());
+
+  let gender = null;
+  $$("#su-gender .chip").forEach((b, i) => b.addEventListener("click", () => { gender = i; $$("#su-gender .chip").forEach((x, j) => x.setAttribute("aria-pressed", i === j)); }));
+  $("#signup-form").addEventListener("submit", e => {
+    e.preventDefault(); const m = $("#su-msg"); m.hidden = false;
+    m.textContent = gender === null ? t("suErrGender") : !$("#su-age").value ? t("suErrAge") : !$("#su-agree").checked ? t("suErrAgree") : t("suOk");
+  });
+  $("#reset-form").addEventListener("submit", e => { e.preventDefault(); $("#rs-msg").hidden = false; });
+
+  function addBubble(who, text) {
+    const d = document.createElement("div"); d.className = "bubble " + who; d.textContent = text;
+    $("#msgs").appendChild(d); $("#msgs").scrollTop = $("#msgs").scrollHeight;
+  }
+  $("#chat-form").addEventListener("submit", e => {
+    e.preventDefault(); const inp = $("#chat-input"); const v = inp.value.trim(); if (!v) return;
+    addBubble("me", v); inp.value = "";
+    let reply = t("aiOther");
+    if (/숙소|호텔|게스트|hotel|stay|booked/i.test(v)) { state.stayMine = true; reply = t("aiStay"); }
+    else if (/도착|arriv/i.test(v)) { state.arrive = true; reply = t("aiArrive"); }
+    else if (/예산|budget/i.test(v)) { reply = t("aiBudget"); }
+    else if (/주차|parking/i.test(v)) {
+      state.parking = true;
+      setTimeout(() => {
+        const d = document.createElement("div"); d.className = "bubble ai wide";
+        d.innerHTML = `<span></span><div class="recs" data-recs></div>`; d.firstChild.textContent = t("aiPark");
+        $("#msgs").appendChild(d); renderRecs(); $("#msgs").scrollTop = $("#msgs").scrollHeight;
+      }, 400);
+      return;
+    }
+    else if (/추천|찾아|검색|카페|맛집|recommend|find|search|cafe/i.test(v)) {
+      setTimeout(() => {
+        const d = document.createElement("div"); d.className = "bubble ai wide";
+        d.innerHTML = `<span></span><div class="recs" data-recs></div>`; d.firstChild.textContent = t("aiRec");
+        $("#msgs").appendChild(d); renderRecs(); $("#msgs").scrollTop = $("#msgs").scrollHeight;
+      }, 400);
+      return;
+    }
+    setTimeout(() => { addBubble("ai", reply); renderFacts(); renderHint(); renderPlan(); }, 400);
+  });
+  function renderHint() {
+    const [ic, key] = !state.stayMine ? ["i-stay", "hintStay"] : !state.arrive ? ["i-arrive", "hintArrive"] : ["i-ai", "hintDone"];
+    $("#hint").innerHTML = icon(ic) + "<span></span>"; $("#hint").lastChild.textContent = t(key);
+  }
+  function renderFacts() {
+    const rows = [
+      ["i-map", "fRegion", t("vRegion")], ["i-plan", "fDates", t("vDates")], ["i-people", "fPeople", t("vPeople")],
+      ["i-stay", "fStay", state.stayMine ? t("vStayMine") : t("vStayRec"), state.stayMine ? ["ok", t("pMine")] : ["", t("pRec")]],
+      ["i-arrive", "fArrive", state.arrive ? t("vArrive") : t("vArriveNone"), state.arrive ? null : ["", t("pDefault")]],
+      ["i-budget", "fBudget", t("vBudget")]
+    ];
+    const dl = $("#facts"); dl.innerHTML = "";
+    rows.forEach(([ic, k, v, p]) => {
+      const i = document.createElement("span"); i.innerHTML = icon(ic);
+      const dt = document.createElement("dt"); dt.textContent = t(k);
+      const dd = document.createElement("dd"); dd.textContent = v;
+      if (p) { const s = document.createElement("span"); s.className = "pill " + p[0]; s.textContent = p[1]; dd.appendChild(s); }
+      dl.append(i, dt, dd);
+    });
+  }
+  const dayInfo = { d1: { date: "10.28", w: "sun" }, d2: { date: "10.29", w: "rain" }, d3: { date: "10.30", w: "cloud" } };
+  const wIcon = { sun: "i-sun", rain: "i-rain", cloud: "i-cloud" };
+  const wKey = { sun: "wSun", rain: "wRain", cloud: "wCloud" };
+  function renderDays() {
+    const box = $("#days"); box.innerHTML = "";
+    ["d1", "d2", "d3"].forEach(d => {
+      const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", state.day === d);
+      b.innerHTML = "<span></span><small></small>"; b.firstChild.textContent = t(d); b.lastChild.textContent = dayInfo[d].date;
+      b.addEventListener("click", () => { state.day = d; renderDays(); renderPlan(); renderMap(); });
+      box.appendChild(b);
+    });
+  }
+  function costHTML(day, i, editable) {
+    const a = amtOf(day, i), cat = COST[day][i][1];
+    if (cat === "move" && a === 0) return "";
+    if (a === 0) return `<span class="cost free">${esc(t("free"))}</span>`;
+    const s = srcOf(day, i);
+    const inner = `${esc(fmt(a))}<small>${esc(s === "user" ? t("srcUser") : t("srcAi"))}</small>`;
+    return editable ? `<button type="button" class="cost ${s}" data-k="${day}:${i}" aria-label="${esc(t("thAmt"))}">${inner}</button>` : `<span class="cost ${s}">${inner}</span>`;
+  }
+  function stopsHTML(day, stayMine, arrive, editable) {
+    return T[state.lang].names[day].map(([tm, name0, kind], i) => {
+      const name = state.swap && day === "d2" && i === 3 ? t("swapName") : name0;
+      const label = kind === "stay" ? (stayMine ? t("vStayMine") : t("vStayRec")) + " · " + name : name;
+      const time = day === "d1" && i === 0 && !arrive ? "10:00" : tm;
+      let badge = "";
+      if (kind === "indoor") badge = `<span class="badge indoor">${icon("i-indoor")}${esc(t("indoor"))}</span>`;
+      if (kind === "stay") badge = `<span class="badge stay">${icon("i-stay")}${esc(t("stay"))}</span>`;
+      const lead = kind === "arrive" ? icon("i-arrive") + " " : "";
+      const meta = i === 0 ? "" : `${icon("i-route")}<span>${12 + i * 7}${esc(t("min"))} · ${esc(t("lgTransit"))}</span>`;
+      return `<li><time>${time}</time><span class="dot"></span><div class="stop"><div class="head"><strong>${lead}${esc(label)}</strong>${badge}${costHTML(day, i, editable)}</div><div class="meta">${meta}</div>${crowdHTML(T.ko.names[day][i][1])}</div></li>`;
+    }).join("");
+  }
+  function renderBudgetStrip() {
+    const { total } = totals();
+    $("#budgetstrip").innerHTML =
+      `<div class="row"><span class="wi">${icon("i-budget")}<span>${esc(t("bShort").replace("{a}", fmt(state.budget)))}</span></span><button type="button" class="link" data-go-budget>${icon("i-wallet")}<span>${esc(t("bMore"))}</span></button></div>` +
+      `<div class="bar">${barHTML()}</div>` +
+      `<div class="row"><span>${esc(t("planned").replace("{a}", fmt(total)))}</span>${statusHTML()}</div>`;
+  }
+  function renderBudget() {
+    const { by, total } = totals(); const diff = state.budget - total;
+    $("#bigs").innerHTML =
+      `<div><span>${esc(t("bigBudget"))}</span><b>${esc(fmt(state.budget))}</b></div>` +
+      `<div><span>${esc(t("bigPlanned"))}</span><b>${esc(fmt(total))}</b></div>` +
+      `<div><span>${esc(diff < 0 ? t("bigOver") : t("bigLeft"))}</span><b class="${diff < 0 ? "over" : "under"}">${esc(fmt(Math.abs(diff)))}</b></div>`;
+    $("#bigbar").innerHTML = barHTML();
+    $("#perperson").textContent = t("perPerson").replace("{a}", fmt(state.budget / 2)).replace("{b}", fmt(total / 2));
+    $("#catlist").innerHTML = CATS.map(([k, ic, key]) =>
+      `<li><span class="sw" style="background:var(--cat-${k})"></span>${icon(ic)}<span>${esc(t(key))}</span><b>${esc(fmt(by[k]))}</b><em>${total ? Math.round(by[k] / total * 100) : 0}%</em></li>`).join("");
+    const sg = $("#suggest");
+    if (state.swap) { sg.className = diff < 0 ? "suggest" : "suggest ok"; sg.innerHTML = `<p>${icon("i-ai")}<span>${esc(diff < 0 ? t("sugDoneOver").replace("{a}", fmt(-diff)) : t("sugDone"))}</span></p><div class="acts"><button type="button" class="btn ghost" data-undo>${esc(t("sugUndo"))}</button></div>`; }
+    else if (diff < 0 && !state.keep) {
+      const after = state.budget - (total - amtOf("d2", 3));
+      sg.className = "suggest"; sg.innerHTML = `<p>${icon("i-ai")}<span>${esc((after >= 0 ? t("sugOver") : t("sugOver2")).replace("{a}", fmt(-diff)).replace("{b}", fmt(Math.abs(after))))}</span></p><div class="acts"><button type="button" class="btn" data-apply>${esc(t("sugApply"))}</button><button type="button" class="btn ghost" data-keep>${esc(t("sugKeep"))}</button></div>`;
+    } else { sg.className = diff < 0 ? "suggest" : "suggest ok"; sg.innerHTML = `<p>${icon(diff < 0 ? "i-budget" : "i-ai")}<span>${esc(diff < 0 ? t("sugKept") : t("sugOk"))}</span></p>`; }
+    const catIcon = c => CATS.find(x => x[0] === c);
+    let rows = `<tr><th>${esc(t("thPlace"))}</th><th>${esc(t("thCat"))}</th><th style="text-align:right">${esc(t("thAmt"))}</th><th>${esc(t("thSrc"))}</th></tr>`;
+    ["d1", "d2", "d3"].forEach(d => {
+      rows += `<tr class="dayrow"><td colspan="2">${esc(t(d))} · ${dayInfo[d].date}</td><td class="num">${esc(fmt(dayTotal(d)))}</td><td></td></tr>`;
+      T[state.lang].names[d].forEach(([tm, name0, kind], i) => {
+        const c = COST[d][i][1]; if (c === "move") return;
+        const name = state.swap && d === "d2" && i === 3 ? t("swapName") : (kind === "stay" ? (state.stayMine ? t("vStayMine") : t("vStayRec")) + " · " + name0 : name0);
+        const ci = catIcon(c); const s = srcOf(d, i);
+        rows += `<tr><td><span class="nm">${icon(ci[1])}<span>${esc(name)}</span></span></td><td>${esc(t(ci[2]))}</td><td class="num"><input type="number" step="1000" min="0" value="${amtOf(d, i)}" data-k="${d}:${i}" aria-label="${esc(name)}"></td><td class="src ${s}">${esc(s === "user" ? t("srcUser") : t("srcAi"))}</td></tr>`;
+      });
+    });
+    rows += `<tr class="dayrow"><td colspan="2">${esc(t("moveHead"))}</td><td class="num">${esc(fmt(MOVE.reduce((s, m, j) => s + moveAmt(j), 0)))}</td><td></td></tr>`;
+    MOVE.forEach(([key], j) => {
+      const s = ("mv:" + j) in state.cost ? "user" : "ai";
+      rows += `<tr><td><span class="nm">${icon(j === 0 ? "i-bus" : "i-route")}<span>${esc(t(key))}</span></span></td><td>${esc(t("catMove"))}</td><td class="num"><input type="number" step="1000" min="0" value="${moveAmt(j)}" data-k="mv:${j}" aria-label="${esc(t(key))}"></td><td class="src ${s}">${esc(s === "user" ? t("srcUser") : t("srcAi"))}</td></tr>`;
+    });
+    $("#costtable").innerHTML = rows;
+  }
+  document.addEventListener("click", e => {
+    const el = e.target.closest("[data-go-budget],[data-apply],[data-keep],[data-undo],#stops .cost[data-k]");
+    if (!el) return;
+    if (el.hasAttribute("data-go-budget")) { show("budget"); return; }
+    if (el.hasAttribute("data-apply")) { state.swap = true; renderBudgetAll(); return; }
+    if (el.hasAttribute("data-keep")) { state.keep = true; renderBudget(); return; }
+    if (el.hasAttribute("data-undo")) { state.swap = false; state.keep = false; renderBudgetAll(); return; }
+    const k = el.dataset.k; const [d, i] = k.split(":");
+    const inp = document.createElement("input"); inp.type = "number"; inp.step = "1000"; inp.min = "0"; inp.className = "costedit"; inp.value = amtOf(d, Number(i));
+    el.replaceWith(inp); inp.focus(); inp.select();
+    let done = false;
+    const save = () => { if (done) return; done = true; const v = Math.max(0, Number(inp.value) || 0); state.cost[k] = v; renderBudgetAll(); };
+    inp.addEventListener("keydown", ev => { if (ev.key === "Enter") save(); if (ev.key === "Escape") { done = true; renderPlan(); } });
+    inp.addEventListener("blur", save);
+  });
+  $("#costtable").addEventListener("change", e => {
+    const inp = e.target.closest("input[data-k]"); if (!inp) return;
+    state.cost[inp.dataset.k] = Math.max(0, Number(inp.value) || 0); renderBudgetAll();
+  });
+  $("#budget-input").addEventListener("change", e => { state.budget = Math.max(0, Number(e.target.value) || 0); state.keep = false; renderBudgetAll(); });
+  function renderPlan() {
+    const w = dayInfo[state.day].w; const wb = $("#weather");
+    wb.className = "weather " + (w === "rain" ? "rain" : w === "sun" ? "sun" : "none");
+    wb.innerHTML = icon(wIcon[w]) + "<span></span>"; wb.lastChild.textContent = t(wKey[w]);
+    $("#stops").innerHTML = stopsHTML(state.day, state.stayMine, state.arrive, true);
+    $("#daytotal").innerHTML = `<span>${esc(t("dayTotal").replace("{d}", t(state.day)))}</span><b>${esc(fmt(dayTotal(state.day)))}</b>`;
+    renderBudgetStrip();
+    const ex = $("#excluded"); ex.hidden = state.day !== "d1";
+    ex.innerHTML = icon("i-closed") + "<span></span>"; ex.lastChild.textContent = t("exc");
+  }
+  function renderMobilePlan() {
+    $("#stops-m").innerHTML = stopsHTML("d2", false, false, false);
+    $("#stops-t").innerHTML = stopsHTML("d2", false, false, false);
+    renderMobileMap();
+    const { total } = totals();
+    $("#pbudget-m").innerHTML = `<div class="row"><span>${esc(t("bShort").replace("{a}", fmt(state.budget)))}</span>${statusHTML()}</div><div class="bar">${barHTML()}</div><div class="row"><span>${esc(t("planned").replace("{a}", fmt(total)))}</span><span>${esc(t("dayTotal").replace("{d}", t("d2")))} <b>${esc(fmt(dayTotal("d2")))}</b></span></div>`;
+  }
+  $("#apply-btn").addEventListener("click", () => { $("#apply-btn").textContent = t("applied"); setTimeout(() => { $("#apply-btn").textContent = t("apply"); }, 1600); });
+
+  function renderMap() {
+    const pts = { d1: [[40,150],[80,118],[120,128],[150,170],[230,96],[200,70]], d2: [[230,96],[250,60],[262,82],[244,104],[226,80]], d3: [[230,96],[290,40],[300,24],[120,128]] }[state.day];
+    const path = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
+    const dots = pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="7" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="${p[0]}" y="${p[1] + 3.5}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono, monospace" fill="var(--ink)">${i + 1}</text>`).join("");
+    $("#mapbox").innerHTML = `<svg viewBox="0 0 320 210" role="img" aria-label="route sketch"><rect width="320" height="210" fill="var(--surface-2)"/><path d="M0 180 C60 170 90 200 140 190 S240 160 320 175 L320 210 L0 210 Z" fill="var(--rain-soft)"/><path d="M0 60 C80 40 120 70 180 50 S280 20 320 30" fill="none" stroke="var(--line)" stroke-width="6"/><path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="5 4"/>${dots}</svg>`;
+    $("#legend").innerHTML = icon("i-route") + "<span></span>";
+    $("#legend").lastChild.textContent = `${pts.length}${state.lang === "ko" ? "" : " "}${t("lgStops")} · ${t("lgTransit")}`;
+  }
+  function renderIcons() {
+    $("#icongrid").innerHTML = t("icons").map(([id, name, where]) =>
+      `<div class="iconcard"><div class="sw">${icon(id, "ic lg")}</div><div><strong>${esc(name)}</strong><span>${esc(where)}</span><br><code>${id}</code></div></div>`).join("");
+  }
+
+  $("#lang-ko").addEventListener("click", () => { state.lang = "ko"; applyLang(); });
+  $("#lang-en").addEventListener("click", () => { state.lang = "en"; applyLang(); });
+  try { const s = localStorage.getItem("tripa-lang"); if (s === "en" || s === "ko") state.lang = s; } catch (e) {}
+  const h = (location.hash || "").slice(1);
+  show(VIEWS.includes(h) ? h : "main");
+  applyLang();
+})();
+</script>
+
+</body></html>
