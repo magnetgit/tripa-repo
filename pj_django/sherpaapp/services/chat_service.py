@@ -20,8 +20,10 @@ import re
 import time
 from datetime import date, datetime, timedelta
 
+import openai
 import requests
 from django.conf import settings
+from langchain_openai import ChatOpenAI
 
 from .place_service import concept_plan, is_junk_kind, kakao_documents
 
@@ -929,8 +931,26 @@ def _model_list():
     return models
 
 
+def _chat_model(base, api_key, model, timeout, json_mode=True):
+    """LangChain 모델 객체를 만든다. (OpenAI 호환 API면 무엇이든 가능)"""
+    llm = ChatOpenAI(
+        model=model,
+        base_url=base,
+        api_key=api_key or 'none',  # ollama처럼 키가 필요 없는 곳도 빈 값은 안받는다
+        temperature=0.3,
+        timeout=timeout,
+        max_retries=0,  # 재시도는 call_llm이 예비 모델로 직접 한다
+    )
+
+    if json_mode:
+        # 답을 JSON 객체 하나로만 받는다
+        return llm.bind(response_format={'type':'json_object'})
+
+    return llm
+
+
 def call_llm(messages):
-    """OpenAI 호환 chat/completions 호출. 답변 문자열을 돌려준다.
+    """OpenAI 호환 chat/completions 호출 (LangChain 사용). 답변 문자열을 돌려준다.
 
     모델이 바쁘거나(503/429) 시간이 오래 걸리면 예비 모델로 자동으로 넘어간다.
     """
@@ -945,57 +965,39 @@ def call_llm(messages):
     if 'openai.com' in base and not api_key:
         raise ChatError('AI 키가 비어 있어요. .env에 AI_API_KEY를 넣어주세요.')
 
-    headers = {'Content-Type': 'application/json'}
-
-    if api_key:
-        headers['Authorization'] = 'Bearer ' + api_key
-
     # 예비 모델이 있으면 한 모델에 오래 매달리지 않는다.
     per_try = min(timeout, 25) if len(models) > 1 else timeout
     last_status = None
 
     for model in models:
-        body = {
-            'model': model,
-            'messages': messages,
-            'temperature': 0.3,
-            'response_format': {'type': 'json_object'},
-        }
-
         try:
-            response = requests.post(
-                base + '/chat/completions', headers=headers, json=body, timeout=per_try
-            )
-
-            # 일부 AI 서비스는 JSON 모드 옵션을 거절한다. 옵션을 빼고 한 번 더 시도한다.
-            if response.status_code == 400 and 'response_format' in body:
-                body.pop('response_format')
-                response = requests.post(
-                    base + '/chat/completions', headers=headers, json=body, timeout=per_try
-                )
-        except requests.RequestException:
+            try:
+                answer = _chat_model(base, api_key, model, per_try).invoke(messages)
+            except openai.BadRequestError:
+                # 일부 AI 서비스는 JSON 모드 옵션을 거절한다. 옵션을 빼고 한 번 더 시도한다.
+                answer = _chat_model(base, api_key, model, per_try, json_mode=False).invoke(messages)
+        except (openai.APITimeoutError, openai.APIConnectionError):
             logger.warning('AI 호출 실패(연결/시간초과): %s', model)
             last_status = 'timeout'
             continue
+        except openai.APIStatusError as e:
+            if e.status_code in _RETRY_STATUS:
+                logger.warning('AI 모델이 바빠요 %s (%s): %s', model, e.status_code, str(e)[:200])
+                last_status = e.status_code
+                continue
 
-        if response.status_code in _RETRY_STATUS:
-            logger.warning('AI 모델이 바빠요 %s (%s): %s', model, response.status_code, response.text[:200])
-            last_status = response.status_code
-            continue
+            logger.error('AI 응답 오류 %s (%s): %s', e.status_code, model, str(e)[:300])
+            raise ChatError('AI가 응답하지 못했어요. (오류 %d)' % e.status_code)
 
-        if response.status_code >= 400:
-            logger.error('AI 응답 오류 %s (%s): %s', response.status_code, model, response.text[:300])
-            raise ChatError('AI가 응답하지 못했어요. (오류 %d)' % response.status_code)
-
-        try:
-            return response.json()['choices'][0]['message']['content']
-        except (ValueError, KeyError, IndexError, TypeError):
+        if not isinstance(answer.content, str):
             raise ChatError('AI 응답 형식이 올바르지 않아요.')
+
+        return answer.content
 
     if last_status == 'timeout':
         raise ChatError('AI가 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.')
 
-    raise ChatError('AI가 지금 많이 바빠요. 잠시 후 다시 보내 주세요. (오류 %s)' % last_status)
+    raise ChatError('AI가 지금 많이 바빠요. 잠시 후 다시 보내 주세요. (오류 %s)' % last_status)                                                                       
 
 
 def _parse_json(text):
