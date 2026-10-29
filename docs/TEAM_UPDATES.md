@@ -3,7 +3,7 @@
 `git pull`로 받은 변경이 **내 파트(🟦 프론트 / 🟧 백엔드 / 🟩 AI)에 무엇을 바꾸는지** 적는 곳입니다.
 최신 항목이 맨 위입니다. 다른 파트에 영향을 주는 변경(화면 id·주소·응답 키·DB·설정)을 올릴 때는 여기에 한 항목을 추가해 주세요.
 
-- 기준 목업: [TRIPA 화면 목업](https://claude.ai/artifact/BqZEgyPi2NH36UjyHwbYBk) (화면 모양 참고용, 코드가 아님)
+- 기준 목업: [TRIPA 화면 목업](https://claude.ai/artifact/BqZEgyPi2NH36UjyHwbYBk) (화면 모양 참고용, 코드가 아님). 같은 내용의 사본이 `docs/mockup/tripa-mockup.html`에 있어서 브라우저로 바로 열 수 있어요 (가장 최신은 링크 쪽)
 - 기준 응답 모양: 리포 최상위 `mock.json`
 - pull 뒤 확인 방법: [`docs/PULL_CHECKLIST.md`](PULL_CHECKLIST.md)
 - 앱 확장 가이드: [`docs/APP_GUIDE.md`](APP_GUIDE.md)

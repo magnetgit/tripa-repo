@@ -7,7 +7,7 @@
 1. 사용자가 어느 파트인지 모르면 먼저 물어봅니다(현재 브랜치 이름이 `front`/`back`/`ai`면 그것으로 판단).
 2. `docs/TEAM_UPDATES.md`의 최신 항목들을 읽고, **그 사용자 파트의 체크리스트**를 요약해 알려줍니다.
 3. 방금 pull한 변경이 있으면 `docs/PULL_CHECKLIST.md`의 표대로 바뀐 파일을 분류하고, 사용자 파트에 영향이 있는 것만 "무엇이 바뀌었고, 무엇을 확인·수정해야 하는지"로 정리합니다(`git log ORIG_HEAD..HEAD`, `git diff --stat ORIG_HEAD..HEAD`).
-4. 화면 모양은 목업(https://claude.ai/artifact/BqZEgyPi2NH36UjyHwbYBk), 응답 키는 리포 최상위 `mock.json`이 기준입니다.
+4. 화면 모양은 목업(https://claude.ai/artifact/BqZEgyPi2NH36UjyHwbYBk, 리포 사본 `docs/mockup/tripa-mockup.html`), 응답 키는 리포 최상위 `mock.json`이 기준입니다. 목업은 참고용이며 프론트 코드로 그대로 옮기지 않습니다.
 
 ## 지킬 것
 - AI는 프로젝트 기능 코드를 대신 작성하지 않습니다. 개념·순서·"어느 파일의 어느 부분"과 힌트만 줍니다. 사용자가 코드를 붙여넣으면 문제 줄을 힌트로 알려줍니다. 문서·설정 정리는 사용자가 명시적으로 부탁할 때만 합니다.
