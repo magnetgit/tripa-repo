@@ -678,12 +678,19 @@ def search_recommendations(rec, draft, size=4):
         return None, []
 
     anchor, anchor_name = _pick_anchor(rec, draft)
-    region = rec.get('near') or draft.get('place')
     exclude = rec.get('exclude') or []
     extra = {}
 
+    # '대영횟집 근처'처럼 기준 장소의 위치를 찾았으면, 검색어에는 여행 지역만 붙이고
+    # 가까운 곳은 좌표로 찾는다. ('대영횟집 카페'로 검색하면 결과가 0개가 된다)
+    near_found = bool(anchor) and anchor_name == rec.get('near')
+    region = draft.get('place') if near_found else (rec.get('near') or draft.get('place'))
+
     if anchor:
         extra.update({'y': anchor[0], 'x': anchor[1], 'radius': 20000})
+
+    if near_found:
+        extra['sort'] = 'distance'
 
     # 넓은 뜻의 말(랜드마크 등)은 글자 그대로 검색하지 않고 실제 관광명소를 찾는다
     concept = _concept_of(rec['query'])
