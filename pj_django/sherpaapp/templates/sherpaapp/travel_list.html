@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261029">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261041">
 
 </head>
 
@@ -125,77 +125,53 @@
         </div>
 
 
-        <div class="travel-grid">
+        <!-- 카드 전체를 누르면 여행 상세로 이동, 오른쪽 위 X는 삭제 -->
+        <div class="travel-grid tl-grid">
 
+            {% for travel in travels %}
 
-            <div class="travel-grid">
+                <article class="travel-card tl-card">
 
-                {% for travel in travels %}
+                    <a
+                        class="tl-card__link"
+                        href="{% url 'travel_detail' travel_id=travel.t_id %}"
+                        aria-label="{{ travel.t_title }} 여행 보기"
+                    >
+                        <div class="travel-image">
+                            {% include "_icon.html" with name="building" %}
+                        </div>
 
-                <div class="travel-card">
+                        <div class="travel-content">
+                            <h2>{{ travel.t_title }}</h2>
+                            <p>{% include "_icon.html" with name="pin" %} {{ travel.t_place }}</p>
+                            <p>{% include "_icon.html" with name="calendar" %} {{ travel.t_start|date:"Y.m.d" }} ~ {{ travel.t_end|date:"Y.m.d" }}</p>
+                        </div>
+                    </a>
 
-                    <div class="travel-image">
-                        {% include "_icon.html" with name="building" %}
-                    </div>
+                    <form
+                        class="tl-card__del"
+                        method="POST"
+                        action="{% url 'travel_delete' travel_id=travel.t_id %}"
+                    >
+                        {% csrf_token %}
+                        <button
+                            type="submit"
+                            class="tl-del"
+                            title="여행 삭제"
+                            aria-label="{{ travel.t_title }} 삭제"
+                            onclick="return confirm('이 여행을 삭제하시겠습니까?');"
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                        </button>
+                    </form>
 
-                    <div class="travel-content">
+                </article>
 
-                        <h2>
-                            {{ travel.t_title }}
-                        </h2>
+            {% empty %}
 
-                        <p>
-                            {% include "_icon.html" with name="pin" %} {{ travel.t_place }}
-                        </p>
+                <p class="tl-empty">아직 만들어진 여행이 없습니다.</p>
 
-                        <p>
-                            {% include "_icon.html" with name="calendar" %} {{ travel.t_start|date:"Y.m.d" }}
-                                ~
-                            {{ travel.t_end|date:"Y.m.d" }}
-                        </p>
-
-                        <p>
-                            {% include "_icon.html" with name="calendar" %} 여행
-                        </p>
-
-                        <a
-                            href="{% url 'travel_detail' travel_id=travel.t_id %}"
-                            class="btn btn-primary">
-
-                            여행 보기
-
-                        </a>
-                        <form
-                            method="POST"
-                            action="{% url 'travel_delete' travel_id=travel.t_id %}"
-                            style="display: inline;">
-
-                            {% csrf_token %}
-
-                            <button
-                                type="submit"
-                                class="btn btn-danger"
-                                onclick="return confirm('이 여행을 삭제하시겠습니까?');">
-
-                                삭제
-
-                            </button>
-
-                        </form>
-                    </div>
-
-                </div>
-
-                {% empty %}
-
-                <p>
-                아직 만들어진 여행이 없습니다.
-                </p>
-
-                {% endfor %}
-
-            </div>
-
+            {% endfor %}
 
         </div>
 

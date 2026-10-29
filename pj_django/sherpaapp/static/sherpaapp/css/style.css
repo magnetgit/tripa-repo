@@ -5107,3 +5107,206 @@ button.preview-day {
 
 .td-app .schedule-info h3 { font-size: 15px; }
 .td-app .schedule-info p { font-size: 13px; }
+
+/* =========================================================
+   비용 관리: 지출 내역을 분류별 카드로 묶기
+   카드 색은 분류색(--cat-color, views.py BUDGET_CATEGORIES)
+========================================================= */
+.bg-catgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    padding: 16px 20px;
+    align-items: start;
+}
+
+.bg-catgrid > .bg-empty { grid-column: 1 / -1; }
+
+.bg-catcard {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid #e6ecf6;
+    border-radius: 14px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.bg-catcard__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #eef1f6;
+}
+
+.bg-catcard__head h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 15px;
+    color: #1f2d4a;
+}
+
+.bg-catcard__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #f4f7fd;
+    color: var(--cat-color, #2d6cdf);
+}
+
+.bg-catcard__icon .tp-icon { width: 16px; height: 16px; }
+
+.bg-catcard__count { font-size: 12px; color: #7b88a1; }
+
+.bg-catcard__sum {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px 6px;
+    font-size: 12px;
+    color: #7b88a1;
+}
+
+.bg-catcard__sum strong {
+    margin-left: 2px;
+    font-size: 14px;
+    color: #1f2d4a;
+    font-variant-numeric: tabular-nums;
+}
+
+.bg-catcard__bar {
+    height: 6px;
+    margin: 0 14px 6px;
+    border-radius: 999px;
+    background: #eef2f8;
+    overflow: hidden;
+}
+
+.bg-catcard__bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--cat-color, #2d6cdf);
+}
+
+/* 카드 안의 한 줄: 내용 | 금액(수정) | 삭제 */
+.bg-catcard .bg-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    padding: 10px 14px;
+}
+
+.bg-catcard .bg-rows .bg-row:first-child { border-top: 1px solid #f1f4f9; }
+.bg-catcard .bg-row__main h3 { font-size: 13px; }
+.bg-catcard .bg-row__main p { font-size: 11px; }
+.bg-catcard .bg-row__amt.is-editing { max-width: 190px; }
+
+@media (max-width: 640px) {
+    .bg-catgrid { grid-template-columns: 1fr; padding: 12px; }
+    .bg-catcard .bg-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+    .bg-catcard .bg-row__main { grid-column: auto; }
+}
+
+/* 분류 카드가 넓게 보이도록 왼쪽 예산 요약은 고정 폭 */
+.bg-grid { grid-template-columns: minmax(300px, 340px) minmax(0, 1fr); }
+.bg-catgrid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+
+@media (max-width: 1100px) {
+    .bg-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+    .bg-catgrid { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   내 여행: 작은 카드, 카드 전체가 링크, 오른쪽 위 X = 삭제
+========================================================= */
+.tl-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 280px));
+    gap: 18px;
+}
+
+.tl-card { position: relative; }
+
+.tl-card__link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.tl-card__link:focus-visible {
+    outline: 2px solid #2d6cdf;
+    outline-offset: -2px;
+    border-radius: 15px;
+}
+
+.tl-card .travel-image { height: 96px; }
+.tl-card .travel-image .tp-icon { width: 36px; height: 36px; }
+.tl-card .travel-content { padding: 14px 16px 16px; }
+
+.tl-card .travel-content h2 {
+    margin: 0 0 8px;
+    padding-right: 4px;
+    font-size: 16px;
+    color: #1f2d4a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tl-card .travel-content p { margin-bottom: 4px; font-size: 13px; }
+.tl-card .travel-content p:last-child { margin-bottom: 0; }
+
+/* 삭제 X */
+.tl-card__del {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    margin: 0;
+}
+
+.tl-del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    color: #7b88a1;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.tl-del svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+}
+
+.tl-del:hover,
+.tl-del:focus-visible {
+    background: #e5484d;
+    color: #fff;
+    outline: none;
+}
+
+.tl-empty { color: #7b88a1; }
+
+@media (max-width: 640px) {
+    .tl-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+}

@@ -16,7 +16,7 @@
 
     <link
         rel="stylesheet"
-        href="{% static 'sherpaapp/css/style.css' %}?v=20261039"
+        href="{% static 'sherpaapp/css/style.css' %}?v=20261041"
     >
 
 </head>
@@ -392,7 +392,7 @@
 
                 <header class="bg-card__head">
 
-                    <h2>{% include "_icon.html" with name="coins" %} 지출 내역</h2>
+                    <h2>{% include "_icon.html" with name="coins" %} 분류별 지출</h2>
 
                     <select
                         class="bg-sort"
@@ -408,80 +408,86 @@
                 </header>
 
 
-                <div class="bg-thead" aria-hidden="true">
-                    <span>내용 · 장소</span>
-                    <span>분류</span>
-                    <span>금액</span>
-                    <span></span>
-                </div>
+                <!-- 분류별 카드: 같은 분류의 지출을 한 카드에 모아 보여줌 (금액 수정·삭제는 각 줄에서) -->
+                <div id="expenseList" class="bg-catgrid">
 
+                    {% for cat in categories %}
 
-                <div id="expenseList">
+                        <article class="bg-catcard" style="--cat-color: {{ cat.color }};">
 
-                    {% for group in day_groups %}
+                            <header class="bg-catcard__head">
+                                <h3>
+                                    <span class="bg-catcard__icon">{% include "_icon.html" with name=cat.icon %}</span>
+                                    {{ cat.name }}
+                                </h3>
+                                <span class="bg-catcard__count">{{ cat.count }}건</span>
+                            </header>
 
-                        <div class="bg-day">
-                            <strong>
-                                {% if group.day_no %}{{ group.day_no }}일차 · {% endif %}{% if group.day %}{{ group.day|date:"m.d" }}{% else %}날짜 없음{% endif %}
-                            </strong>
-                            <span>{{ group.total|floatformat:"0g" }}원</span>
-                        </div>
+                            <div class="bg-catcard__sum">
+                                <span>합계 <strong>{{ cat.amount|floatformat:"0g" }}원</strong></span>
+                                <span>전체 지출의 <strong>{{ cat.percent }}%</strong></span>
+                            </div>
 
-                        <div class="bg-rows">
+                            <div class="bg-catcard__bar" role="img" aria-label="{{ cat.name }} 전체 지출의 {{ cat.percent }}%">
+                                <span style="width: {{ cat.percent }}%;"></span>
+                            </div>
 
-                            {% for row in group.rows %}
+                            <div class="bg-rows">
 
-                                <div
-                                    class="bg-row"
-                                    data-index="{{ row.index }}"
-                                    data-price="{{ row.amount }}"
-                                    data-place="{{ row.place }}"
-                                >
+                                {% for group in day_groups %}
+                                    {% for row in group.rows %}
+                                        {% if row.category.key == cat.key %}
 
-                                    <div class="bg-row__main">
-                                        <span class="bg-row__icon" style="color: {{ row.category.color }};">
-                                            {% include "_icon.html" with name=row.category.icon %}
-                                        </span>
-                                        <div>
-                                            <h3>{{ row.pay.pay_context }}</h3>
-                                            {% if row.place %}<p>{{ row.place }}</p>{% endif %}
-                                        </div>
-                                    </div>
+                                            <div
+                                                class="bg-row"
+                                                data-index="{{ row.index }}"
+                                                data-price="{{ row.amount }}"
+                                                data-place="{{ row.place }}"
+                                            >
 
-                                    <span class="bg-row__cat">
-                                        <i style="background: {{ row.category.color }};"></i>{{ row.category.name }}
-                                    </span>
+                                                <div class="bg-row__main">
+                                                    <div>
+                                                        <h3>{{ row.pay.pay_context }}</h3>
+                                                        <p>
+                                                            {% if group.day_no %}{{ group.day_no }}일차{% elif not group.day %}날짜 없음{% endif %}{% if group.day %} · {{ group.day|date:"m.d" }}{% endif %}{% if row.place %} · {{ row.place }}{% endif %}
+                                                        </p>
+                                                    </div>
+                                                </div>
 
-                                    <div
-                                        class="bg-row__amt"
-                                        data-url="{% url 'budget_update_pay' travel_id=travel.t_id pay_id=row.pay.pay_id %}"
-                                    >
-                                        <button
-                                            type="button"
-                                            class="bg-edit"
-                                            aria-label="{{ row.pay.pay_context }} 금액 수정"
-                                        >수정</button>
-                                        <strong class="bg-row__price">{{ row.amount|floatformat:"0g" }}원</strong>
-                                    </div>
+                                                <div
+                                                    class="bg-row__amt"
+                                                    data-url="{% url 'budget_update_pay' travel_id=travel.t_id pay_id=row.pay.pay_id %}"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        class="bg-edit"
+                                                        aria-label="{{ row.pay.pay_context }} 금액 수정"
+                                                    >수정</button>
+                                                    <strong class="bg-row__price">{{ row.amount|floatformat:"0g" }}원</strong>
+                                                </div>
 
-                                    <form
-                                        method="post"
-                                        action="{% url 'budget_delete' travel_id=travel.t_id pay_id=row.pay.pay_id %}"
-                                    >
-                                        {% csrf_token %}
-                                        <button
-                                            type="submit"
-                                            class="bg-del"
-                                            aria-label="삭제"
-                                            onclick="return confirm('이 비용을 삭제하시겠습니까?');"
-                                        >삭제</button>
-                                    </form>
+                                                <form
+                                                    method="post"
+                                                    action="{% url 'budget_delete' travel_id=travel.t_id pay_id=row.pay.pay_id %}"
+                                                >
+                                                    {% csrf_token %}
+                                                    <button
+                                                        type="submit"
+                                                        class="bg-del"
+                                                        aria-label="{{ row.pay.pay_context }} 삭제"
+                                                        onclick="return confirm('이 비용을 삭제하시겠습니까?');"
+                                                    >삭제</button>
+                                                </form>
 
-                                </div>
+                                            </div>
 
-                            {% endfor %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endfor %}
 
-                        </div>
+                            </div>
+
+                        </article>
 
                     {% empty %}
 
@@ -1380,7 +1386,7 @@
 
         }
 
-        // 날짜별 묶음은 그대로 두고, 각 날짜 안에서만 줄을 다시 세운다.
+        // 분류 카드는 그대로 두고, 각 카드 안에서만 줄을 다시 세운다.
         list.querySelectorAll(".bg-rows").forEach(
             function(box) {
 
