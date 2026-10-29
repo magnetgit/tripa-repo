@@ -10,6 +10,40 @@
 
 ---
 
+## 2026-10-29 · `mock.json`을 돌려주는 API 주소 추가 — 🟧 이수한
+가이드 🟧 3번. 지금은 **고정된 `mock.json` 내용을 그대로** 돌려줍니다. 화면·AI를 진짜 주소에 먼저 붙이고, 백엔드가 실제 값으로 하나씩 바꿀 예정이에요.
+
+| 주소 | 방식 | 언제 | 지금 응답 |
+|---|---|---|---|
+| `/api/chat/` | POST | 적용 전 대화 (여행 id 없음) | `mock.json` |
+| `/api/trips/<id>/` | GET | 저장된 여행 열기 (id는 아무 숫자나) | `mock.json` |
+
+- 로그인 필요: 아니면 `401` (기존 `travel_chat/`과 같은 오류 모양 `{ok: false, error, login: true}`)
+- `/api/chat/`은 POST 전용 (GET은 `405`). POST에는 기존 채팅처럼 `X-CSRFToken` 헤더 필요
+- 기존 `travel_chat/`·`travel_chat_apply/`·`travel_chat_preview/`는 **그대로**. 새 주소는 추가만 함
+- 코드: `urls.py`의 `api_chat`·`api_trip`, `views.py`의 `_read_mock()`(여기만 실제 계산으로 바꾸면 됨)
+
+### 🟦 프론트
+- [ ] 화면을 이 주소에 붙여 `mock.json` 키(`reply`, `facts`, `hint`, `plan`, `places`, `transport`, `budget`)로 그리기 시험. 기존 `travel_chat/` 화면은 그대로 두고 따로 시험
+
+### 🟩 AI
+- [ ] `run_chat_turn` 출력을 이 응답 모양으로 맞추는 작업의 기준 주소. 백엔드가 `_read_mock()` 자리를 AI 결과로 바꿀 때 함께 확인
+
+## 2026-10-29 · 채팅 임시 저장을 회원별로 나누기 (결정) — 🟧 이수한
+배경: 여행은 지금처럼 **"이 일정 적용하기" 때 생성**하고, 그 전 대화·초안은 브라우저 탭 `sessionStorage`(`tripa_chat_v1`)에 임시 저장하는 방식을 유지하기로 함. 다만 같은 탭에서 로그아웃 → 다른 계정 로그인 시 **앞 사람 초안이 보이고, 적용하면 뒷사람 여행으로 저장되는** 문제가 있어 저장 이름에 회원 구분값을 넣기로 결정.
+
+### 🟦 프론트가 할 일
+- [ ] `travel_create.html`의 `#tcApp`에 회원 구분값 속성 추가 (예: `data-member="{{ member.m_id }}"`). 뷰가 이미 `member`를 넘기고 있어 백엔드 수정 없음
+- [ ] `travel_chat.js`의 `STORE_KEY`를 회원별 이름으로 (예: `tripa_chat_v1_` + 회원 번호). `load`·`save`·`clearStore`가 같은 이름을 쓰게
+- [ ] 예전 이름(`tripa_chat_v1`)으로 남아 있는 저장값은 한 번 지우기 (누구 것인지 알 수 없으므로)
+- [ ] 확인: A로 채팅 → 로그아웃 → 같은 탭에서 B 로그인 → 여행 만들기 화면이 **빈 상태**, 다시 A로 로그인하면 **A 초안 복원**
+
+### 🟧 백엔드 · 🟩 AI
+- 영향 없음. 회원 번호(`m_id`)만 화면에 쓰고 이메일은 넣지 않음
+
+### 함께 정해진 것 (회의에서 최종 확인)
+- 적용 전 대화는 id 없는 주소, 저장된 여행은 id 주소: `mock.json`의 `POST /api/trips/<id>/chat/` → `POST /api/chat/` 로 바꾸는 안. 응답 키는 그대로
+
 ## 2026-10-29 · 비밀번호 해시 적용 — 🟧 이수한
 - 가입(`join_ok`)·로그인(`login_ok`)·비밀번호 찾기(`pw_find`)·탈퇴(`member_delete`)가 Django 해시(`pbkdf2_sha256`)를 사용. `Member.pwd` 길이 30 → 255 (DB 컬럼과 맞춤)
 - 기존 평문 회원은 **첫 로그인 때 자동으로 해시로 바뀜** (`login_ok`의 임시 `elif`, 모두 바뀌면 삭제 예정). pull 뒤 각자 로컬 DB의 테스트 계정도 로그인하면 바뀌어요
