@@ -1,3 +1,4 @@
+from django.contrib.auth.hashers import make_password, check_password
 from datetime import datetime, timedelta, time, date
 import hashlib
 import json
@@ -2077,7 +2078,7 @@ def join_ok(request):
 
     Member.objects.create(
         email=email,
-        pwd=pwd,
+        pwd=make_password(pwd),
         name=name,
         nickname=nickname
     )
@@ -2113,7 +2114,7 @@ def login_ok(request):
         )
 
 
-        if member.pwd == pwd:
+        if check_password(pwd, member.pwd):
 
             request.session[
                 'login_ok_user'
@@ -2127,7 +2128,20 @@ def login_ok(request):
                 </script>
             """)
 
-
+        elif not member.pwd.startswith('pbkdf2_') and member.pwd == pwd:
+            member.pwd = make_password(pwd)
+            member.save()
+            request.session[
+                'login_ok_user'
+            ] = member.email
+    
+            return HttpResponse("""
+                <script>
+                    alert('로그인되었습니다.');
+                    location.href = '../';
+                </script>
+            """)
+        
         else:
 
             return HttpResponse("""
@@ -2319,7 +2333,7 @@ def pw_find(request):
 
 
         member.pwd = (
-            new_pwd
+            make_password(new_pwd)
         )
 
 
@@ -2461,8 +2475,8 @@ def member_delete(request):
     )
 
 
-    # 비밀번호 확인
-    if member.pwd != password:
+        # 비밀번호 확인
+    if not check_password(password, member.pwd):
 
         return HttpResponse("""
             <script>
@@ -4680,6 +4694,30 @@ def _decimal_or_none(value):
         return None
 
     return Decimal(str(value))
+
+
+def _read_mock():
+    mock_path = settings.BASE_DIR.parent/'mock.json'
+    with open(mock_path, encoding='utf-8') as f:
+        data = json.load(f)
+    return data
+
+
+@require_POST
+def api_chat(request):
+    member = _chat_member(request)
+    if not member:
+        return _chat_error('로그인이 필요해요.', 401, login=True)
+    data = _read_mock()
+    return JsonResponse(data, json_dumps_params={'ensure_ascii': False})
+
+
+def api_trip(request, trip_id):
+    member = _chat_member(request)
+    if not member:
+        return _chat_error('로그인이 필요해요.', 401, login=True)
+    data = _read_mock()
+    return JsonResponse(data, json_dumps_params={'ensure_ascii': False})
 
 
 @require_POST
