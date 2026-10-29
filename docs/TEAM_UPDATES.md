@@ -10,6 +10,12 @@
 
 ---
 
+## 2026-10-29 · 비밀번호 해시 적용 — 🟧 이수한
+- 가입(`join_ok`)·로그인(`login_ok`)·비밀번호 찾기(`pw_find`)·탈퇴(`member_delete`)가 Django 해시(`pbkdf2_sha256`)를 사용. `Member.pwd` 길이 30 → 255 (DB 컬럼과 맞춤)
+- 기존 평문 회원은 **첫 로그인 때 자동으로 해시로 바뀜** (`login_ok`의 임시 `elif`, 모두 바뀌면 삭제 예정). pull 뒤 각자 로컬 DB의 테스트 계정도 로그인하면 바뀌어요
+- **테스트 계정은 DB에 직접 넣지 말고 회원가입 화면으로 만들기** (DB에 평문을 넣으면 이전용 갈래로만 로그인됨)
+- 🟦 영향 없음 (화면·폼 이름 그대로) · 🟩 영향 없음
+
 ## 2026-10-29 · `call_llm`을 LangChain으로 교체 — 🟩 서지윤
 - `chat_service.call_llm`이 `requests` 대신 LangChain(`ChatOpenAI`)으로 AI를 부름. 함수 이름·인자·반환값·오류 문구는 그대로
 - `requirements.txt`에 `langchain-core`, `langchain-openai` 추가 → **pull 뒤 `pip install -r pj_django/requirements.txt`**
