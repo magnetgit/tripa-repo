@@ -10,6 +10,30 @@
 
 ---
 
+## 2026-10-30 · 모든 모델 `managed=True` 전환 + 마이그레이션 새로 시작 (안건 1) — 🟧 이수한
+- **이제 모든 테이블을 Django 마이그레이션으로 관리함.** 컬럼을 바꿀 때는 `models.py` 수정 → `makemigrations` → `migrate`
+- 옛 마이그레이션(`0001`, `0002`)은 현재 모델과 30곳 가까이 달라서 지우고, **현재 모델로 `0001_initial`을 새로 만듦**
+- 모델을 실제 DB(`Create Table.sql`)와 똑같이 맞춤 → **로컬 DB 구조·데이터는 그대로**
+  - `Member.email` 길이 100 + 중복 금지, `Travel`의 지역·제목·시작일·종료일 NOT NULL, `Place.p_addr` 255·NULL 허용, `Place.p_image` 긴 글(TextField), `Pay` 내용 255·금액·날짜 NOT NULL
+  - `Schedule`에 여행+날짜 중복 금지 추가(DB에 원래 있음), `SchedulePlace`의 방문 순서 중복 금지는 삭제(DB에 없음. 있으면 순서 바꾸기에서 MariaDB 오류)
+- 컨셉 9개 기초 데이터 파일 추가: `sherpaapp/fixtures/categories.json` (새 DB에서 `loaddata categories`로 넣음)
+
+### 🟦🟩 pull 뒤 한 번만 할 일
+가상환경을 켜고 `pj_django` 폴더에서:
+```
+python manage.py migrate sherpaapp --fake-initial
+python manage.py makemigrations --check
+```
+- 첫 줄은 `Applying sherpaapp.0001_initial... FAKED`가 나오면 성공 (테이블이 이미 있으니 기록만 남김, 데이터 그대로)
+- 둘째 줄은 `No changes detected`가 나오면 끝
+- 오류가 나면 그대로 🟧에게 보내 주세요. **`migrations/` 파일을 직접 지우거나 고치지 마세요**
+- 앞으로 `models.py`를 바꾸는 사람은 `makemigrations`로 만든 파일도 **같이 커밋**
+
+### 확인된 점 / 남은 일
+- [x] 로컬: `--fake-initial` FAKED, `makemigrations --check` 변경 없음, `manage.py check` 통과
+- [ ] 🟧 서버 DB 새로 만들기: 비우고 `migrate` → `loaddata categories` (빈 대문자 테이블도 함께 정리)
+- [ ] 🟧 이 위에 리뷰·카테고리 예산 테이블, 회원 선택 컬럼을 마이그레이션으로 추가
+
 ## 2026-10-30 · 모델 테이블 이름 소문자로 통일 (배포 서버 컨셉 저장 안 되던 문제) — 🟧 이수한
 - 증상: 배포 주소의 AI 채팅에서 컨셉을 말하면 "반영했어요"라고 답하지만 일정 초안의 컨셉 칸이 비어 있음 (로컬은 정상)
 - 원인: **서버(리눅스) MariaDB는 테이블 이름의 대소문자를 구분**함. 모델은 `CATEGORIES`를 읽는데 실제 데이터는 `categories`에 있어서, 서버에서는 컨셉 목록이 빈 것으로 보였음. 윈도우는 구분하지 않아서 로컬에서는 드러나지 않음
@@ -19,8 +43,8 @@
 
 ### 확인된 점 / 남은 일
 - [x] 로컬 `manage.py check` 통과, 6개 테이블 모두 기존 데이터 그대로 조회
-- [ ] 🟧 병합 후 서버 반영 → 배포 주소에서 컨셉 저장·일정 적용 확인
-- [ ] 🟧 서버에 남은 빈 대문자 테이블(`CATEGORIES`, `PLACE` 등) 정리
+- [x] 🟧 병합 후 서버 반영 → 서버에서 컨셉 9개 정상 조회 (배포 주소 화면 확인은 남음)
+- [ ] 🟧 서버에 남은 빈 대문자 테이블(`CATEGORIES`, `PLACE` 등) 정리 → 위 서버 DB 새로 만들 때 함께
 - [ ] 🟦🟩 영향 없음. pull만 하면 됨
 
 ## 2026-10-30 · Django 실제 배포 + HTTPS — 🟧 이수한
