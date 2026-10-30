@@ -5310,3 +5310,649 @@ button.preview-day {
 @media (max-width: 640px) {
     .tl-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 }
+
+
+/* =========================================
+   홈 배경 장면 (index.html 맨 위)
+   하늘·구름·비행기·도로·차. 비행기와 차는 각자 자기 줄에서 가로로만 움직임
+========================================= */
+
+.home-page header {
+    position: relative;
+    z-index: 3;
+}
+
+.home-scene {
+    --hs-road-h: 116px;
+
+    position: relative;
+    overflow: hidden;
+
+    /* 헤더 뒤까지 하늘이 이어지게 위로 당김 */
+    margin-top: -64px;
+    padding: 64px 0 var(--hs-road-h);
+
+    min-height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    background: linear-gradient(180deg, #d6e6f4 0%, #e6f0f9 38%, #f4f8fc 72%, #ffffff 100%);
+}
+
+.home-scene .hero {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+}
+
+.hs-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* 구름: 아주 천천히 흘러감 */
+.hs-cloud {
+    position: absolute;
+    fill: #ffffff;
+    opacity: 0.85;
+    filter: blur(3px) drop-shadow(0 6px 10px rgba(150, 175, 200, 0.35));
+    animation: hs-drift 140s linear infinite;
+}
+
+.hs-cloud--1 { top: 9%;  left: 4%;  width: 190px; height: 86px; }
+.hs-cloud--2 { top: 22%; left: 78%; width: 240px; height: 108px; opacity: 0.7; animation-duration: 180s; animation-delay: -60s; }
+.hs-cloud--3 { top: 46%; left: 40%; width: 150px; height: 68px; opacity: 0.55; animation-duration: 160s; animation-delay: -30s; }
+
+@keyframes hs-drift {
+    from { transform: translateX(-30vw); }
+    to   { transform: translateX(30vw); }
+}
+
+/* 가로로 지나가는 것들 공통: 화면 왼쪽 밖 → 오른쪽 밖 */
+.hs-mover {
+    position: absolute;
+    left: 0;
+    animation: hs-to-right 20s linear infinite;
+    will-change: transform;
+}
+
+.hs-mover svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+/* 반대 방향: 그림을 좌우로 뒤집고 오른쪽 → 왼쪽 */
+.hs-mover--left {
+    animation-name: hs-to-left;
+}
+
+.hs-mover--left svg {
+    transform: scaleX(-1);
+}
+
+@keyframes hs-to-right {
+    from { transform: translateX(-280px); }
+    to   { transform: translateX(calc(100vw + 40px)); }
+}
+
+@keyframes hs-to-left {
+    from { transform: translateX(calc(100vw + 40px)); }
+    to   { transform: translateX(-280px); }
+}
+
+/* 비행기 */
+.hs-plane {
+    filter: drop-shadow(0 8px 10px rgba(80, 120, 160, 0.18));
+}
+
+.hs-plane svg {
+    animation: hs-bob 4s ease-in-out infinite;
+}
+
+.hs-mover--left.hs-plane svg {
+    animation-name: hs-bob-flip;
+}
+
+.hs-plane--1 { top: 24%; width: 130px; height: 52px; animation-duration: 26s; animation-delay: -8s; }
+.hs-plane--2 { top: 9%;  width: 90px;  height: 36px; animation-duration: 38s; animation-delay: -22s; opacity: 0.9; }
+
+@keyframes hs-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+
+@keyframes hs-bob-flip {
+    0%, 100% { transform: scaleX(-1) translateY(0); }
+    50%      { transform: scaleX(-1) translateY(-6px); }
+}
+
+/* 도로 */
+.hs-road {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--hs-road-h);
+
+    background: linear-gradient(180deg, #6b7380 0, #5f6672 4px, #555c67 100%);
+    box-shadow: inset 0 3px 0 #8a929d;
+}
+
+.hs-lane {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 4px;
+
+    background: repeating-linear-gradient(90deg, #ffffff 0 46px, transparent 46px 74px);
+    opacity: 0.9;
+}
+
+.hs-lane--1 { top: 49%; }
+
+/* 도로 가장자리 실선 */
+.hs-lane--2 {
+    top: auto;
+    bottom: 8px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+/* 차: 윗차선(오→왼), 아랫차선(왼→오) */
+.hs-car {
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+}
+
+.hs-car--taxi  { bottom: calc(var(--hs-road-h) * 0.5); width: 96px; height: 40px; animation-duration: 16s; animation-delay: -3s;
+                 --hs-body: #fbfaf5; --hs-sign: #f6c445; --hs-line: #2d6cdf; }
+.hs-car--white { bottom: calc(var(--hs-road-h) * 0.5); width: 96px; height: 40px; animation-duration: 16s; animation-delay: -11s; }
+.hs-car--bus   { bottom: calc(var(--hs-road-h) * 0.06); width: 128px; height: 48px; animation-duration: 24s; animation-delay: -6s; }
+.hs-car--blue  { bottom: calc(var(--hs-road-h) * 0.06); width: 100px; height: 42px; animation-duration: 24s; animation-delay: -17s;
+                 --hs-body: #3a6db3; --hs-line: #8fb4e8; }
+
+/* 멀리 보이는 산과 빌딩: 도로 바로 위에 붙임. 멀수록 하늘색에 가깝게 흐리게 */
+.hs-far {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    bottom: calc(var(--hs-road-h) - 2px);
+}
+
+.hs-mountains { height: 210px; }
+.hs-city      { height: 150px; }
+
+.hs-mt-back  { fill: #c9dbeb; }
+.hs-mt-front { fill: #b9cfe2; }
+
+.hs-city-back  { fill: #cfdcea; }
+.hs-city-front { fill: #b4c6d9; }
+.hs-city-win   { fill: #e4edf6; opacity: 0.85; }
+
+/* 움직임 줄이기 설정을 켠 사람에게는 멈춰서 보여줌 */
+@media (prefers-reduced-motion: reduce) {
+    .hs-mover,
+    .hs-mover svg,
+    .hs-cloud {
+        animation: none;
+    }
+
+    .hs-plane--1 { transform: translateX(8vw); }
+    .hs-plane--2 { transform: translateX(80vw); }
+    .hs-car--taxi  { transform: translateX(70vw); }
+    .hs-car--white { transform: translateX(20vw); }
+    .hs-car--bus   { transform: translateX(55vw); }
+    .hs-car--blue  { transform: translateX(10vw); }
+}
+
+/* 좁은 화면: 장면을 조금 작게 */
+@media (max-width: 768px) {
+    .home-scene { --hs-road-h: 88px; min-height: auto; padding-bottom: calc(var(--hs-road-h) + 70px); }
+    .hs-plane--1 { width: 96px; height: 38px; }
+    .hs-plane--2 { width: 66px; height: 26px; }
+    .hs-cloud--2, .hs-cloud--3 { display: none; }
+    .hs-mountains { height: 130px; }
+    .hs-city      { height: 90px; }
+    .hs-car--taxi, .hs-car--white { width: 70px; height: 29px; }
+    .hs-car--bus  { width: 94px; height: 35px; }
+    .hs-car--blue { width: 72px; height: 30px; }
+}
+
+
+/* =========================================
+   내 여행: 항공권(탑승권) 모양 카드
+========================================= */
+
+.tl-grid {
+    grid-template-columns: repeat(auto-fill, minmax(230px, 260px));
+    gap: 26px;
+    padding: 6px 4px 10px;
+}
+
+.tl-ticket {
+    --tl-page: #f5f7fb;   /* 양옆 반원 홈 색 = 페이지 배경색 */
+    --tl-ink: #1f2d4a;
+    --tl-mute: #a3adbd;
+
+    position: relative;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(31, 45, 74, 0.10), 0 2px 6px rgba(31, 45, 74, 0.06);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* 올리면 탑승권을 살짝 집어 든 것처럼 기울어짐 */
+.tl-ticket:hover,
+.tl-ticket:focus-within {
+    transform: translateY(-6px) rotate(-1.5deg);
+    box-shadow: 0 18px 38px rgba(31, 45, 74, 0.16), 0 4px 10px rgba(31, 45, 74, 0.08);
+}
+
+.tl-ticket__link {
+    display: flex;
+    flex-direction: column;
+    border-radius: 18px;
+}
+
+.tl-ticket__link:focus-visible {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 3px;
+}
+
+.tl-ticket__main {
+    padding: 18px 20px 16px;
+}
+
+.tl-ticket__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-right: 22px;   /* 오른쪽 위 X 자리 */
+}
+
+.tl-ticket__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.2px;
+    color: var(--tl-ink);
+}
+
+.tl-ticket__brand .tp-icon {
+    width: 18px;
+    height: 18px;
+    color: #2d6cdf;
+}
+
+.tl-ticket__kind {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--tl-mute);
+}
+
+.tl-ticket__dest {
+    margin-top: 22px;
+}
+
+.tl-ticket small,
+.tl-ticket dt {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--tl-mute);
+}
+
+.tl-ticket__dest small {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.tl-ticket__dest strong {
+    display: block;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--tl-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tl-ticket__dest span {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+    color: #66738a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 비행 경로: 점선 — 비행기 — 점선 */
+.tl-ticket__path {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0 14px;
+    color: #2d6cdf;
+}
+
+.tl-ticket__path i {
+    flex: 1;
+    height: 0;
+    border-top: 2px dotted #c9d6ea;
+}
+
+.tl-ticket__path .tp-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.tl-ticket__dates {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    text-align: right;
+}
+
+.tl-ticket__dates dd {
+    margin: 3px 0 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--tl-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.tl-ticket__dates dd small {
+    margin-left: 3px;
+    text-transform: uppercase;
+}
+
+/* 떼어내는 부분: 점선 + 양옆 반원 홈 */
+.tl-ticket__stub {
+    position: relative;
+    padding: 16px 20px 16px;
+    border-top: 2px dashed #e3e8f0;
+}
+
+.tl-ticket__stub::before,
+.tl-ticket__stub::after {
+    content: "";
+    position: absolute;
+    top: -10px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--tl-page);
+}
+
+.tl-ticket__stub::before { left: -9px; }
+.tl-ticket__stub::after  { right: -9px; }
+
+/* 바코드: 굵기가 다른 막대 무늬. 여행 번호마다 무늬 위치를 다르게 */
+.tl-ticket__barcode {
+    display: block;
+    height: 40px;
+    background-image: repeating-linear-gradient(90deg,
+        #1f2937 0 3px, transparent 3px 5px,
+        #1f2937 5px 6px, transparent 6px 9px,
+        #1f2937 9px 13px, transparent 13px 15px,
+        #1f2937 15px 16px, transparent 16px 19px,
+        #1f2937 19px 21px, transparent 21px 24px,
+        #1f2937 24px 25px, transparent 25px 27px);
+    background-position-x: calc(var(--bc, 0) * 7px);
+}
+
+.tl-ticket__no {
+    display: block;
+    margin-top: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--tl-mute);
+    text-align: center;
+}
+
+/* 삭제 X: 티켓 오른쪽 위 */
+.tl-ticket .tl-card__del {
+    top: 14px;
+    right: 12px;
+}
+
+.tl-ticket .tl-del {
+    width: 24px;
+    height: 24px;
+    background: #f1f4f9;
+    box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tl-ticket,
+    .tl-ticket:hover,
+    .tl-ticket:focus-within {
+        transition: none;
+        transform: none;
+    }
+}
+
+/* 좁은 화면: 티켓을 한 줄에 하나, 너무 넓어지지 않게 */
+@media (max-width: 640px) {
+    .tl-grid { grid-template-columns: minmax(0, 320px); justify-content: center; gap: 20px; }
+}
+
+
+/* =========================================
+   내 여행: 티켓 홈을 진짜 구멍으로 (배경 무늬가 비쳐 보이게)
+   - 흰 바탕을 위(main)·아래(stub) 두 조각에만 칠하고, 맞닿는 모서리를 둥글게 파냄
+   - 그림자는 파낸 모양을 따라가도록 box-shadow 대신 drop-shadow
+========================================= */
+
+.tl-ticket {
+    --tl-notch: 10px;
+    background: transparent;
+    box-shadow: none;
+    filter: drop-shadow(0 10px 16px rgba(31, 45, 74, 0.12)) drop-shadow(0 2px 3px rgba(31, 45, 74, 0.06));
+    transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.tl-ticket:hover,
+.tl-ticket:focus-within {
+    box-shadow: none;
+    filter: drop-shadow(0 18px 24px rgba(31, 45, 74, 0.18)) drop-shadow(0 4px 6px rgba(31, 45, 74, 0.08));
+}
+
+.tl-ticket__main {
+    background: #ffffff;
+    border-radius: 18px 18px 0 0;
+    -webkit-mask:
+        radial-gradient(circle at 0 100%, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 0 0 / 51% 100% no-repeat,
+        radial-gradient(circle at 100% 100%, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 100% 0 / 51% 100% no-repeat;
+            mask:
+        radial-gradient(circle at 0 100%, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 0 0 / 51% 100% no-repeat,
+        radial-gradient(circle at 100% 100%, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 100% 0 / 51% 100% no-repeat;
+}
+
+.tl-ticket__stub {
+    background: #ffffff;
+    border-radius: 0 0 18px 18px;
+    -webkit-mask:
+        radial-gradient(circle at 0 0, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 0 0 / 51% 100% no-repeat,
+        radial-gradient(circle at 100% 0, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 100% 0 / 51% 100% no-repeat;
+            mask:
+        radial-gradient(circle at 0 0, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 0 0 / 51% 100% no-repeat,
+        radial-gradient(circle at 100% 0, #0000 var(--tl-notch), #000 calc(var(--tl-notch) + 0.5px)) 100% 0 / 51% 100% no-repeat;
+}
+
+.tl-ticket__stub::before,
+.tl-ticket__stub::after {
+    content: none;
+}
+
+/* 점선은 홈과 홈 사이에만 */
+.tl-ticket__stub {
+    border-top: 0;
+    background-image: linear-gradient(90deg, #d5dde8 50%, transparent 0);
+    background-size: 10px 2px;
+    background-repeat: repeat-x;
+    background-position: 14px 0;
+    background-color: #ffffff;
+}
+
+
+/* =========================================
+   내 여행 배경: 밤하늘 오로라 + 별 + 별똥별 + 산 능선
+========================================= */
+
+.tl-page {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #050913 0%, #0a1426 45%, #0e1d33 75%, #0b1626 100%);
+}
+
+.tl-page > *:not(.tl-bg) {
+    position: relative;
+    z-index: 1;
+}
+
+/* 어두운 배경 위 제목 글자는 밝게 */
+.tl-page .travel-list-title h1 { color: #f3f6fb; }
+.tl-page .travel-list-title h1 .tp-icon { color: #7fb2ff; }
+.tl-page .travel-list-title p { color: #9fb0c8; }
+.tl-page .tl-empty { color: #c4cfdf; }
+
+/* 티켓 그림자는 어두운 배경에 맞게 진하게 */
+.tl-page .tl-ticket {
+    filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.45)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.tl-page .tl-ticket:hover,
+.tl-page .tl-ticket:focus-within {
+    filter: drop-shadow(0 22px 30px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 18px rgba(80, 230, 170, 0.18));
+}
+
+.tl-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* 오로라: 흐린 초록·청록 띠 세 개가 천천히 일렁임 */
+.tl-aurora {
+    position: absolute;
+    inset: -10% -10% 30% -10%;
+    filter: blur(38px);
+    opacity: 1;
+}
+
+.tl-aurora span {
+    position: absolute;
+    top: 8%;
+    width: 46%;
+    height: 70%;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+    animation: tl-sway 18s ease-in-out infinite alternate;
+}
+
+.tl-aurora span:nth-child(1) {
+    left: 4%;
+    background: radial-gradient(ellipse at 50% 60%, rgba(46, 230, 150, 0.85), rgba(46, 230, 150, 0) 68%);
+    transform: rotate(-12deg) scaleY(0.6);
+}
+
+.tl-aurora span:nth-child(2) {
+    left: 32%;
+    top: 0;
+    background: radial-gradient(ellipse at 50% 55%, rgba(40, 210, 190, 0.7), rgba(40, 210, 190, 0) 68%);
+    transform: rotate(8deg) scaleY(0.75);
+    animation-duration: 24s;
+    animation-delay: -6s;
+}
+
+.tl-aurora span:nth-child(3) {
+    left: 60%;
+    top: 14%;
+    background: radial-gradient(ellipse at 50% 60%, rgba(120, 110, 255, 0.5), rgba(120, 110, 255, 0) 68%);
+    transform: rotate(-6deg) scaleY(0.55);
+    animation-duration: 21s;
+    animation-delay: -12s;
+}
+
+@keyframes tl-sway {
+    0%   { translate: 0 0;      opacity: 0.6; }
+    50%  { translate: 6% -4%;   opacity: 1; }
+    100% { translate: -5% 3%;   opacity: 0.7; }
+}
+
+/* 별 */
+.tl-stars {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: #ffffff;
+    opacity: 0.85;
+}
+
+.tl-stars .tw1 { animation: tl-twinkle 3.2s ease-in-out infinite; }
+.tl-stars .tw2 { animation: tl-twinkle 4.6s ease-in-out infinite -1.5s; }
+.tl-stars .tw3 { animation: tl-twinkle 2.6s ease-in-out infinite -0.8s; }
+
+@keyframes tl-twinkle {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.15; }
+}
+
+/* 별똥별: 가늘고 긴 빛줄기가 대각선으로 스쳐 지나감 */
+.tl-shoot {
+    position: absolute;
+    width: 160px;
+    height: 1.5px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+    opacity: 0;
+    transform: rotate(-24deg);
+    animation: tl-shoot 11s linear infinite;
+}
+
+.tl-shoot--1 { top: 12%; left: 52%; }
+.tl-shoot--2 { top: 26%; left: 18%; animation-delay: 6.5s; animation-duration: 14s; }
+
+@keyframes tl-shoot {
+    0%   { opacity: 0; translate: 0 0; }
+    2%   { opacity: 1; }
+    8%   { opacity: 0; translate: 260px -116px; }
+    100% { opacity: 0; translate: 260px -116px; }
+}
+
+/* 아래 산 능선 */
+.tl-ridge {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 180px;
+}
+
+.tl-ridge__back  { fill: #0c1a2a; }
+.tl-ridge__front { fill: #050b14; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tl-aurora span,
+    .tl-stars circle,
+    .tl-shoot {
+        animation: none;
+    }
+}
+
+/* 티켓 위·아래 조각 사이 틈이 비치지 않게 1px 겹침 */
+.tl-ticket__stub { margin-top: -1px; }

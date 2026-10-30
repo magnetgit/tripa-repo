@@ -1,0 +1,553 @@
+/* TRIPA 마이페이지·내정보 수정 공용: 여권 정보면 디자인 */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Malgun Gothic", Arial, sans-serif;
+}
+
+:root {
+    --pp-navy: #1d3461;
+    --pp-gold: #d9b56a;
+    --pp-paper: #fbf8ef;
+    --pp-ink: #1f4fae;                                   /* 볼펜 잉크색 */
+    --pp-hand: "Nanum Pen Script", "Malgun Gothic", cursive;
+    --pp-mute: #8a8478;
+}
+
+.tp-icon {
+    width: 1.15em;
+    height: 1.15em;
+    flex-shrink: 0;
+}
+
+/* =========================================
+   배경: 여권 속지 (물결무늬 종이 + 국내 도시 여행 도장)
+========================================= */
+
+body {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+    overflow-x: hidden;
+    color: #1f2d4a;
+    background:
+        repeating-radial-gradient(circle at 15% 20%, transparent 0 22px, rgba(46, 125, 110, 0.06) 22px 23px),
+        repeating-radial-gradient(circle at 85% 80%, transparent 0 26px, rgba(70, 90, 160, 0.05) 26px 27px),
+        linear-gradient(160deg, #e9f1ec 0%, #f3f1e6 55%, #ece8f3 100%);
+}
+
+.pp-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* 물결 보안 무늬 */
+.pp-bg__waves {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: rgba(46, 110, 120, 0.10);
+    stroke-width: 1.2;
+}
+
+/* 여행 도장 */
+.pp-stamp {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 12px 18px;
+    border: 3px solid currentColor;
+    font-weight: 900;
+    text-align: center;
+    line-height: 1.1;
+    opacity: 0.45;
+}
+
+.pp-stamp b    { font-size: 20px; letter-spacing: 3px; }
+.pp-stamp span { font-size: 15px; }
+.pp-stamp i    { font-size: 11px; font-style: normal; letter-spacing: 1px; font-weight: 700; }
+
+.pp-stamp--round {
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    border-style: double;
+    border-width: 5px;
+}
+
+.pp-stamp--rect { border-radius: 10px; }
+
+.pp-stamp--1 { top: 7%;  left: 6%;  color: #c2413b; transform: rotate(-14deg); }
+.pp-stamp--2 { top: 12%; right: 8%; color: #2d6cdf; transform: rotate(10deg); }
+.pp-stamp--3 { top: 46%; left: 4%;  color: #2f8a5f; transform: rotate(8deg); }
+.pp-stamp--4 { bottom: 9%; right: 6%; color: #7b4bc4; transform: rotate(-9deg); }
+.pp-stamp--5 { bottom: 7%; left: 12%; color: #d9772b; transform: rotate(-4deg); }
+.pp-stamp--6 { top: 52%; right: 5%; color: #b0435e; transform: rotate(16deg); }
+
+/* =========================================
+   여권 카드
+========================================= */
+
+.pp-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 600px;
+    border-radius: 18px;
+    overflow: hidden;
+    background:
+        repeating-linear-gradient(115deg, transparent 0 14px, rgba(46, 110, 120, 0.035) 14px 15px),
+        var(--pp-paper);
+    box-shadow: 0 24px 54px rgba(29, 52, 97, 0.20), 0 2px 6px rgba(29, 52, 97, 0.10);
+}
+
+/* 남색 머리띠 */
+.pp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 24px;
+    color: #ffffff;
+    background: linear-gradient(90deg, var(--pp-navy), #29457a);
+}
+
+.pp-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.pp-emblem {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: 2px solid var(--pp-gold);
+    border-radius: 50%;
+    color: var(--pp-gold);
+}
+
+.pp-emblem .tp-icon { width: 24px; height: 24px; }
+
+.pp-brand strong {
+    display: block;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+
+.pp-brand small {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: var(--pp-gold);
+}
+
+.pp-no {
+    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #b9c6e0;
+}
+
+.pp-no b {
+    display: block;
+    margin-top: 2px;
+    font-size: 16px;
+    letter-spacing: 2px;
+    color: var(--pp-gold);
+}
+
+/* 본문: 사진 + 정보 */
+.pp-body {
+    position: relative;
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 26px;
+    padding: 26px 28px 18px;
+}
+
+.pp-title {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: -6px;
+}
+
+.pp-title h1 {
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.pp-title p {
+    font-size: 12px;
+    color: var(--pp-mute);
+}
+
+/* 증명사진 칸 */
+.pp-photo {
+    position: relative;
+    align-self: start;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 130px;
+    height: 160px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #dce8f6, #c7d8ee);
+    box-shadow: inset 0 0 0 1px rgba(29, 52, 97, 0.12);
+}
+
+.pp-photo svg {
+    width: 112px;
+    height: 132px;
+    color: #8fa6c8;
+}
+
+/* 사진 위 홀로그램 */
+.pp-photo::after {
+    content: "";
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: conic-gradient(from 30deg, rgba(255, 120, 180, 0.45), rgba(120, 200, 255, 0.45), rgba(150, 255, 170, 0.45), rgba(255, 220, 120, 0.45), rgba(255, 120, 180, 0.45));
+    mix-blend-mode: multiply;
+}
+
+/* 회원 도장 (사진 모서리에 걸침) */
+.pp-seal {
+    position: absolute;
+    top: 150px;
+    left: 108px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 78px;
+    height: 78px;
+    border: 3px double rgba(194, 65, 59, 0.75);
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    line-height: 1.2;
+    text-align: center;
+    color: rgba(194, 65, 59, 0.75);
+    transform: rotate(-14deg);
+    pointer-events: none;
+}
+
+/* 정보 칸 */
+.pp-fields {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+}
+
+.pp-field {
+    min-width: 0;
+}
+
+.pp-field dt,
+.pp-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    color: var(--pp-mute);
+}
+
+.pp-field dt em,
+.pp-field label em {
+    font-style: normal;
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+.pp-field dd,
+.pp-field input {
+    display: block;
+    width: 100%;
+    margin: 2px 0 0;
+    padding: 2px 2px 3px;
+    font-family: var(--pp-hand);
+    font-size: 28px;
+    line-height: 1.2;
+    color: var(--pp-ink);
+    border: 0;
+    border-bottom: 2px dashed #d6cdbd;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pp-field input {
+    outline: none;
+    caret-color: var(--pp-ink);
+    transition: border-color 0.2s;
+}
+
+.pp-field input::placeholder { color: #c2baad; }
+
+.pp-field input:focus {
+    border-bottom: 2px solid var(--pp-ink);
+}
+
+/* 바꿀 수 없는 칸 (이메일) */
+.pp-field input[readonly] {
+    color: #8d97a8;
+    border-bottom-style: dotted;
+    cursor: not-allowed;
+}
+
+.pp-field small {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--pp-mute);
+}
+
+.pp-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+/* 기계 판독 줄 (여권 맨 아래) */
+.pp-mrz {
+    margin: 0 28px;
+    padding: 12px 0 16px;
+    border-top: 1px solid #e5dccb;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 13px;
+    letter-spacing: 2px;
+    line-height: 1.6;
+    color: #6d6a63;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+/* =========================================
+   버튼
+========================================= */
+
+.pp-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 18px 28px 12px;
+    border-top: 2px dashed #e1d8c7;
+}
+
+.pp-actions--two { grid-template-columns: 2fr 1fr; }
+
+.pp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 12px 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--pp-navy);
+    text-decoration: none;
+    border: 1px solid #d6dbe6;
+    border-radius: 10px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.pp-btn:hover {
+    border-color: var(--pp-navy);
+}
+
+.pp-btn:active { transform: translateY(1px); }
+
+.pp-btn:focus-visible {
+    outline: 3px solid rgba(45, 108, 223, 0.35);
+    outline-offset: 2px;
+}
+
+.pp-btn .tp-icon { width: 17px; height: 17px; }
+
+.pp-btn--primary {
+    color: #ffffff;
+    border-color: #2d6cdf;
+    background: #2d6cdf;
+}
+
+.pp-btn--primary:hover {
+    border-color: #2459bd;
+    background: #2459bd;
+}
+
+.pp-foot {
+    padding: 4px 28px 20px;
+    text-align: center;
+}
+
+.pp-link-danger {
+    padding: 4px 6px;
+    font-size: 13px;
+    color: #a0928a;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.pp-link-danger:hover,
+.pp-link-danger:focus-visible {
+    color: #e5484d;
+    outline: none;
+}
+
+/* =========================================
+   회원탈퇴 확인창
+========================================= */
+
+.delete-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(18, 28, 50, 0.55);
+}
+
+.delete-modal.show { display: flex; }
+
+.delete-modal-content {
+    width: 100%;
+    max-width: 420px;
+    padding: 28px;
+    border-radius: 16px;
+    background: var(--pp-paper);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+
+.delete-modal-content h2 {
+    margin-bottom: 12px;
+    font-size: 20px;
+    color: #d64545;
+}
+
+.delete-warning {
+    margin-bottom: 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #5d6576;
+}
+
+.delete-warning strong { color: #d64545; }
+
+.delete-modal-content label {
+    display: block;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--pp-mute);
+}
+
+.delete-password {
+    width: 100%;
+    margin-top: 6px;
+    padding: 11px 12px;
+    font-size: 15px;
+    border: 1px solid #d6cdbd;
+    border-radius: 10px;
+    background: #ffffff;
+    outline: none;
+}
+
+.delete-password:focus {
+    border-color: #d64545;
+    box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.15);
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-buttons button {
+    flex: 1;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.cancel-btn { background: #e7e2d6; color: #4a5568; }
+.delete-btn { background: #d64545; color: #ffffff; }
+.delete-btn:hover { background: #bf3a3a; }
+
+/* =========================================
+   좁은 화면
+========================================= */
+
+@media (max-width: 900px) {
+    .pp-stamp--3,
+    .pp-stamp--6 { display: none; }
+}
+
+@media (max-width: 560px) {
+    body { padding: 20px 12px; }
+    .pp-stamp { opacity: 0.25; }
+    .pp-head { padding: 14px 18px; }
+    .pp-no { display: none; }
+    .pp-body { grid-template-columns: 1fr; gap: 18px; padding: 22px 20px 14px; }
+    .pp-photo { width: 110px; height: 136px; }
+    .pp-photo svg { width: 94px; height: 112px; }
+    .pp-seal { top: 112px; left: 96px; width: 66px; height: 66px; font-size: 9px; }
+    .pp-row { grid-template-columns: 1fr; gap: 14px; }
+    .pp-mrz { margin: 0 20px; font-size: 11px; letter-spacing: 1px; }
+    .pp-actions { grid-template-columns: 1fr; padding: 16px 20px 10px; }
+    .pp-actions--two { grid-template-columns: 1fr; }
+}
+
+/* 내정보 수정: 입력 안내 문구 */
+.pp-error {
+    min-height: 18px;
+    margin: -4px 0 0;
+    font-size: 13px;
+    color: #e5484d;
+}
+
+.pp-foot:empty { padding: 0 0 8px; }

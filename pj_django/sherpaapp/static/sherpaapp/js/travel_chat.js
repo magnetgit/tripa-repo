@@ -17,13 +17,16 @@
     addUrl: app.dataset.addUrl,
     previewUrl: app.dataset.previewUrl,
     loginUrl: app.dataset.loginUrl,
+    member: app.dataset.member || 'guest',
     sprite: app.dataset.sprite,
     csrf: tokenInput ? tokenInput.value : '',
     prefill: (app.dataset.prefill || '').trim(),
     budget: app.dataset.budget || ''
   };
 
-  var STORE_KEY = 'tripa_chat_v1';
+  // 대화 보관 칸을 회원마다 따로 둔다 (같은 탭에서 다른 계정으로 로그인해도 섞이지 않게)
+  var STORE_KEY = 'tripa_chat_v2_' + cfg.member;
+  try { sessionStorage.removeItem('tripa_chat_v1'); } catch (e) { /* 예전 공용 칸 정리 */ }
   var MAX_SEND = 14;
   var MAX_PINS = 12;
   var WEEK = ['일', '월', '화', '수', '목', '금', '토'];

@@ -1,442 +1,269 @@
-<!DOCTYPE html>
-<html>
+{% load static %}<!DOCTYPE html>
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>회원가입</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIPA - 회원가입</title>
 
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-                         Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
-
-        body {
-            background-color: #f4f6f8;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .login-container {
-            background: #ffffff;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-            width: 100%;
-            max-width: 440px;
-        }
-
-        .login-header {
-            margin-bottom: 28px;
-            text-align: center;
-        }
-
-        .login-header h2 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1a1d20;
-        }
-
-        .logo {
-            margin-bottom: 5px;
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        .input-group label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #4a5568;
-            margin-bottom: 8px;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 12px 14px;
-            font-size: 14px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            outline: none;
-        }
-
-        .input-group input:focus {
-            border-color: #3182ce;
-            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
-        }
-
-        /* 이메일 입력창 + 중복확인 버튼 */
-        .email-row {
-            display: flex;
-            gap: 8px;
-        }
-
-        .email-row input {
-            flex: 1;
-        }
-
-        .check-btn {
-            background-color: #3182ce;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 0 15px;
-            cursor: pointer;
-            white-space: nowrap;
-            font-weight: 600;
-        }
-
-        .check-btn:hover {
-            background-color: #2b6cb0;
-        }
-
-        /* 중복확인 결과 */
-        #email-msg {
-            display: block;
-            margin-top: 7px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        /* 비밀번호 */
-        .password-box {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        /* 비밀번호 확인 결과 */
-        #pwd-msg {
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .btn-group {
-            margin-top: 28px;
-        }
-
-        .btn-submit {
-            width: 100%;
-            padding: 12px;
-            font-size: 14px;
-            font-weight: 600;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            background-color: #3182ce;
-            color: white;
-        }
-
-        .btn-submit:hover {
-            background-color: #2b6cb0;
-        }
-
-        .login-footer {
-            text-align: center;
-            margin-top: 20px;
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=5">
 </head>
 
+<body class="auth-page--join auth-ticket">
 
-<body onload="document.f.email.focus()">
+<!-- 배경: 책상 위 손글씨 항공권·볼펜·도장·메모 (꾸밈용) -->
+<div class="join-bg" aria-hidden="true">
 
-<div class="login-container">
-
-    <div class="login-header">
-        <h1 class="logo">🛫TRIPA</h1>
-        <h2>회원가입</h2>
+    <div class="join-bg__ticket join-bg__ticket--1">
+        <div class="join-bg__band">BOARDING PASS</div>
+        <dl>
+            <div><dt>FROM</dt><dd>김포 GMP</dd></div>
+            <div><dt>TO</dt><dd>여수 RSU</dd></div>
+            <div><dt>SEAT</dt><dd>12A</dd></div>
+            <div><dt>NAME</dt><dd>김여행</dd></div>
+        </dl>
     </div>
 
-    <form name="f" action="{% url 'join_ok' %}" method="post">
+    <div class="join-bg__ticket join-bg__ticket--2">
+        <div class="join-bg__band">BOARDING PASS</div>
+        <dl>
+            <div><dt>FROM</dt><dd>부산 PUS</dd></div>
+            <div><dt>TO</dt><dd>제주 CJU</dd></div>
+            <div><dt>GATE</dt><dd>7</dd></div>
+            <div><dt>DATE</dt><dd>11 / 21</dd></div>
+        </dl>
+    </div>
 
-        {% csrf_token %}
+    <div class="join-bg__stamp">WELCOME<br>ABOARD<small>TRIPA</small></div>
 
-        <!-- 이메일 -->
-        <div class="input-group">
+    <p class="join-bg__note join-bg__note--1">신분증 챙기기 ✓</p>
+    <p class="join-bg__note join-bg__note--2">첫 여행, 설렌다!</p>
 
-            <label for="email">아이디(Email)</label>
-
-            <div class="email-row">
-
-                <input
-                    id="email"
-                    name="email"
-                    type="text"
-                    placeholder="아이디 입력"
-                    oninput="emailChanged()"
-                >
-
-                <button
-                    type="button"
-                    class="check-btn"
-                    onclick="checkEmailAjax()"
-                >
-                    중복확인
-                </button>
-
-            </div>
-
-            <span id="email-msg"></span>
-
-        </div>
-
-
-        <!-- 비밀번호 -->
-        <div class="input-group">
-
-            <label for="pwd">비밀번호</label>
-
-            <div class="password-box">
-
-                <input
-                    id="pwd"
-                    name="pwd"
-                    type="password"
-                    placeholder="비밀번호 입력"
-                >
-
-                <input
-                    id="pwd_confirm"
-                    type="password"
-                    placeholder="비밀번호 확인"
-                    oninput="checkPassword()"
-                >
-
-                <span id="pwd-msg"></span>
-
-            </div>
-
-        </div>
-
-
-        <!-- 이름 -->
-        <div class="input-group">
-
-            <label for="name">이름</label>
-
-            <input
-                id="name"
-                name="name"
-                type="text"
-                placeholder="이름을 입력"
-            >
-
-        </div>
-
-
-        <!-- 닉네임 -->
-        <div class="input-group">
-
-            <label for="nickname">닉네임</label>
-
-            <input
-                id="nickname"
-                name="nickname"
-                type="text"
-                placeholder="닉네임 입력"
-            >
-
-        </div>
-
-
-        <!-- 회원가입 버튼 -->
-        <div class="btn-group">
-
-            <input
-                type="button"
-                class="btn-submit"
-                value="회원가입"
-                onclick="check()"
-            >
-
-        </div>
-
-
-        <div class="login-footer">
-
-            이미 회원이신가요?
-
-            <a href="{% url 'login' %}">로그인</a>
-
-        </div>
-
-    </form>
+    <svg class="join-bg__pen" viewBox="0 0 240 40">
+        <rect x="30" y="12" width="170" height="16" rx="8" fill="#2d6cdf"/>
+        <rect x="150" y="12" width="14" height="16" fill="#cfd8e6"/>
+        <rect x="186" y="9" width="34" height="22" rx="7" fill="#1f4fae"/>
+        <path d="M30 12 L4 20 L30 28 Z" fill="#e9d9b8"/>
+        <path d="M10 18.2 L4 20 L10 21.8 Z" fill="#1d2b46"/>
+        <rect x="70" y="5" width="70" height="6" rx="3" fill="#cfd8e6"/>
+        <rect x="44" y="15" width="100" height="3" rx="1.5" fill="#ffffff" opacity="0.35"/>
+    </svg>
 
 </div>
 
+<main class="auth-card auth-card--wide">
+
+    <div class="join-strip" aria-hidden="true">
+        <span>BOARDING PASS</span>
+        <span>PASSENGER REGISTRATION</span>
+    </div>
+
+    <div class="auth-head">
+        <a href="{% url 'index' %}" class="auth-logo">
+            {% include "_icon.html" with name="mountain" %} TRIPA
+        </a>
+        <h1>회원가입</h1>
+        <p>가입하고 나만의 여행 일정을 만들어 보세요.</p>
+    </div>
+
+    <form name="f" action="{% url 'join_ok' %}" method="post" onsubmit="return check();" novalidate>
+        {% csrf_token %}
+
+        <!-- 이메일 + 중복확인 -->
+        <div class="field">
+            <label for="email">이메일(아이디)</label>
+            <div class="field-row">
+                <div class="field-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>
+                    </svg>
+                    <input id="email" name="email" type="text" placeholder="example@tripa.com"
+                           autocomplete="email" autofocus oninput="emailChanged()">
+                </div>
+                <button type="button" class="btn-side" onclick="checkEmailAjax()">중복확인</button>
+            </div>
+            <span id="email-msg" class="field-msg" aria-live="polite"></span>
+        </div>
+
+        <!-- 비밀번호 + 확인 -->
+        <div class="field">
+            <label for="pwd">비밀번호</label>
+            <div class="field-stack">
+                <div class="field-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                    </svg>
+                    <input id="pwd" name="pwd" type="password" placeholder="비밀번호"
+                           autocomplete="new-password" oninput="checkPassword()">
+                    <button type="button" class="pw-toggle" data-target="pwd" aria-label="비밀번호 보기" aria-pressed="false">
+                        <svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                    </button>
+                </div>
+                <div class="field-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12l5 5L20 7"/>
+                    </svg>
+                    <input id="pwd_confirm" type="password" placeholder="비밀번호 확인"
+                           autocomplete="new-password" aria-label="비밀번호 확인" oninput="checkPassword()">
+                </div>
+            </div>
+            <span id="pwd-msg" class="field-msg" aria-live="polite"></span>
+        </div>
+
+        <!-- 이름 -->
+        <div class="field">
+            <label for="name">이름</label>
+            <div class="field-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
+                </svg>
+                <input id="name" name="name" type="text" placeholder="이름" autocomplete="name">
+            </div>
+        </div>
+
+        <!-- 닉네임 -->
+        <div class="field">
+            <label for="nickname">닉네임</label>
+            <div class="field-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>
+                </svg>
+                <input id="nickname" name="nickname" type="text" placeholder="여행에서 불릴 이름" autocomplete="nickname">
+            </div>
+        </div>
+
+        <p class="form-error" id="formError" role="alert"></p>
+
+        <button type="submit" class="btn-submit">회원가입</button>
+    </form>
+
+    <div class="auth-links">
+        <p>이미 회원이신가요? <a href="{% url 'login' %}">로그인</a></p>
+        <p class="auth-home"><a href="{% url 'index' %}">← 홈으로 가기</a></p>
+    </div>
+
+</main>
 
 <script>
-
-    // 이메일 중복확인 여부
+    // 이메일 중복확인 여부 (확인한 뒤 이메일을 바꾸면 다시 확인해야 함)
     let emailChecked = false;
-
-    // 중복확인한 이메일
     let checkedEmail = "";
 
-
-    // 이메일 내용이 변경되면
-    // 기존 중복확인을 무효화
-    function emailChanged() {
-
-        emailChecked = false;
-        checkedEmail = "";
-
-        document.getElementById("email-msg").innerText = "";
-
+    function setMsg(id, text, ok) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.classList.toggle("is-ok", ok === true);
+        el.classList.toggle("is-bad", ok === false);
+        placeNotch();
     }
 
+    function showError(input, message) {
+        document.getElementById("formError").textContent = message;
+        input.focus();
+        return false;
+    }
+
+    function emailChanged() {
+        emailChecked = false;
+        checkedEmail = "";
+        setMsg("email-msg", "");
+    }
 
     // 이메일 중복확인
     function checkEmailAjax() {
-
-        const emailValue = document.getElementById("email").value;
-        const msgArea = document.getElementById("email-msg");
-
+        const input = document.getElementById("email");
+        const emailValue = input.value.trim();
 
         if (!emailValue) {
-
-            alert("이메일을 입력해주세요.");
+            setMsg("email-msg", "이메일을 먼저 입력해 주세요.", false);
+            input.focus();
             return;
-
         }
 
-
-        fetch(`../check_email/?email=${encodeURIComponent(emailValue)}`)
-
-            .then(response => response.json())
-
-            .then(data => {
-
+        fetch("{% url 'check_email' %}?email=" + encodeURIComponent(emailValue))
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
                 if (data.is_exists) {
-
-                    // 중복됨
-                    msgArea.style.color = "red";
-                    msgArea.innerText = "✕ 이미 사용 중인 이메일입니다.";
-
+                    setMsg("email-msg", "✕ 이미 사용 중인 이메일입니다.", false);
                     emailChecked = false;
-
                 } else {
-
-                    // 사용 가능
-                    msgArea.style.color = "green";
-                    msgArea.innerText = "✓ 사용 가능한 이메일입니다.";
-
+                    setMsg("email-msg", "✓ 사용 가능한 이메일입니다.", true);
                     emailChecked = true;
                     checkedEmail = emailValue;
-
                 }
-
             })
-
-            .catch(error => {
-
+            .catch(function (error) {
                 console.error("Error:", error);
-                alert("중복확인 중 오류가 발생했습니다.");
-
+                setMsg("email-msg", "중복확인 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.", false);
             });
-
     }
-
 
     // 비밀번호 일치 확인
     function checkPassword() {
-
         const pwd = document.getElementById("pwd").value;
         const pwdConfirm = document.getElementById("pwd_confirm").value;
-
-        const msg = document.getElementById("pwd-msg");
-
 
         if (!pwdConfirm) {
-
-            msg.innerText = "";
-            return;
-
-        }
-
-
-        if (pwd === pwdConfirm) {
-
-            msg.style.color = "green";
-            msg.innerText = "✓ 비밀번호가 일치합니다.";
-
+            setMsg("pwd-msg", "");
+        } else if (pwd === pwdConfirm) {
+            setMsg("pwd-msg", "✓ 비밀번호가 일치합니다.", true);
         } else {
-
-            msg.style.color = "red";
-            msg.innerText = "✕ 비밀번호가 일치하지 않습니다.";
-
+            setMsg("pwd-msg", "✕ 비밀번호가 일치하지 않습니다.", false);
         }
-
     }
 
-
-    // 회원가입 버튼
+    // 회원가입 버튼: 하나라도 빠지면 막고 안내
     function check() {
+        const f = document.f;
+        const email = f.email.value.trim();
 
-        const email = document.getElementById("email").value;
-        const pwd = document.getElementById("pwd").value;
-        const pwdConfirm = document.getElementById("pwd_confirm").value;
-        const name = document.getElementById("name").value;
-        const nickname = document.getElementById("nickname").value;
-
-
-        // 이메일 중복확인
-        if (!emailChecked || checkedEmail !== email) {
-
-            alert("이메일 중복확인을 해주세요.");
-            return;
-
+        if (!email) return showError(f.email, "이메일을 입력해 주세요.");
+        if (!emailChecked || checkedEmail !== email) return showError(f.email, "이메일 중복확인을 해주세요.");
+        if (!f.pwd.value) return showError(f.pwd, "비밀번호를 입력해 주세요.");
+        if (f.pwd.value !== document.getElementById("pwd_confirm").value) {
+            return showError(document.getElementById("pwd_confirm"), "비밀번호가 일치하지 않습니다.");
         }
+        if (!f.name.value.trim()) return showError(f.name, "이름을 입력해 주세요.");
+        if (!f.nickname.value.trim()) return showError(f.nickname, "닉네임을 입력해 주세요.");
 
-
-        // 비밀번호 입력
-        if (!pwd) {
-
-            alert("비밀번호를 입력해주세요.");
-            return;
-
-        }
-
-
-        // 비밀번호 확인
-        if (pwd !== pwdConfirm) {
-
-            alert("비밀번호가 일치하지 않습니다.");
-            return;
-
-        }
-
-
-        // 이름
-        if (!name) {
-
-            alert("이름을 입력해주세요.");
-            return;
-
-        }
-
-
-        // 닉네임
-        if (!nickname) {
-
-            alert("닉네임을 입력해주세요.");
-            return;
-
-        }
-
-
-        // 모든 검사 통과
-        document.f.submit();
-
+        f.email.value = email;
+        return true;
     }
 
+    // 입력을 다시 시작하면 아래 안내 문구 지우기
+    document.f.addEventListener("input", function () {
+        document.getElementById("formError").textContent = "";
+    });
+
+    // 탑승권 양옆 홈을 아래 점선(링크 영역 윗선) 높이에 맞춤
+    function placeNotch() {
+        const card = document.querySelector(".auth-card");
+        const links = document.querySelector(".auth-links");
+        card.style.setProperty("--cut", links.offsetTop + "px");
+    }
+    placeNotch();
+    window.addEventListener("resize", placeNotch);
+    // 안내 문구가 생기거나 탭이 바뀌어 카드 높이가 달라지면 다시 맞춤
+    document.addEventListener("input", placeNotch);
+    if (window.ResizeObserver) new ResizeObserver(placeNotch).observe(document.querySelector(".auth-card"));
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeNotch);
+
+    // 비밀번호 보기 / 숨기기
+    document.querySelectorAll(".pw-toggle").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            const pw = document.getElementById(btn.dataset.target);
+            const show = pw.type === "password";
+            pw.type = show ? "text" : "password";
+            pw.classList.toggle("is-shown", show);
+            btn.classList.toggle("is-on", show);
+            btn.setAttribute("aria-pressed", show ? "true" : "false");
+            btn.setAttribute("aria-label", show ? "비밀번호 숨기기" : "비밀번호 보기");
+            pw.focus();
+        });
+    });
 </script>
 
 </body>

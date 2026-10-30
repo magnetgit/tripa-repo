@@ -13,12 +13,12 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261035">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261049">
 
 </head>
 
 
-<body>
+<body class="home-page">
 
 
 <!-- =========================
@@ -60,6 +60,141 @@
 
 <main>
 
+    <!-- =========================
+         홈 배경 장면 (하늘·구름·비행기·도로·차)
+         그림 파일 없이 SVG로 그림. 비행기와 차는 각자 자기 줄을 따라 가로로 지나감
+    ========================= -->
+
+    <div class="home-scene">
+
+        <div class="hs-bg" aria-hidden="true">
+
+            <!-- 같은 모양을 여러 번 쓰기 위한 그림 모음 -->
+            <svg width="0" height="0" style="position:absolute">
+                <defs>
+                    <!-- 차 입체감: 위는 빛, 아래는 그늘 -->
+                    <linearGradient id="hs-shade" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#ffffff" stop-opacity="0.75"/>
+                        <stop offset="0.38" stop-color="#ffffff" stop-opacity="0"/>
+                        <stop offset="0.7" stop-color="#000000" stop-opacity="0.04"/>
+                        <stop offset="1" stop-color="#0b1a33" stop-opacity="0.32"/>
+                    </linearGradient>
+                    <linearGradient id="hs-glass" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#5b6b86"/>
+                        <stop offset="0.55" stop-color="#2c3a52"/>
+                        <stop offset="1" stop-color="#1c2638"/>
+                    </linearGradient>
+                    <radialGradient id="hs-rim" cx="0.4" cy="0.35" r="0.7">
+                        <stop offset="0" stop-color="#f4f6f9"/>
+                        <stop offset="0.6" stop-color="#b6bec9"/>
+                        <stop offset="1" stop-color="#7c8592"/>
+                    </radialGradient>
+                    <radialGradient id="hs-ground" cx="0.5" cy="0.5" r="0.5">
+                        <stop offset="0" stop-color="#000000" stop-opacity="0.45"/>
+                        <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+                    </radialGradient>
+                    <symbol id="hs-plane" viewBox="0 0 120 48">
+                        <path d="M58 21 L49 11 L56 11 L73 21 Z" fill="#9edaf2"/>
+                        <path d="M15 21 L6 4 L18 4 L33 20 Z" fill="#35b6e6"/>
+                        <path d="M8 26 C8 22 14 20 22 20 L96 20 C106 20 116 23 118 26 C116 29 106 31 96 31 L22 31 C14 31 8 29 8 26 Z" fill="#ffffff" stroke="#cfe0ee" stroke-width="1"/>
+                        <rect x="22" y="27" width="74" height="2" rx="1" fill="#35b6e6"/>
+                        <path d="M104 21.6 C110 22 115 24 116.5 25.6 L104 25.6 Z" fill="#2b4c7e"/>
+                        <g fill="#5d86b3">
+                            <circle cx="42" cy="24" r="1.3"/><circle cx="48" cy="24" r="1.3"/><circle cx="54" cy="24" r="1.3"/>
+                            <circle cx="60" cy="24" r="1.3"/><circle cx="66" cy="24" r="1.3"/><circle cx="72" cy="24" r="1.3"/>
+                            <circle cx="78" cy="24" r="1.3"/><circle cx="84" cy="24" r="1.3"/><circle cx="90" cy="24" r="1.3"/>
+                        </g>
+                        <path d="M50 27 L38 44 L48 44 L72 28 Z" fill="#35b6e6"/>
+                        <rect x="14" y="24.5" width="8" height="3" rx="1.5" fill="#cfe0ee"/>
+                    </symbol>
+
+                    <symbol id="hs-car" viewBox="0 0 120 50">
+                        <!-- 앞이 오른쪽. 몸체 색은 --hs-body, 지붕 표시등은 --hs-sign -->
+                        <ellipse cx="62" cy="46.5" rx="58" ry="3.5" fill="url(#hs-ground)"/>
+                        <rect x="40" y="3.5" width="15" height="5.5" rx="2" fill="var(--hs-sign, transparent)"/>
+                        <path d="M6 35 C5 30 7 26 12 25 L22 23 C28 15 36 10 46 9 L63 9 C71 9 77 13 83 20 L106 23 C113 24 116 28 116 33 L116 37 C116 39 114 40 112 40 L10 40 C7 40 6 38 6 35 Z" fill="var(--hs-body, #f7f8fa)"/>
+                        <path d="M6 35 C5 30 7 26 12 25 L22 23 C28 15 36 10 46 9 L63 9 C71 9 77 13 83 20 L106 23 C113 24 116 28 116 33 L116 37 C116 39 114 40 112 40 L10 40 C7 40 6 38 6 35 Z" fill="url(#hs-shade)" stroke="#9aa6b5" stroke-opacity="0.55" stroke-width="0.8"/>
+                        <path d="M25 22 C30 15 37 12 46 12 L62 12 C69 12 74 15 79 21 Z" fill="url(#hs-glass)"/>
+                        <rect x="50" y="11.5" width="3" height="10.5" fill="var(--hs-body, #f7f8fa)"/>
+                        <path d="M31 21 L38 13.5 L42 13.5 L35 21 Z M60 21 L65 13.5 L68 13.5 L64 21 Z" fill="#ffffff" opacity="0.22"/>
+                        <path d="M11 29.5 C40 28 85 27.5 114 28.5" fill="none" stroke="var(--hs-line, #ffffff)" stroke-width="1.6" opacity="0.8"/>
+                        <path d="M51.5 22 V37 M80 21.5 V33 M26 24 V35" stroke="#0b1a33" stroke-opacity="0.16" stroke-width="0.8"/>
+                        <rect x="56" y="24" width="5" height="1.6" rx="0.8" fill="#0b1a33" opacity="0.3"/>
+                        <rect x="31" y="24.5" width="5" height="1.6" rx="0.8" fill="#0b1a33" opacity="0.3"/>
+                        <path d="M105 24.5 L115 26.5 L115.5 30.5 L105.5 29.5 Z" fill="#ffc21a" stroke="#d99a00" stroke-width="0.5"/>
+                        <path d="M6.5 27 L12 26 L12 31 L6.5 32 Z" fill="#d93a3a"/>
+                        <path d="M10 37 H114" stroke="#0b1a33" stroke-opacity="0.35" stroke-width="2.4" stroke-linecap="round"/>
+                        <circle cx="28" cy="38" r="10.5" fill="#1a1f29"/>
+                        <circle cx="94" cy="38" r="10.5" fill="#1a1f29"/>
+                        <circle cx="28" cy="38" r="8.5" fill="#262b33"/><circle cx="28" cy="38" r="5.2" fill="url(#hs-rim)"/><circle cx="28" cy="38" r="1.6" fill="#59616d"/>
+                        <circle cx="94" cy="38" r="8.5" fill="#262b33"/><circle cx="94" cy="38" r="5.2" fill="url(#hs-rim)"/><circle cx="94" cy="38" r="1.6" fill="#59616d"/>
+                    </symbol>
+
+                    <symbol id="hs-bus" viewBox="0 0 160 60">
+                        <!-- 앞이 오른쪽인 미니버스 -->
+                        <ellipse cx="82" cy="55.5" rx="78" ry="4" fill="url(#hs-ground)"/>
+                        <path d="M6 46 V14 C6 9 10 6 16 6 H136 C144 6 150 10 152 16 L156 32 V45 C156 47.5 154 49 151 49 H10 C7.5 49 6 47.5 6 46 Z" fill="#f4f6f9"/>
+                        <path d="M6 46 V14 C6 9 10 6 16 6 H136 C144 6 150 10 152 16 L156 32 V45 C156 47.5 154 49 151 49 H10 C7.5 49 6 47.5 6 46 Z" fill="url(#hs-shade)" stroke="#9aa6b5" stroke-opacity="0.55" stroke-width="0.8"/>
+                        <rect x="14" y="12" width="104" height="17" rx="3" fill="url(#hs-glass)"/>
+                        <g stroke="#f4f6f9" stroke-width="3">
+                            <line x1="40" y1="12" x2="40" y2="29"/><line x1="66" y1="12" x2="66" y2="29"/><line x1="92" y1="12" x2="92" y2="29"/>
+                        </g>
+                        <path d="M124 12 H138 C143 12 146 15 147.5 19 L151 31 H124 Z" fill="url(#hs-glass)"/>
+                        <path d="M20 27 L30 13 L35 13 L25 27 Z M98 27 L106 13 L109 13 L101 27 Z M128 29 L135 13 L138 13 L131 29 Z" fill="#ffffff" opacity="0.2"/>
+                        <rect x="6" y="34" width="150" height="4.5" fill="#17a2b3"/>
+                        <rect x="6" y="38.5" width="150" height="1.2" fill="#0e7280" opacity="0.6"/>
+                        <rect x="104" y="31" width="0.8" height="16" fill="#0b1a33" opacity="0.18"/>
+                        <path d="M148 35 L155.5 35.5 L155.5 40 L148 39.5 Z" fill="#ffc21a" stroke="#d99a00" stroke-width="0.5"/>
+                        <rect x="6.5" y="31" width="3.5" height="7" rx="1" fill="#d93a3a"/>
+                        <path d="M8 46.5 H154" stroke="#0b1a33" stroke-opacity="0.35" stroke-width="2.6" stroke-linecap="round"/>
+                        <circle cx="36" cy="48" r="11" fill="#1a1f29"/>
+                        <circle cx="128" cy="48" r="11" fill="#1a1f29"/>
+                        <circle cx="36" cy="48" r="9" fill="#262b33"/><circle cx="36" cy="48" r="5.6" fill="url(#hs-rim)"/><circle cx="36" cy="48" r="1.8" fill="#59616d"/>
+                        <circle cx="128" cy="48" r="9" fill="#262b33"/><circle cx="128" cy="48" r="5.6" fill="url(#hs-rim)"/><circle cx="128" cy="48" r="1.8" fill="#59616d"/>
+                    </symbol>
+
+                    <symbol id="hs-cloud" viewBox="0 0 200 90">
+                        <ellipse cx="60" cy="58" rx="50" ry="24"/>
+                        <ellipse cx="100" cy="42" rx="44" ry="32"/>
+                        <ellipse cx="142" cy="56" rx="48" ry="24"/>
+                        <ellipse cx="100" cy="66" rx="80" ry="18"/>
+                    </symbol>
+                </defs>
+            </svg>
+
+            <!-- 구름 -->
+            <svg class="hs-cloud hs-cloud--1"><use href="#hs-cloud"/></svg>
+            <svg class="hs-cloud hs-cloud--2"><use href="#hs-cloud"/></svg>
+            <svg class="hs-cloud hs-cloud--3"><use href="#hs-cloud"/></svg>
+
+            <!-- 멀리 보이는 산과 빌딩 (도로 바로 뒤) -->
+            <svg class="hs-far hs-mountains" viewBox="0 0 1600 220" preserveAspectRatio="xMidYMax slice">
+                <path class="hs-mt-back" d="M0 220 V150 L90 112 L170 136 L280 70 L380 120 L470 96 L560 128 L690 54 L800 118 L900 92 L1010 132 L1120 66 L1230 116 L1330 88 L1440 128 L1530 98 L1600 120 V220 Z"/>
+                <path class="hs-mt-front" d="M0 220 V176 L120 140 L210 162 L330 118 L450 160 L560 146 L660 168 L780 124 L900 164 L1020 140 L1140 170 L1260 132 L1380 162 L1500 144 L1600 158 V220 Z"/>
+            </svg>
+            <svg class="hs-far hs-city" viewBox="0 0 1600 170" preserveAspectRatio="xMidYMax slice">
+                <g class="hs-city-back"><rect x="0" y="50" width="64" height="120"/><rect x="64" y="69" width="72" height="101"/><rect x="136" y="58" width="46" height="112"/><rect x="196" y="87" width="46" height="83"/><rect x="256" y="52" width="46" height="118"/><rect x="316" y="108" width="58" height="62"/><rect x="374" y="84" width="72" height="86"/><rect x="446" y="105" width="58" height="65"/><rect x="518" y="107" width="72" height="63"/><rect x="604" y="50" width="46" height="120"/><rect x="650" y="50" width="84" height="120"/><rect x="734" y="73" width="84" height="97"/><rect x="824" y="96" width="46" height="74"/><rect x="870" y="56" width="84" height="114"/><rect x="954" y="84" width="64" height="86"/><rect x="1018" y="103" width="84" height="67"/><rect x="1116" y="75" width="64" height="95"/><rect x="1194" y="104" width="58" height="66"/><rect x="1266" y="70" width="84" height="100"/><rect x="1350" y="104" width="64" height="66"/><rect x="1428" y="74" width="46" height="96"/><rect x="1474" y="97" width="84" height="73"/><rect x="1564" y="83" width="84" height="87"/></g>
+                <g class="hs-city-front"><rect x="10" y="72" width="70" height="98"/><rect x="98" y="94" width="70" height="76"/><rect x="172" y="107" width="70" height="63"/><rect x="205" y="93" width="4" height="14"/><rect x="246" y="87" width="40" height="83"/><rect x="264" y="73" width="4" height="14"/><rect x="296" y="116" width="40" height="54"/><rect x="444" y="112" width="60" height="58"/><rect x="522" y="100" width="52" height="70"/><rect x="734" y="130" width="90" height="40"/><rect x="834" y="79" width="70" height="91"/><rect x="867" y="65" width="4" height="14"/><rect x="914" y="77" width="90" height="93"/><rect x="1014" y="105" width="90" height="65"/><rect x="1057" y="91" width="4" height="14"/><rect x="1168" y="87" width="40" height="83"/><rect x="1212" y="96" width="52" height="74"/><rect x="1274" y="119" width="40" height="51"/><rect x="1292" y="105" width="4" height="14"/><rect x="1414" y="116" width="52" height="54"/><rect x="1566" y="106" width="90" height="64"/></g>
+                <g class="hs-city-win"><rect x="18" y="82" width="5" height="6"/><rect x="42" y="82" width="5" height="6"/><rect x="54" y="82" width="5" height="6"/><rect x="66" y="82" width="5" height="6"/><rect x="18" y="96" width="5" height="6"/><rect x="30" y="96" width="5" height="6"/><rect x="42" y="96" width="5" height="6"/><rect x="54" y="96" width="5" height="6"/><rect x="66" y="96" width="5" height="6"/><rect x="18" y="110" width="5" height="6"/><rect x="30" y="110" width="5" height="6"/><rect x="54" y="110" width="5" height="6"/><rect x="18" y="124" width="5" height="6"/><rect x="30" y="124" width="5" height="6"/><rect x="66" y="124" width="5" height="6"/><rect x="18" y="138" width="5" height="6"/><rect x="30" y="138" width="5" height="6"/><rect x="54" y="138" width="5" height="6"/><rect x="66" y="138" width="5" height="6"/><rect x="18" y="152" width="5" height="6"/><rect x="30" y="152" width="5" height="6"/><rect x="42" y="152" width="5" height="6"/><rect x="54" y="152" width="5" height="6"/><rect x="66" y="152" width="5" height="6"/><rect x="106" y="104" width="5" height="6"/><rect x="130" y="104" width="5" height="6"/><rect x="142" y="104" width="5" height="6"/><rect x="154" y="104" width="5" height="6"/><rect x="106" y="118" width="5" height="6"/><rect x="118" y="118" width="5" height="6"/><rect x="130" y="118" width="5" height="6"/><rect x="142" y="118" width="5" height="6"/><rect x="106" y="132" width="5" height="6"/><rect x="118" y="132" width="5" height="6"/><rect x="130" y="132" width="5" height="6"/><rect x="142" y="132" width="5" height="6"/><rect x="154" y="132" width="5" height="6"/><rect x="106" y="146" width="5" height="6"/><rect x="118" y="146" width="5" height="6"/><rect x="130" y="146" width="5" height="6"/><rect x="154" y="146" width="5" height="6"/><rect x="106" y="160" width="5" height="6"/><rect x="118" y="160" width="5" height="6"/><rect x="130" y="160" width="5" height="6"/><rect x="142" y="160" width="5" height="6"/><rect x="154" y="160" width="5" height="6"/><rect x="180" y="117" width="5" height="6"/><rect x="192" y="117" width="5" height="6"/><rect x="204" y="117" width="5" height="6"/><rect x="228" y="117" width="5" height="6"/><rect x="180" y="131" width="5" height="6"/><rect x="192" y="131" width="5" height="6"/><rect x="204" y="131" width="5" height="6"/><rect x="216" y="131" width="5" height="6"/><rect x="216" y="145" width="5" height="6"/><rect x="228" y="145" width="5" height="6"/><rect x="180" y="159" width="5" height="6"/><rect x="192" y="159" width="5" height="6"/><rect x="204" y="159" width="5" height="6"/><rect x="216" y="159" width="5" height="6"/><rect x="228" y="159" width="5" height="6"/><rect x="254" y="97" width="5" height="6"/><rect x="266" y="97" width="5" height="6"/><rect x="266" y="111" width="5" height="6"/><rect x="254" y="125" width="5" height="6"/><rect x="266" y="125" width="5" height="6"/><rect x="254" y="139" width="5" height="6"/><rect x="266" y="139" width="5" height="6"/><rect x="266" y="153" width="5" height="6"/><rect x="304" y="126" width="5" height="6"/><rect x="316" y="126" width="5" height="6"/><rect x="304" y="140" width="5" height="6"/><rect x="316" y="140" width="5" height="6"/><rect x="304" y="154" width="5" height="6"/><rect x="316" y="154" width="5" height="6"/><rect x="464" y="122" width="5" height="6"/><rect x="476" y="122" width="5" height="6"/><rect x="488" y="122" width="5" height="6"/><rect x="464" y="136" width="5" height="6"/><rect x="488" y="136" width="5" height="6"/><rect x="452" y="150" width="5" height="6"/><rect x="464" y="150" width="5" height="6"/><rect x="476" y="150" width="5" height="6"/><rect x="488" y="150" width="5" height="6"/><rect x="530" y="110" width="5" height="6"/><rect x="542" y="110" width="5" height="6"/><rect x="554" y="110" width="5" height="6"/><rect x="530" y="124" width="5" height="6"/><rect x="542" y="124" width="5" height="6"/><rect x="554" y="124" width="5" height="6"/><rect x="530" y="138" width="5" height="6"/><rect x="542" y="138" width="5" height="6"/><rect x="530" y="152" width="5" height="6"/><rect x="754" y="140" width="5" height="6"/><rect x="766" y="140" width="5" height="6"/><rect x="742" y="154" width="5" height="6"/><rect x="754" y="154" width="5" height="6"/><rect x="778" y="154" width="5" height="6"/><rect x="842" y="89" width="5" height="6"/><rect x="866" y="89" width="5" height="6"/><rect x="878" y="89" width="5" height="6"/><rect x="890" y="89" width="5" height="6"/><rect x="842" y="103" width="5" height="6"/><rect x="854" y="103" width="5" height="6"/><rect x="866" y="103" width="5" height="6"/><rect x="878" y="103" width="5" height="6"/><rect x="842" y="117" width="5" height="6"/><rect x="854" y="117" width="5" height="6"/><rect x="866" y="117" width="5" height="6"/><rect x="890" y="117" width="5" height="6"/><rect x="842" y="131" width="5" height="6"/><rect x="854" y="131" width="5" height="6"/><rect x="866" y="131" width="5" height="6"/><rect x="890" y="131" width="5" height="6"/><rect x="854" y="145" width="5" height="6"/><rect x="866" y="145" width="5" height="6"/><rect x="878" y="145" width="5" height="6"/><rect x="842" y="159" width="5" height="6"/><rect x="854" y="159" width="5" height="6"/><rect x="878" y="159" width="5" height="6"/><rect x="890" y="159" width="5" height="6"/><rect x="922" y="87" width="5" height="6"/><rect x="934" y="87" width="5" height="6"/><rect x="946" y="87" width="5" height="6"/><rect x="982" y="87" width="5" height="6"/><rect x="934" y="101" width="5" height="6"/><rect x="946" y="101" width="5" height="6"/><rect x="958" y="101" width="5" height="6"/><rect x="970" y="101" width="5" height="6"/><rect x="982" y="101" width="5" height="6"/><rect x="922" y="115" width="5" height="6"/><rect x="934" y="115" width="5" height="6"/><rect x="946" y="115" width="5" height="6"/><rect x="982" y="115" width="5" height="6"/><rect x="922" y="129" width="5" height="6"/><rect x="934" y="129" width="5" height="6"/><rect x="946" y="129" width="5" height="6"/><rect x="958" y="129" width="5" height="6"/><rect x="970" y="129" width="5" height="6"/><rect x="922" y="143" width="5" height="6"/><rect x="934" y="143" width="5" height="6"/><rect x="958" y="143" width="5" height="6"/><rect x="970" y="143" width="5" height="6"/><rect x="982" y="143" width="5" height="6"/><rect x="922" y="157" width="5" height="6"/><rect x="946" y="157" width="5" height="6"/><rect x="958" y="157" width="5" height="6"/><rect x="970" y="157" width="5" height="6"/><rect x="1022" y="115" width="5" height="6"/><rect x="1034" y="115" width="5" height="6"/><rect x="1046" y="115" width="5" height="6"/><rect x="1058" y="115" width="5" height="6"/><rect x="1070" y="115" width="5" height="6"/><rect x="1082" y="115" width="5" height="6"/><rect x="1046" y="129" width="5" height="6"/><rect x="1058" y="129" width="5" height="6"/><rect x="1070" y="129" width="5" height="6"/><rect x="1082" y="129" width="5" height="6"/><rect x="1046" y="143" width="5" height="6"/><rect x="1070" y="143" width="5" height="6"/><rect x="1082" y="143" width="5" height="6"/><rect x="1046" y="157" width="5" height="6"/><rect x="1058" y="157" width="5" height="6"/><rect x="1070" y="157" width="5" height="6"/><rect x="1082" y="157" width="5" height="6"/><rect x="1176" y="97" width="5" height="6"/><rect x="1188" y="97" width="5" height="6"/><rect x="1176" y="111" width="5" height="6"/><rect x="1188" y="111" width="5" height="6"/><rect x="1176" y="125" width="5" height="6"/><rect x="1176" y="153" width="5" height="6"/><rect x="1188" y="153" width="5" height="6"/><rect x="1232" y="106" width="5" height="6"/><rect x="1220" y="120" width="5" height="6"/><rect x="1232" y="120" width="5" height="6"/><rect x="1244" y="120" width="5" height="6"/><rect x="1220" y="134" width="5" height="6"/><rect x="1232" y="134" width="5" height="6"/><rect x="1244" y="134" width="5" height="6"/><rect x="1232" y="148" width="5" height="6"/><rect x="1294" y="129" width="5" height="6"/><rect x="1294" y="143" width="5" height="6"/><rect x="1282" y="157" width="5" height="6"/><rect x="1294" y="157" width="5" height="6"/><rect x="1422" y="126" width="5" height="6"/><rect x="1446" y="126" width="5" height="6"/><rect x="1422" y="140" width="5" height="6"/><rect x="1434" y="140" width="5" height="6"/><rect x="1446" y="140" width="5" height="6"/><rect x="1422" y="154" width="5" height="6"/><rect x="1434" y="154" width="5" height="6"/><rect x="1574" y="116" width="5" height="6"/><rect x="1586" y="116" width="5" height="6"/><rect x="1598" y="116" width="5" height="6"/><rect x="1610" y="116" width="5" height="6"/><rect x="1622" y="116" width="5" height="6"/><rect x="1586" y="130" width="5" height="6"/><rect x="1598" y="130" width="5" height="6"/><rect x="1610" y="130" width="5" height="6"/><rect x="1622" y="130" width="5" height="6"/><rect x="1574" y="144" width="5" height="6"/><rect x="1586" y="144" width="5" height="6"/><rect x="1634" y="144" width="5" height="6"/><rect x="1574" y="158" width="5" height="6"/><rect x="1598" y="158" width="5" height="6"/><rect x="1610" y="158" width="5" height="6"/><rect x="1622" y="158" width="5" height="6"/><rect x="1634" y="158" width="5" height="6"/></g>
+            </svg>
+
+            <!-- 비행기: 1번은 왼→오, 2번은 더 높이 오→왼 -->
+            <div class="hs-mover hs-plane hs-plane--1"><svg><use href="#hs-plane"/></svg></div>
+            <div class="hs-mover hs-mover--left hs-plane hs-plane--2"><svg><use href="#hs-plane"/></svg></div>
+
+            <!-- 도로와 차: 윗차선은 오→왼, 아랫차선은 왼→오 -->
+            <div class="hs-road">
+                <span class="hs-lane hs-lane--1"></span>
+                <span class="hs-lane hs-lane--2"></span>
+            </div>
+
+            <div class="hs-mover hs-mover--left hs-car hs-car--taxi"><svg><use href="#hs-car"/></svg></div>
+            <div class="hs-mover hs-mover--left hs-car hs-car--white"><svg><use href="#hs-car"/></svg></div>
+            <div class="hs-mover hs-car hs-car--bus"><svg viewBox="0 0 160 60"><use href="#hs-bus"/></svg></div>
+            <div class="hs-mover hs-car hs-car--blue"><svg><use href="#hs-car"/></svg></div>
+
+        </div>
+
     <section class="hero">
 
         <div class="hero-content">
@@ -89,31 +224,6 @@
             <form class="plan-form"
                   action="{% url 'travel_create' %}"
                   method="get">
-
-                <div class="plan-label">
-                    {% include "_icon.html" with name="wallet" %} 예산 성향 <small>(필수)</small>
-                </div>
-
-                <div class="plan-budget">
-
-                    <label>
-                        <input type="radio"
-                               name="budget_style"
-                               value="value"
-                               required
-                               checked>
-                        <span>가성비</span>
-                    </label>
-
-                    <label>
-                        <input type="radio"
-                               name="budget_style"
-                               value="premium"
-                               required>
-                        <span>비싸도 괜찮음</span>
-                    </label>
-
-                </div>
 
                 <div class="plan-row">
 
@@ -269,9 +379,9 @@
 
         </div>
 
-        {% elif member %}
+        {% else %}
 
-        <!-- 로그인했지만 아직 만든 일정이 없을 때 -->
+        <!-- 아직 만든 일정이 없을 때 (로그아웃 상태도 여기로) -->
 
         <div class="hero-preview">
 
@@ -316,130 +426,11 @@
 
         </div>
 
-        {% else %}
-
-        <!-- 여행 일정 미리보기 -->
-
-        <div class="hero-preview">
-
-            <div class="preview-window">
-
-                <div class="preview-header">
-
-                    <span>
-                        {% include "_icon.html" with name="map" %} 서울 여행
-                    </span>
-
-                    <span class="preview-status">
-                        여행 일정
-                    </span>
-
-                </div>
-
-
-                <div class="preview-info">
-
-                    <div>
-                        {% include "_icon.html" with name="calendar" %}
-                        <span>
-                            2026.09.09 ~ 2026.09.12
-                        </span>
-                    </div>
-
-                    <div>
-                        {% include "_icon.html" with name="pin" %}
-                        <span>
-                            서울
-                        </span>
-                    </div>
-
-                </div>
-
-
-                <div class="preview-days">
-
-                    <div class="preview-day active">
-                        DAY 1
-                    </div>
-
-                    <div class="preview-day">
-                        DAY 2
-                    </div>
-
-                    <div class="preview-day">
-                        DAY 3
-                    </div>
-
-                </div>
-
-
-                <div class="preview-schedule">
-
-                    <div class="preview-item">
-
-                        <span class="preview-time">
-                            10:00
-                        </span>
-
-                        <div class="preview-place">
-                            <strong>
-                                {% include "_icon.html" with name="pin" %} 경복궁
-                            </strong>
-
-                            <small>
-                                관광 · 2시간
-                            </small>
-                        </div>
-
-                    </div>
-
-
-                    <div class="preview-item">
-
-                        <span class="preview-time">
-                            13:00
-                        </span>
-
-                        <div class="preview-place">
-                            <strong>
-                                {% include "_icon.html" with name="pin" %} 북촌한옥마을
-                            </strong>
-
-                            <small>
-                                관광 · 1시간 30분
-                            </small>
-                        </div>
-
-                    </div>
-
-
-                    <div class="preview-item">
-
-                        <span class="preview-time">
-                            16:00
-                        </span>
-
-                        <div class="preview-place">
-                            <strong>
-                                {% include "_icon.html" with name="pin" %} 남산타워
-                            </strong>
-
-                            <small>
-                                관광 · 2시간
-                            </small>
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
         {% endif %}
 
     </section>
+
+    </div>
 
 
     <!-- =========================
@@ -733,12 +724,12 @@
 
     // ---------- 예시 질문: 4초마다 바뀌고, 누르면 입력창에 들어감 ----------
     var examples = [
-        '서울에서 강릉 가는 제일 싼 방법은?',
-        '부모님 모시고 여수 2박 3일',
-        '강릉 1박 2일, 아이랑 갈 만한 곳 위주로',
-        '제주 3박 4일, 맛집 위주로',
-        '부산 당일치기, 비 오면 실내 위주로',
-        '전주 1박 2일, 한옥마을이랑 먹거리'
+        '여수 2박3일 음식,카페 위주로',
+        '강릉 1박2일, 아이랑 갈 만한 곳 위주로',
+        '제주 3박4일, 맛집 위주로 추천해줘!',
+        '부산 당일치기 비 오면 실내로 추천',
+        '전주 1박2일,한옥마을이랑 맛집추천',
+        '수원 1박2일 컨셉은 랜드마크!'
     ];
 
     var box = document.getElementById('planExamples');
