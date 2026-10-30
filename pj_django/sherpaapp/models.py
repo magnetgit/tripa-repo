@@ -18,7 +18,7 @@ class Member(models.Model):
     )
 
     pwd = models.CharField(
-        max_length=30,
+        max_length=255,
         db_column='PWD'
     )
 

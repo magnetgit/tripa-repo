@@ -135,6 +135,18 @@ urlpatterns = [
         views.travel_chat_preview,
         name='travel_chat_preview'
     ),
+    # API (mock.json 모양)
+    path(
+        'api/chat/',
+        views.api_chat,
+        name='api_chat'
+    ),
+    # API (mock.json 모양)
+    path(
+        'api/trips/<int:trip_id>/',
+        views.api_trip,
+        name='api_trip'
+    ),
 
     path(
         'travel_list/',
