@@ -85,6 +85,7 @@ def kakao_documents(query, size, group='', **extra):
 def to_place(item, category):
     return {
         'name': item.get('place_name'),
+        'kakao_id': item.get('id'),
         'address':
             item.get('road_address_name')
             or item.get('address_name'),

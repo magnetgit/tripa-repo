@@ -774,6 +774,7 @@ def search_recommendations(rec, draft, size=4):
 
         item = {
             'name': name,
+            'kakao_id': doc.get('id'),
             'kind': _short_kind(doc.get('category_name')),
             'addr': _clean_text(doc.get('road_address_name') or doc.get('address_name'), 200),
             'lat': coord[0],

@@ -81,6 +81,11 @@ KAKAO_REST_API_KEY = env(
     default="",
 )
 
+TOUR_API_KEY = env(
+    "TOUR_API_KEY",
+    default="",
+)
+
 
 # =========================================================
 # AI 대화 (여행 만들기 챗봇)
