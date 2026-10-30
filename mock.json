@@ -12,6 +12,6 @@
   ]},
   "places": null, "transport": null,
   "budget": {"total": 500000, "planned": 547200,
-             "limit": {"stay": 120000, "move": 200000, "food": 130000, "cafe": 20000, "ticket": 30000},
-             "by": {"stay": 110000, "move": 197200, "food": 172000, "cafe": 12000, "ticket": 56000}}
+             "limit": {"sight": 30000, "food": 150000, "move": 200000, "stay": 120000, "shop": 0, "etc": 0},
+             "by": {"sight": 56000, "food": 184000, "move": 197200, "stay": 110000, "shop": 0, "etc": 0}}
 }
