@@ -10,6 +10,9 @@ from .models import (
     Travel,
     TravelCategory,
     TravelDayPlan,
+    TravelBudget,
+    Review,
+    ReviewHelpful,
 )
 
 
@@ -42,6 +45,12 @@ class TravelCategoryInline(admin.TabularInline):
     model = TravelCategory
     extra = 0
     autocomplete_fields = ("category",)
+
+
+class TravelBudgetInline(admin.TabularInline):
+    model = TravelBudget
+    extra = 0
+    fields = ("category", "amount")
 
 
 class PlaceInline(admin.TabularInline):
@@ -101,6 +110,12 @@ class MemberAdmin(admin.ModelAdmin):
         "nickname",
         "name",
         "travel_count",
+        "gender",
+        "age_group",
+    )
+    list_filter = (
+        "gender",
+        "age_group",
     )
     search_fields = (
         "email",
@@ -191,6 +206,7 @@ class TravelAdmin(admin.ModelAdmin):
     inlines = (
         TravelDayPlanInline,
         TravelCategoryInline,
+        TravelBudgetInline,
         PlaceInline,
         ScheduleInline,
     )
@@ -264,6 +280,7 @@ class PlaceAdmin(admin.ModelAdmin):
         "travel",
         "p_kind",
         "p_addr",
+        "p_kakao_id",
     )
     list_filter = ("p_kind",)
     search_fields = (
@@ -271,6 +288,7 @@ class PlaceAdmin(admin.ModelAdmin):
         "p_addr",
         "p_kind",
         "travel__t_title",
+        "p_kakao_id",
     )
     autocomplete_fields = ("travel",)
     ordering = ("-p_id",)
@@ -403,3 +421,35 @@ class PayAdmin(admin.ModelAdmin):
     @admin.display(description="금액")
     def formatted_pay(self, obj):
         return f"{obj.pay_pay or 0:,}원"
+
+
+# =========================================================
+# 리뷰
+# =========================================================
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = (
+        "rv_id",
+        "place_name",
+        "member",
+        "rating",
+        "content",
+        "created_at",
+    )
+    list_filter = (
+        "rating",
+        "created_at",
+    )
+    search_fields = (
+        "place_name",
+        "content",
+        "kakao_id",
+        "member__email",
+    )
+    autocomplete_fields = (
+        "member",
+        "place",
+    )
+    ordering = ("-created_at",)
+    readonly_fields = ("created_at",)
