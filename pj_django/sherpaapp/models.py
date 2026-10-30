@@ -1,9 +1,22 @@
 from django.db import models
-
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # ==============================================
 # 회원
 # ==============================================
+
+GENDER_CHOICES = [
+    ('M', '남성'),
+    ('F', '여성')
+]
+AGE_GROUP_CHOICES = [
+    (10, '10대'),
+    (20, '20대'),
+    (30, '30대'),
+    (40, '40대'),
+    (50, '50대'),
+    (60, '60대 이상')
+]
 
 class Member(models.Model):
 
@@ -31,6 +44,21 @@ class Member(models.Model):
     name = models.CharField(
         max_length=30,
         db_column='NAME'
+    )
+
+    gender = models.CharField(
+        max_length=1,
+        choices=GENDER_CHOICES,
+        null=True,
+        blank=True,
+        db_column='GENDER'
+    )
+
+    age_group = models.PositiveSmallIntegerField(
+        choices=AGE_GROUP_CHOICES,
+        null=True,
+        blank=True,
+        db_column='AGE_GROUP'
     )
 
     class Meta:
@@ -185,6 +213,53 @@ class Travel(models.Model):
     def __str__(self):
         return self.t_title or ''
 
+# ==============================================
+# 카테고리 예산
+# ==============================================
+
+BUDGET_CATEGORY_CHOICES = [
+    ('sight', '관광지'),
+    ('food', '식비'),
+    ('move', '교통'),
+    ('stay', '숙박'),
+    ('shop', '쇼핑'),
+    ('etc', '기타')
+]
+
+class TravelBudget(models.Model):
+
+    tb_id = models.AutoField(
+        primary_key=True,
+        db_column='TB_ID'
+    )
+
+    travel = models.ForeignKey(
+        Travel,
+        on_delete=models.CASCADE,
+        db_column='T_ID',
+        related_name='budgets'
+    )
+
+    category = models.CharField(
+        max_length=10,
+        choices=BUDGET_CATEGORY_CHOICES,
+        db_column='CATEGORY'
+    )
+
+    amount = models.PositiveIntegerField(
+        db_column='AMOUNT',
+        default=0
+    )
+
+    class Meta:
+        db_table = 'travel_budget'
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['travel', 'category'],
+                name='unique_travel_budget'
+            )
+        ]            
 
 # ==============================================
 # 여행 날짜별 계획
@@ -389,12 +464,122 @@ class Place(models.Model):
         blank=True
     )
 
+    p_kakao_id = models.CharField(
+        max_length=20,
+        db_column='P_KAKAO_ID',
+        null=True,
+        blank=True,
+        db_index=True
+    )
+
     class Meta:
         db_table = 'place'
 
     def __str__(self):
         return self.p_name
 
+# ==============================================
+# 리뷰
+# ==============================================
+
+class Review(models.Model):
+
+    rv_id = models.AutoField(
+        primary_key=True,
+        db_column='RV_ID'
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        db_column='M_ID',
+        related_name='reviews'
+    )
+
+    place = models.ForeignKey(
+        Place,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='P_ID',
+        related_name='reviews'
+    )
+
+    kakao_id = models.CharField(
+        max_length=20,
+        db_column='KAKAO_ID',
+        db_index=True
+    )
+
+    place_name = models.CharField(
+        max_length=100,
+        db_column='PLACE_NAME'
+    )
+
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        db_column='RATING'
+    )
+
+    content = models.CharField(
+        max_length=100,
+        db_column='CONTENT'
+    )
+
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        db_column='TAGS'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_column='CREATED_AT'
+    )
+
+    class Meta:
+        db_table = 'review'
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['member', 'place'],
+                name='unique_review_member_place'
+            )
+        ]
+
+# ==============================================
+# 도움돼요
+# ==============================================
+
+class ReviewHelpful(models.Model):
+
+    rh_id = models.AutoField(
+        primary_key=True,
+        db_column='RH_ID'
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        db_column='M_ID'
+    )
+
+    review = models.ForeignKey(
+        Review,
+        on_delete=models.CASCADE,
+        related_name='helpfuls',
+        db_column='RV_ID'
+    )
+
+    class Meta:
+        db_table = 'review_helpful'
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['member', 'review'],
+                name='unique_review_helpful'
+            )
+        ]
 
 # ==============================================
 # 일정
