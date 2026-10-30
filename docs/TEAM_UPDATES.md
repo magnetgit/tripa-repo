@@ -20,7 +20,8 @@
 
 ### 확인된 점 / 남은 일
 - [x] 메인·로그인 화면 200, 정적 파일, HTTPS 로그인 폼(CSRF) 정상
-- [ ] 🟧 카카오 개발자 콘솔 **JavaScript SDK 도메인에 `https://3-106-104-143.sslip.io` 등록** (안 하면 배포 주소에서 지도가 안 뜸)
+- [x] 🟧 카카오 개발자 콘솔 JavaScript SDK 도메인에 `https://3-106-104-143.sslip.io` 등록 (배포 주소에서 지도 SDK 로드 확인)
+- [x] 🟧 **ODsay** 웹 키에 `3-106-104-143.sslip.io` URI 등록 (일정 상세의 대중교통 경로를 브라우저에서 부르므로 필요)
 - [ ] 🟧 `settings.py`: 지금은 `DEPLOY=True`면 SQLite를 써서, 서버는 `DEPLOY=False`+`DEBUG=False`로 우회 중 → **DEPLOY=True에서 MariaDB를 쓰도록 수정** (인수인계 문제 3번), 프록시 HTTPS 인식 설정 추가
 - [ ] 🟧 `makemigrations` 경고: 모델 변경이 마이그레이션에 없음 → 안건 1(`managed=True` 전환) 때 함께 정리. 전환 후 서버 DB는 비우고 `migrate`로 새로 만듦
 - [ ] 🟦🟩 배포 주소에서 화면·AI 채팅 동작 확인 (AI 키는 서버 `.env`에 들어 있음)
