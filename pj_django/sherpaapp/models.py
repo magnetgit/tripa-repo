@@ -293,7 +293,7 @@ class Category(models.Model):
     )
 
     class Meta:
-        db_table = 'CATEGORIES'
+        db_table = 'categories'
 
     def __str__(self):
         return self.c_name
@@ -325,7 +325,7 @@ class TravelCategory(models.Model):
     )
 
     class Meta:
-        db_table = 'TRAVEL_CATEGORY'
+        db_table = 'travel_category'
 
         constraints = [
             models.UniqueConstraint(
@@ -399,7 +399,7 @@ class Place(models.Model):
     )
 
     class Meta:
-        db_table = 'PLACE'
+        db_table = 'place'
 
     def __str__(self):
         return self.p_name
@@ -428,7 +428,7 @@ class Schedule(models.Model):
     )
 
     class Meta:
-        db_table = 'SCHEDULE'
+        db_table = 'schedule'
         ordering = ['s_day']
 
     def __str__(self):
@@ -496,7 +496,7 @@ class SchedulePlace(models.Model):
     )
 
     class Meta:
-        db_table = 'SCHEDULE_PLACES'
+        db_table = 'schedule_places'
         ordering = ['visit_order']
 
         constraints = [
@@ -579,7 +579,7 @@ class Pay(models.Model):
     )
 
     class Meta:
-        db_table = 'PAY'
+        db_table = 'pay'
 
     def __str__(self):
 
