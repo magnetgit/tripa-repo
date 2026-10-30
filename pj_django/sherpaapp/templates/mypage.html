@@ -1,345 +1,134 @@
-<!DOCTYPE html>
-<html>
+{% load static %}<!DOCTYPE html>
+<html lang="ko">
 <head>
-
     <meta charset="UTF-8">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>내 정보 - TRIPA</title>
 
-    <style>
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-        }
-
-        body {
-            background-color: #f4f6f8;
-            min-height: 100vh;
-        }
-
-        .container {
-            width: 500px;
-            margin: 80px auto;
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 35px;
-        }
-
-        .info {
-            margin-bottom: 20px;
-        }
-
-        .info-title {
-            font-weight: bold;
-            color: #555;
-            margin-bottom: 8px;
-        }
-
-        .info-value {
-            background-color: #f5f7fa;
-            padding: 14px;
-            border-radius: 8px;
-        }
-
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 13px;
-            margin-top: 20px;
-            background-color: #3182ce;
-            color: white;
-            text-align: center;
-            text-decoration: none;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 15px;
-        }
-
-        /* 회원탈퇴 버튼 */
-        .btn-danger {
-            background-color: #e53e3e;
-        }
-
-        .btn-danger:hover {
-            background-color: #c53030;
-        }
-
-        /* =========================
-           회원탈퇴 모달
-        ========================= */
-
-        .delete-modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background-color: rgba(0,0,0,0.5);
-            align-items: center;
-            justify-content: center;
-        }
-
-        .delete-modal.show {
-            display: flex;
-        }
-
-        .delete-modal-content {
-            width: 420px;
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .delete-modal-content h2 {
-            margin-bottom: 15px;
-            color: #e53e3e;
-        }
-
-        .delete-warning {
-            margin-bottom: 20px;
-            color: #666;
-            line-height: 1.6;
-        }
-
-        .delete-warning strong {
-            color: #e53e3e;
-        }
-
-        .delete-password {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            margin-top: 8px;
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .modal-buttons button {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        .cancel-btn {
-            background-color: #e2e8f0;
-        }
-
-        .delete-btn {
-            background-color: #e53e3e;
-            color: white;
-        }
-
-        /* 아이콘 (다른 화면과 같은 SVG 아이콘) */
-        .tp-icon {
-            width: 1.15em;
-            height: 1.15em;
-            flex-shrink: 0;
-            vertical-align: -0.2em;
-        }
-
-        .page-head {
-            text-align: center;
-            margin-bottom: 35px;
-        }
-
-        .page-head h1 {
-            margin-bottom: 0;
-        }
-
-        .page-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 56px;
-            height: 56px;
-            margin-bottom: 14px;
-            border-radius: 50%;
-            background-color: #ebf4ff;
-            color: #3182ce;
-        }
-
-        .page-badge .tp-icon {
-            width: 28px;
-            height: 28px;
-        }
-
-        .btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn .tp-icon {
-            width: 18px;
-            height: 18px;
-        }
-
-    </style>
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=1">
 </head>
 
 <body>
 
-<div class="container">
+{% include "_passport_bg.html" %}
 
-    <div class="page-head">
-        <span class="page-badge">{% include "_icon.html" with name="user" %}</span>
-        <h1>내 정보</h1>
+<!-- 여권 정보면 모양의 내 정보 카드 -->
+<main class="pp-card">
+
+    <div class="pp-head">
+        <a href="{% url 'index' %}" class="pp-brand">
+            <span class="pp-emblem">{% include "_icon.html" with name="mountain" %}</span>
+            <span>
+                <strong>TRIPA</strong>
+                <small>TRAVEL PASSPORT · 여행 여권</small>
+            </span>
+        </a>
+        <div class="pp-no">
+            PASSPORT NO.
+            <b>TRP-{{ member.m_id|stringformat:"06d" }}</b>
+        </div>
     </div>
 
+    <div class="pp-body">
 
-    <div class="info">
-
-        <div class="info-title">
-            아이디(Email)
+        <div class="pp-title">
+            <h1>내 정보</h1>
+            <p>TRIPA 여행자 정보</p>
         </div>
 
-        <div class="info-value">
-            {{ member.email }}
+        <!-- 증명사진 자리 -->
+        <div class="pp-photo" aria-hidden="true">
+            <svg viewBox="0 0 112 132" fill="currentColor">
+                <circle cx="56" cy="48" r="26"/>
+                <path d="M8 132 C8 98 30 82 56 82 C82 82 104 98 104 132 Z"/>
+            </svg>
         </div>
+        <div class="pp-seal" aria-hidden="true">TRIPA<br>MEMBER<br>★</div>
+
+        <dl class="pp-fields">
+            <div class="pp-row">
+                <div class="pp-field">
+                    <dt>성명 <em>/ Name</em></dt>
+                    <dd>{{ member.name }}</dd>
+                </div>
+                <div class="pp-field">
+                    <dt>닉네임 <em>/ Nickname</em></dt>
+                    <dd>{{ member.nickname }}</dd>
+                </div>
+            </div>
+            <div class="pp-field">
+                <dt>아이디 <em>/ Email</em></dt>
+                <dd>{{ member.email }}</dd>
+            </div>
+            <div class="pp-row">
+                <div class="pp-field">
+                    <dt>종류 <em>/ Type</em></dt>
+                    <dd>국내 여행자</dd>
+                </div>
+                <div class="pp-field">
+                    <dt>발행 <em>/ Issued by</em></dt>
+                    <dd>TRIPA</dd>
+                </div>
+            </div>
+        </dl>
 
     </div>
 
-
-    <div class="info">
-
-        <div class="info-title">
-            이름
-        </div>
-
-        <div class="info-value">
-            {{ member.name }}
-        </div>
-
+    <!-- 여권 맨 아래 기계 판독 줄 (꾸밈) -->
+    <div class="pp-mrz" aria-hidden="true">
+        TRP&lt;KOR&lt;&lt;{{ member.nickname }}&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;<br>
+        {{ member.m_id|stringformat:"06d" }}&lt;&lt;TRIPA&lt;&lt;DOMESTIC&lt;&lt;TRAVELER&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;
     </div>
 
-
-    <div class="info">
-
-        <div class="info-title">
-            닉네임
-        </div>
-
-        <div class="info-value">
-            {{ member.nickname }}
-        </div>
-
+    <div class="pp-actions">
+        <a href="{% url 'mypage_edit' %}" class="pp-btn pp-btn--primary">
+            {% include "_icon.html" with name="edit" %} 내정보 수정
+        </a>
+        <a href="{% url 'index' %}" class="pp-btn">
+            {% include "_icon.html" with name="home" %} 홈으로
+        </a>
+        <a href="{% url 'logout' %}" class="pp-btn">
+            {% include "_icon.html" with name="arrow" %} 로그아웃
+        </a>
     </div>
 
+    <div class="pp-foot">
+        <button type="button" class="pp-link-danger" onclick="openDeleteModal()">회원탈퇴</button>
+    </div>
 
-    <a href="{% url 'mypage_edit' %}" class="btn">
-        {% include "_icon.html" with name="edit" %} 내정보 수정
-    </a>
-
-    <a href="{% url 'index' %}" class="btn">
-        {% include "_icon.html" with name="home" %} 홈으로
-    </a>
-
-    <a href="{% url 'logout' %}" class="btn">
-        {% include "_icon.html" with name="arrow" %} 로그아웃
-    </a>
+</main>
 
 
-    <!-- 회원탈퇴 -->
-    <button
-        type="button"
-        class="btn btn-danger"
-        onclick="openDeleteModal()"
-    >
-        회원탈퇴
-    </button>
-
-</div>
-
-
-<!-- =========================================
-     회원탈퇴 확인창
-========================================= -->
-
-<div
-    id="deleteModal"
-    class="delete-modal"
->
+<!-- 회원탈퇴 확인창 -->
+<div id="deleteModal" class="delete-modal" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
 
     <div class="delete-modal-content">
 
-        <h2>회원탈퇴</h2>
+        <h2 id="deleteTitle">회원탈퇴</h2>
 
         <div class="delete-warning">
-
             정말 탈퇴하시겠습니까?
-
             <br><br>
-
-            <strong>
-                회원탈퇴 후에는 계정을 복구할 수 없습니다.
-            </strong>
-
+            <strong>회원탈퇴 후에는 계정을 복구할 수 없습니다.</strong>
             <br>
-
             확인을 위해 비밀번호를 입력해주세요.
-
         </div>
 
-
-        <form
-            method="post"
-            action="{% url 'member_delete' %}"
-        >
-
+        <form method="post" action="{% url 'member_delete' %}">
             {% csrf_token %}
 
-            <label for="delete_password">
-                비밀번호
-            </label>
-
-            <input
-                type="password"
-                id="delete_password"
-                name="password"
-                class="delete-password"
-                placeholder="비밀번호 입력"
-                required
-            >
-
+            <label for="delete_password">비밀번호</label>
+            <input type="password" id="delete_password" name="password"
+                   class="delete-password" placeholder="비밀번호 입력" required>
 
             <div class="modal-buttons">
-
-                <button
-                    type="button"
-                    class="cancel-btn"
-                    onclick="closeDeleteModal()"
-                >
-                    취소
-                </button>
-
-                <button
-                    type="submit"
-                    class="delete-btn"
-                    onclick="return confirm('정말 회원탈퇴 하시겠습니까?');"
-                >
-                    탈퇴하기
-                </button>
-
+                <button type="button" class="cancel-btn" onclick="closeDeleteModal()">취소</button>
+                <button type="submit" class="delete-btn"
+                        onclick="return confirm('정말 회원탈퇴 하시겠습니까?');">탈퇴하기</button>
             </div>
-
         </form>
 
     </div>
@@ -348,30 +137,23 @@
 
 
 <script>
-
     function openDeleteModal() {
-
-        document
-            .getElementById(
-                "deleteModal"
-            )
-            .classList
-            .add("show");
-
+        document.getElementById("deleteModal").classList.add("show");
+        document.getElementById("delete_password").focus();
     }
-
 
     function closeDeleteModal() {
-
-        document
-            .getElementById(
-                "deleteModal"
-            )
-            .classList
-            .remove("show");
-
+        document.getElementById("deleteModal").classList.remove("show");
     }
 
+    // Esc 키나 바깥 어두운 곳을 누르면 닫기
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeDeleteModal();
+    });
+
+    document.getElementById("deleteModal").addEventListener("click", function (e) {
+        if (e.target === this) closeDeleteModal();
+    });
 </script>
 
 </body>

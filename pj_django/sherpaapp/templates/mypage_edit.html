@@ -1,199 +1,122 @@
-<!DOCTYPE html>
-<html>
+{% load static %}<!DOCTYPE html>
+<html lang="ko">
 <head>
-
     <meta charset="UTF-8">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>내정보 수정 - TRIPA</title>
 
-    <style>
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-        }
-
-        body {
-            background-color: #f4f6f8;
-            min-height: 100vh;
-        }
-
-        .container {
-            width: 500px;
-            margin: 80px auto;
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 35px;
-        }
-
-        .info {
-            margin-bottom: 20px;
-        }
-
-        .info-title {
-            font-weight: bold;
-            color: #555;
-            margin-bottom: 8px;
-        }
-
-        input {
-            width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 8px;
-            background-color: #f5f7fa;
-            font-size: 16px;
-        }
-
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 13px;
-            margin-top: 30px;
-            background-color: #3182ce;
-            color: white;
-            text-align: center;
-            text-decoration: none;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .cancel {
-            background-color: #777;
-        }
-
-        /* 아이콘 (다른 화면과 같은 SVG 아이콘) */
-        .tp-icon {
-            width: 1.15em;
-            height: 1.15em;
-            flex-shrink: 0;
-            vertical-align: -0.2em;
-        }
-
-        .page-head {
-            text-align: center;
-            margin-bottom: 35px;
-        }
-
-        .page-head h1 {
-            margin-bottom: 0;
-        }
-
-        .page-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 56px;
-            height: 56px;
-            margin-bottom: 14px;
-            border-radius: 50%;
-            background-color: #ebf4ff;
-            color: #3182ce;
-        }
-
-        .page-badge .tp-icon {
-            width: 28px;
-            height: 28px;
-        }
-
-        .btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn .tp-icon {
-            width: 18px;
-            height: 18px;
-        }
-
-    </style>
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=1">
 </head>
 
 <body>
 
-<div class="container">
+{% include "_passport_bg.html" %}
 
-    <div class="page-head">
-        <span class="page-badge">{% include "_icon.html" with name="edit" %}</span>
-        <h1>내정보 수정</h1>
+<!-- 여권 정보면에 직접 고쳐 쓰는 느낌의 내정보 수정 -->
+<main class="pp-card">
+
+    <div class="pp-head">
+        <a href="{% url 'index' %}" class="pp-brand">
+            <span class="pp-emblem">{% include "_icon.html" with name="mountain" %}</span>
+            <span>
+                <strong>TRIPA</strong>
+                <small>TRAVEL PASSPORT · 여행 여권</small>
+            </span>
+        </a>
+        <div class="pp-no">
+            PASSPORT NO.
+            <b>TRP-{{ member.m_id|stringformat:"06d" }}</b>
+        </div>
     </div>
 
-    <form method="POST">
-
+    <form method="POST" novalidate onsubmit="return check(this);">
         {% csrf_token %}
 
-        <div class="info">
+        <div class="pp-body">
 
-            <div class="info-title">
-                아이디(Email)
+            <div class="pp-title">
+                <h1>내정보 수정</h1>
+                <p>밑줄 위에 새로 적어 주세요</p>
             </div>
 
-            <input
-                type="text"
-                value="{{ member.email }}"
-                readonly
-            >
+            <div class="pp-photo" aria-hidden="true">
+                <svg viewBox="0 0 112 132" fill="currentColor">
+                    <circle cx="56" cy="48" r="26"/>
+                    <path d="M8 132 C8 98 30 82 56 82 C82 82 104 98 104 132 Z"/>
+                </svg>
+            </div>
+            <div class="pp-seal" aria-hidden="true">TRIPA<br>MEMBER<br>★</div>
+
+            <div class="pp-fields">
+                <div class="pp-row">
+                    <div class="pp-field">
+                        <label for="name">성명 <em>/ Name</em></label>
+                        <input type="text" id="name" name="name" value="{{ member.name }}"
+                               placeholder="이름" autocomplete="name" required>
+                    </div>
+                    <div class="pp-field">
+                        <label for="nickname">닉네임 <em>/ Nickname</em></label>
+                        <input type="text" id="nickname" name="nickname" value="{{ member.nickname }}"
+                               placeholder="닉네임" autocomplete="nickname" required>
+                    </div>
+                </div>
+                <div class="pp-field">
+                    <label for="email">아이디 <em>/ Email</em></label>
+                    <input type="text" id="email" value="{{ member.email }}" readonly aria-readonly="true">
+                    <small>아이디(이메일)는 바꿀 수 없어요.</small>
+                </div>
+                <p class="pp-error" id="formError" role="alert"></p>
+            </div>
 
         </div>
 
-
-        <div class="info">
-
-            <div class="info-title">
-                이름
-            </div>
-
-            <input
-                type="text"
-                name="name"
-                value="{{ member.name }}"
-                required
-            >
-
+        <div class="pp-mrz" aria-hidden="true">
+            TRP&lt;KOR&lt;&lt;<span id="mrzNick">{{ member.nickname }}</span>&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;<br>
+            {{ member.m_id|stringformat:"06d" }}&lt;&lt;TRIPA&lt;&lt;DOMESTIC&lt;&lt;TRAVELER&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;
         </div>
 
-
-        <div class="info">
-
-            <div class="info-title">
-                닉네임
-            </div>
-
-            <input
-                type="text"
-                name="nickname"
-                value="{{ member.nickname }}"
-                required
-            >
-
+        <div class="pp-actions pp-actions--two">
+            <button type="submit" class="pp-btn pp-btn--primary">
+                {% include "_icon.html" with name="check" %} 저장하기
+            </button>
+            <a href="{% url 'mypage' %}" class="pp-btn">취소</a>
         </div>
-
-
-        <button type="submit" class="btn">
-            {% include "_icon.html" with name="check" %} 저장하기
-        </button>
-
     </form>
 
+    <div class="pp-foot"></div>
 
-    <a href="{% url 'mypage' %}" class="btn cancel">
-        취소
-    </a>
+</main>
 
-</div>
+<script>
+    // 이름·닉네임이 비어 있으면 막고 안내
+    function check(f) {
+        var err = document.getElementById("formError");
+        if (!f.name.value.trim()) {
+            err.textContent = "이름을 적어 주세요.";
+            f.name.focus();
+            return false;
+        }
+        if (!f.nickname.value.trim()) {
+            err.textContent = "닉네임을 적어 주세요.";
+            f.nickname.focus();
+            return false;
+        }
+        return true;
+    }
+
+    // 닉네임을 고치면 아래 판독 줄도 같이 바뀜 (꾸밈)
+    document.getElementById("nickname").addEventListener("input", function () {
+        document.getElementById("mrzNick").textContent = this.value;
+        document.getElementById("formError").textContent = "";
+    });
+
+    document.getElementById("name").addEventListener("input", function () {
+        document.getElementById("formError").textContent = "";
+    });
+</script>
 
 </body>
 </html>

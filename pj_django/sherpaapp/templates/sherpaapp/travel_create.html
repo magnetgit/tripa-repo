@@ -408,6 +408,7 @@
              data-add-url="{% url 'schedule_place_add' %}"
              data-preview-url="{% url 'travel_chat_preview' %}"
              data-login-url="{% url 'login' %}"
+             data-member="{{ member.m_id|default:'guest' }}"
              data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5"
              data-prefill="{{ prefill_title|default:'' }}"
              data-budget="{{ prefill_budget_code|default:'' }}">
@@ -699,7 +700,7 @@
 
 {% if mode == 'chat' %}
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
-<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261038"></script>
+<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261042"></script>
 {% else %}
 <div id="placeSearchModal" class="place-search-modal" aria-hidden="true">
     <div class="place-search-dialog">

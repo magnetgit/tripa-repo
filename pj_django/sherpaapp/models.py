@@ -1,9 +1,22 @@
 from django.db import models
-
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # ==============================================
 # 회원
 # ==============================================
+
+GENDER_CHOICES = [
+    ('M', '남성'),
+    ('F', '여성')
+]
+AGE_GROUP_CHOICES = [
+    (10, '10대'),
+    (20, '20대'),
+    (30, '30대'),
+    (40, '40대'),
+    (50, '50대'),
+    (60, '60대 이상')
+]
 
 class Member(models.Model):
 
@@ -13,8 +26,9 @@ class Member(models.Model):
     )
 
     email = models.EmailField(
-        max_length=30,
-        db_column='ID'
+        max_length=100,
+        db_column='ID',
+        unique=True
     )
 
     pwd = models.CharField(
@@ -32,9 +46,23 @@ class Member(models.Model):
         db_column='NAME'
     )
 
+    gender = models.CharField(
+        max_length=1,
+        choices=GENDER_CHOICES,
+        null=True,
+        blank=True,
+        db_column='GENDER'
+    )
+
+    age_group = models.PositiveSmallIntegerField(
+        choices=AGE_GROUP_CHOICES,
+        null=True,
+        blank=True,
+        db_column='AGE_GROUP'
+    )
+
     class Meta:
         db_table = 'member'
-        managed = False
 
     def __str__(self):
         return self.nickname
@@ -68,15 +96,11 @@ class Travel(models.Model):
     t_place = models.CharField(
         max_length=100,
         db_column='T_PLACE',
-        null=True,
-        blank=True
     )
 
     t_title = models.CharField(
         max_length=100,
         db_column='T_TITLE',
-        null=True,
-        blank=True
     )
 
     t_way = models.CharField(
@@ -88,14 +112,10 @@ class Travel(models.Model):
 
     t_start = models.DateField(
         db_column='T_START',
-        null=True,
-        blank=True
     )
 
     t_end = models.DateField(
         db_column='T_END',
-        null=True,
-        blank=True
     )
 
     # ==========================================
@@ -189,11 +209,57 @@ class Travel(models.Model):
 
     class Meta:
         db_table = 'travel'
-        managed = False
 
     def __str__(self):
         return self.t_title or ''
 
+# ==============================================
+# 카테고리 예산
+# ==============================================
+
+BUDGET_CATEGORY_CHOICES = [
+    ('sight', '관광지'),
+    ('food', '식비'),
+    ('move', '교통'),
+    ('stay', '숙박'),
+    ('shop', '쇼핑'),
+    ('etc', '기타')
+]
+
+class TravelBudget(models.Model):
+
+    tb_id = models.AutoField(
+        primary_key=True,
+        db_column='TB_ID'
+    )
+
+    travel = models.ForeignKey(
+        Travel,
+        on_delete=models.CASCADE,
+        db_column='T_ID',
+        related_name='budgets'
+    )
+
+    category = models.CharField(
+        max_length=10,
+        choices=BUDGET_CATEGORY_CHOICES,
+        db_column='CATEGORY'
+    )
+
+    amount = models.PositiveIntegerField(
+        db_column='AMOUNT',
+        default=0
+    )
+
+    class Meta:
+        db_table = 'travel_budget'
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['travel', 'category'],
+                name='unique_travel_budget'
+            )
+        ]            
 
 # ==============================================
 # 여행 날짜별 계획
@@ -261,7 +327,6 @@ class TravelDayPlan(models.Model):
 
     class Meta:
         db_table = 'travel_day_plan'
-        managed = False
         ordering = ['plan_date']
 
         constraints = [
@@ -293,7 +358,7 @@ class Category(models.Model):
     )
 
     class Meta:
-        db_table = 'CATEGORIES'
+        db_table = 'categories'
 
     def __str__(self):
         return self.c_name
@@ -325,7 +390,7 @@ class TravelCategory(models.Model):
     )
 
     class Meta:
-        db_table = 'TRAVEL_CATEGORY'
+        db_table = 'travel_category'
 
         constraints = [
             models.UniqueConstraint(
@@ -362,8 +427,10 @@ class Place(models.Model):
     )
 
     p_addr = models.CharField(
-        max_length=200,
-        db_column='P_ADDR'
+        max_length=255,
+        db_column='P_ADDR',
+        null=True,
+        blank=True
     )
 
     p_lat = models.DecimalField(
@@ -391,19 +458,128 @@ class Place(models.Model):
         blank=True
     )
 
-    p_image = models.CharField(
-        max_length=500,
+    p_image = models.TextField(
         db_column='P_IMAGE',
         null=True,
         blank=True
     )
 
+    p_kakao_id = models.CharField(
+        max_length=20,
+        db_column='P_KAKAO_ID',
+        null=True,
+        blank=True,
+        db_index=True
+    )
+
     class Meta:
-        db_table = 'PLACE'
+        db_table = 'place'
 
     def __str__(self):
         return self.p_name
 
+# ==============================================
+# 리뷰
+# ==============================================
+
+class Review(models.Model):
+
+    rv_id = models.AutoField(
+        primary_key=True,
+        db_column='RV_ID'
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        db_column='M_ID',
+        related_name='reviews'
+    )
+
+    place = models.ForeignKey(
+        Place,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='P_ID',
+        related_name='reviews'
+    )
+
+    kakao_id = models.CharField(
+        max_length=20,
+        db_column='KAKAO_ID',
+        db_index=True
+    )
+
+    place_name = models.CharField(
+        max_length=100,
+        db_column='PLACE_NAME'
+    )
+
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        db_column='RATING'
+    )
+
+    content = models.CharField(
+        max_length=100,
+        db_column='CONTENT'
+    )
+
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        db_column='TAGS'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_column='CREATED_AT'
+    )
+
+    class Meta:
+        db_table = 'review'
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['member', 'place'],
+                name='unique_review_member_place'
+            )
+        ]
+
+# ==============================================
+# 도움돼요
+# ==============================================
+
+class ReviewHelpful(models.Model):
+
+    rh_id = models.AutoField(
+        primary_key=True,
+        db_column='RH_ID'
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        db_column='M_ID'
+    )
+
+    review = models.ForeignKey(
+        Review,
+        on_delete=models.CASCADE,
+        related_name='helpfuls',
+        db_column='RV_ID'
+    )
+
+    class Meta:
+        db_table = 'review_helpful'
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['member', 'review'],
+                name='unique_review_helpful'
+            )
+        ]
 
 # ==============================================
 # 일정
@@ -428,8 +604,12 @@ class Schedule(models.Model):
     )
 
     class Meta:
-        db_table = 'SCHEDULE'
+        db_table = 'schedule'
         ordering = ['s_day']
+        constraints = [models.UniqueConstraint(
+            fields=['travel', 's_day'],
+            name='unique_schedule'
+            )]
 
     def __str__(self):
         return str(self.s_day)
@@ -496,15 +676,8 @@ class SchedulePlace(models.Model):
     )
 
     class Meta:
-        db_table = 'SCHEDULE_PLACES'
+        db_table = 'schedule_places'
         ordering = ['visit_order']
-
-        constraints = [
-            models.UniqueConstraint(
-                fields=['schedule', 'visit_order'],
-                name='unique_schedule_visit_order'
-            )
-        ]
 
     def __str__(self):
         return (
@@ -545,7 +718,7 @@ class Pay(models.Model):
     )
 
     pay_context = models.CharField(
-        max_length=100,
+        max_length=255,
         db_column='PAY_CONTENT',
         null=True,
         blank=True
@@ -553,8 +726,6 @@ class Pay(models.Model):
 
     pay_pay = models.IntegerField(
         db_column='PAY_PAY',
-        null=True,
-        blank=True
     )
 
     # 어느 날짜의 비용인지
@@ -562,8 +733,6 @@ class Pay(models.Model):
         Schedule,
         on_delete=models.CASCADE,
         db_column='S_ID',
-        null=True,
-        blank=True,
         related_name='payments'
     )
 
@@ -579,7 +748,7 @@ class Pay(models.Model):
     )
 
     class Meta:
-        db_table = 'PAY'
+        db_table = 'pay'
 
     def __str__(self):
 

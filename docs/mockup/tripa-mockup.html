@@ -116,6 +116,9 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
 .field label { font-size: 13px; font-weight: 600; }
 .field input, .field select { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 12px; width: 100%; }
 .req { color: var(--stop); }
+.opt { color: var(--muted); font-weight: 400; font-size: 12px; }
+.benefit { margin: 0; font-size: 13px; color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; align-items: flex-start; }
+.benefit .ic { margin-top: 2px; }
 .seg { display: flex; gap: 6px; flex-wrap: wrap; }
 .consent { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
 .consent input { margin-top: 3px; }
@@ -176,7 +179,21 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
 .badge.stay { background: var(--accent-soft); color: var(--accent); }
 .excluded { margin: 0 16px 14px; padding: 8px 12px; border-radius: 8px; background: var(--stop-soft); color: var(--stop); font-size: 13px; display: flex; gap: 8px; align-items: center; }
 .applybar { display: flex; gap: 8px; padding: 0 16px 16px; flex-wrap: wrap; }
-.mapbox { padding: 12px; }
+.mapbox { padding: 12px; position: relative; }
+.mappop { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); width: min(250px, 88%); background: var(--surface); border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 30, 60, .22); overflow: hidden; font-size: 12px; z-index: 2; }
+.mappop .photo { height: 92px; background: linear-gradient(135deg, #CFE1F7, #EEF3FF); display: grid; place-items: center; color: var(--accent); position: relative; }
+.mappop .photo .ic { width: 28px; height: 28px; }
+.mappop .photo small { position: absolute; right: 6px; bottom: 4px; font-size: 10px; color: var(--muted); background: rgba(255,255,255,.8); padding: 0 5px; border-radius: 4px; }
+.mappop .x { position: absolute; right: 6px; top: 6px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(255,255,255,.9); cursor: pointer; font-size: 14px; line-height: 1; }
+.mappop .in { padding: 8px 10px 10px; display: grid; gap: 3px; }
+.mappop .in b { font-size: 14px; }
+.mappop .row { display: flex; gap: 4px; align-items: center; color: var(--muted); }
+.mappop .row .ic { width: 13px; height: 13px; }
+.mappop .acts { display: flex; gap: 6px; margin-top: 4px; }
+.mappop .acts .btn { padding: 5px 10px; font-size: 12px; }
+.mappop .acts a { font-size: 11px; color: var(--accent); align-self: center; }
+.mappop .acts .btn:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+.mappop .acts .btn.done { background: var(--accent-soft); color: var(--accent); }
 .mapbox svg { width: 100%; height: auto; display: block; border-radius: 10px; }
 .legend { padding: 0 16px 16px; font-size: 13px; color: var(--muted); }
 
@@ -232,7 +249,11 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
 /* 장소 추천 카드 */
 .bubble.ai.wide { max-width: 96%; }
 .recs { display: grid; gap: 8px; margin-top: 10px; }
-.rec { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.rec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; cursor: pointer; }
+.rec:hover { border-color: var(--accent); }
+.rec.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.rec .pickhint { font-size: 11px; color: var(--accent); display: inline-flex; gap: 3px; align-items: center; }
+.rec .pickhint .ic { width: 12px; height: 12px; }
 .rec.off { opacity: 0.7; }
 .rec .thumb { width: 52px; height: 52px; border-radius: 10px; display: grid; place-items: center; background: var(--sun-soft); color: var(--cat-food); }
 .rec .thumb .ic { width: 24px; height: 24px; }
@@ -972,19 +993,20 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
         <div class="field"><label for="su-pw"><span data-i18n="suPw">비밀번호</span> <span class="req">*</span></label><input id="su-pw" type="password" value="password12"></div>
         <div class="field"><label for="su-nick"><span data-i18n="suNick">닉네임</span> <span class="req">*</span></label><input id="su-nick" type="text" value="지수"></div>
         <div class="field">
-          <label><span data-i18n="suGender">성별</span> <span class="req">*</span></label>
+          <label><span data-i18n="suGender">성별</span> <span class="opt" data-i18n="suOpt">(선택)</span></label>
           <div class="seg" id="su-gender">
             <button type="button" class="chip" aria-pressed="false" data-i18n="gF">여성</button>
             <button type="button" class="chip" aria-pressed="false" data-i18n="gM">남성</button>
           </div>
         </div>
         <div class="field">
-          <label for="su-age"><span data-i18n="suAge">나이대</span> <span class="req">*</span></label>
+          <label for="su-age"><span data-i18n="suAge">나이대</span> <span class="opt" data-i18n="suOpt">(선택)</span></label>
           <select id="su-age">
             <option value="" data-i18n="ageSel">선택하세요</option>
-            <option value="10" data-i18n="a10">10대</option><option value="20" selected data-i18n="a20">20대</option><option value="30" data-i18n="a30">30대</option><option value="40" data-i18n="a40">40대</option><option value="50" data-i18n="a50">50대</option><option value="60" data-i18n="age60">60대 이상</option>
+            <option value="10" data-i18n="a10">10대</option><option value="20" data-i18n="a20">20대</option><option value="30" data-i18n="a30">30대</option><option value="40" data-i18n="a40">40대</option><option value="50" data-i18n="a50">50대</option><option value="60" data-i18n="age60">60대 이상</option>
           </select>
         </div>
+        <p class="benefit wi"><svg class="ic"><use href="#i-ai"/></svg><span data-i18n="suBenefit"></span></p>
         <label class="consent" for="su-agree"><input id="su-agree" type="checkbox"><span data-i18n="suConsent"></span></label>
         <button class="btn" type="submit" data-i18n="suBtn">가입하기</button>
         <p class="msg" id="su-msg" hidden></p>
@@ -1040,9 +1062,9 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
       annotMain: "목업 메모: 예시 질문은 4초마다 바뀌고, 누르면 그 문장으로 채팅 화면이 열립니다(FR-16). 예산 성향(가성비/고급)은 10/28 회의에서 뺐고, 예산은 채팅이나 예산 화면에서 카테고리별로 정합니다.",
       suTitle: "회원가입", suEmail: "이메일(아이디)", suPw: "비밀번호", suNick: "닉네임", suGender: "성별", gF: "여성", gM: "남성", suAge: "나이대", ageSel: "선택하세요",
       a10: "10대", a20: "20대", a30: "30대", a40: "40대", a50: "50대", age60: "60대 이상",
-      suConsent: "[필수] 성별·나이대를 맞춤 장소 추천에 사용하는 데 동의합니다. 생년월일은 받지 않아요.", suBtn: "가입하기",
-      suErrGender: "성별을 선택해주세요.", suErrAge: "나이대를 선택해주세요.", suErrAgree: "맞춤 추천을 위해 수집 동의가 필요해요.", suOk: "가입이 완료됐어요. 이제 여행을 만들어보세요.",
-      annotSignup: "목업 메모: 성별을 고르지 않거나 동의하지 않으면 가입 버튼이 오류 안내를 띄웁니다(FR-01). 1차 기존 회원은 다음 로그인 때 이 두 항목만 따로 입력합니다.",
+      suOpt: "(선택)", suBenefit: "성별·나이대를 알려주시면 비슷한 여행자들이 좋아한 장소를 먼저 추천해 드려요. 입력하지 않아도 가입과 모든 기능을 쓸 수 있고, 내 정보에서 언제든 지울 수 있어요.", suConsent: "[선택] 성별·나이대를 맞춤 장소 추천에 사용하는 데 동의합니다. 생년월일은 받지 않아요.", suBtn: "가입하기",
+      suErrGender: "성별을 선택해주세요.", suErrAge: "나이대를 선택해주세요.", suErrAgree: "성별·나이대를 맞춤 추천에 쓰려면 아래 동의에 체크해 주세요. 원하지 않으면 두 항목을 비워 두세요.", suOkNoInfo: "가입이 완료됐어요. 성별·나이대는 내 정보에서 나중에 넣을 수 있어요.", suOk: "가입이 완료됐어요. 이제 여행을 만들어보세요.",
+      annotSignup: "목업 메모: 성별·나이대는 선택 항목입니다(10/30 회의, 필수로 받으면 개인정보 최소 수집 원칙에 걸릴 수 있음). 비워도 가입되고, 하나라도 넣으면 [선택] 동의에 체크해야 저장됩니다. 넣어 주면 맞춤 추천을 받을 수 있다는 안내로 입력을 유도합니다. 내 정보에서 나중에 넣거나 지울 수 있어야 합니다.",
       chatTitle: "대화", chatTag: "React 화면",
       m1: "부산 2박 3일 일정 짜줘", m2: "해운대 근처 게스트하우스를 숙소로 넣어 2박 3일 일정을 만들었어요. 오른쪽에서 날짜별 일정을 확인해보세요.", m2s: "추천 숙소 기준 · 날짜 없음",
       m3: "10월 28일 수요일에 2명이서 출발해", m4: "날짜를 반영했어요. 출발이 7일 안이라 날씨도 확인했는데, 29일에 비 예보가 있어 둘째 날은 실내 장소 위주로 바꿨어요. 수요일에 쉬는 갤러리 한 곳은 뺐어요.", m4s: "날씨 반영 · 휴무 1곳 제외",
@@ -1103,9 +1125,9 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
       annotMain: "Mockup note: sample questions rotate every 4 seconds and open the chat with that sentence (FR-16). Budget styles were dropped on Oct 28; budgets are set per category in chat or on the budget screen.",
       suTitle: "Sign up", suEmail: "Email (ID)", suPw: "Password", suNick: "Nickname", suGender: "Gender", gF: "Female", gM: "Male", suAge: "Age group", ageSel: "Select",
       a10: "Teens", a20: "20s", a30: "30s", a40: "40s", a50: "50s", age60: "60s+",
-      suConsent: "[Required] I agree that my gender and age group are used for personalized recommendations. We never ask for your birth date.", suBtn: "Create account",
-      suErrGender: "Select your gender.", suErrAge: "Select your age group.", suErrAgree: "Consent is required for personalized recommendations.", suOk: "Your account is ready. Start planning a trip.",
-      annotSignup: "Mockup note: without gender or consent, the button shows an error (FR-01). Existing members from version 1 fill in these two fields once at their next login.",
+      suOpt: "(optional)", suBenefit: "Share your gender and age group and we'll suggest places travelers like you enjoyed first. You can sign up and use everything without them, and delete them anytime in My info.", suConsent: "[Optional] I agree that my gender and age group are used for personalized recommendations. We never ask for your birth date.", suBtn: "Create account",
+      suErrGender: "Select your gender.", suErrAge: "Select your age group.", suErrAgree: "To use gender and age group for recommendations, check the consent below. Or leave both blank.", suOkNoInfo: "Your account is ready. You can add gender and age group later in My info.", suOk: "Your account is ready. Start planning a trip.",
+      annotSignup: "Mockup note: gender and age group are optional (Oct 30 meeting; requiring them can break data-minimization rules). Sign-up works without them; if either is given, the optional consent must be checked. A short benefit note encourages sharing. Users can add or delete them later in My info.",
       chatTitle: "Chat", chatTag: "React view",
       m1: "Plan 3 days in Busan", m2: "I planned a 3-day trip with a budget guesthouse near Haeundae as your stay. Check the day-by-day plan on the right.", m2s: "Suggested stay · no dates yet",
       m3: "We're 2 people leaving Wednesday, Oct 28", m4: "Dates added. You leave within 7 days, so I checked the weather: rain is expected on the 29th, so Day 2 is now mostly indoors. I removed one gallery that closes on Wednesdays.", m4s: "Weather applied · 1 closed place removed",
@@ -1413,7 +1435,7 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
 
   const VIEWS = ["main", "chat", "budget", "cat", "board", "mobile", "signup", "reset", "icons"];
   const SIDE_VIEWS = { chat: "chat", budget: "budget", cat: "cat", board: "board" };
-  const state = { style: "cheap", parking: false, lang: "ko", day: "d1", stayMine: false, arrive: false, exIndex: 0, budget: 500000, cost: {}, swap: false, keep: false };
+  const state = { selRec: null, style: "cheap", parking: false, lang: "ko", day: "d1", stayMine: false, arrive: false, exIndex: 0, budget: 500000, cost: {}, swap: false, keep: false };
   const fmt = n => state.lang === "ko" ? Math.round(n).toLocaleString("ko-KR") + "원" : "₩" + Math.round(n).toLocaleString("en-US");
   const amtOf = (day, i) => { const k = day + ":" + i; if (k in state.cost) return state.cost[k]; if (state.swap && day === "d2" && i === 3) return 0; return COST[day][i][0]; };
   const srcOf = (day, i) => (day + ":" + i) in state.cost ? "user" : "ai";
@@ -1446,7 +1468,7 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
     recDb: "TRIPA 추천", recKakao: "Kakao 검색 결과",
     recAdd: "2일차에 넣기", crowdBusy: "{t} 사람 많을 수 있어요", crowdMid: "{t} 조금 붐벼요", crowdCalm: "{t} 한산해요", crowdQuiet: "한산한 때 {q}", recFilter: "조건", recParkChip: "주차 편한 곳 우선", recParkGood: "무료 주차 {n}대 · 주차 편함", recParkHard: "전용 주차 없음 · 공영주차장 도보 {n}분", recParkNone: "주차 정보 없음", aiPark: "주차하기 편한 곳을 앞으로 올려 다시 찾았어요. 주차장이 넓은 곳부터 보여드려요.", recAdded: "2일차 {t}에 넣었어요",
     aiAdded: "2일차 {t}에 {n} 일정을 넣고, 저녁까지의 이동 시간과 예산을 다시 계산했어요.",
-    annotChat: "목업 메모: 입력창 아래 노란 안내는 비어 있는 정보 중 하나만 보여줍니다(숙소 → 날짜 → 도착 시간). 채팅으로 '카페 추천해줘'처럼 요청하면 AI 답 아래에 장소 카드가 나오고, [2일차에 넣기]를 누르면 일정·지도·예산이 함께 다시 계산됩니다. 그날 휴무인 곳은 버튼이 막혀 있습니다. '주차 편한 곳 우선'을 켜거나 '주차하기 편한 곳'이라고 말하면 주차장이 넓은 곳이 위로 올라옵니다. 핫플레이스에는 붐비는 시간과 한산한 때가 함께 표시됩니다(날짜별 붐빔은 한국관광공사 집중률 예측, 시간대는 장소별 방문 경향). 금액과 장소는 모두 예시입니다.",
+    annotChat: "목업 메모: 입력창 아래 노란 안내는 비어 있는 정보 중 하나만 보여줍니다(숙소 → 날짜 → 도착 시간). 채팅으로 '카페 추천해줘'처럼 요청하면 AI 답 아래에 장소 카드가 나오고, [2일차에 넣기]를 누르면 일정·지도·예산이 함께 다시 계산됩니다. 그날 휴무인 곳은 버튼이 막혀 있습니다. 카드에는 사진을 넣지 않고, 카드를 누르면 오른쪽 지도가 그 장소를 가운데로 옮기고 사진·영업시간·주소·게시판 평점이 담긴 카드 팝업을 띄웁니다(이전 장소 검색 화면을 대신함). 사진은 고른 장소만 불러와 검색 횟수를 아낍니다. '주차 편한 곳 우선'을 켜거나 '주차하기 편한 곳'이라고 말하면 주차장이 넓은 곳이 위로 올라옵니다. 핫플레이스에는 붐비는 시간과 한산한 때가 함께 표시됩니다(날짜별 붐빔은 한국관광공사 집중률 예측, 시간대는 장소별 방문 경향). 금액과 장소는 모두 예시입니다.",
     aiRec: "말씀하신 조건으로 찾아봤어요. 넣고 싶은 곳의 버튼을 누르면 일정에 바로 들어가요."
   });
   Object.assign(T.en, {
@@ -1458,14 +1480,14 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
     recDb: "TRIPA pick", recKakao: "Kakao search result",
     recAdd: "Add to Day 2", crowdBusy: "Likely busy {t}", crowdMid: "A bit busy {t}", crowdCalm: "Quiet {t}", crowdQuiet: "Quieter {q}", recFilter: "Filter", recParkChip: "Easy parking first", recParkGood: "Free parking, {n} spaces · easy", recParkHard: "No own lot · public lot {n} min walk", recParkNone: "No parking info", aiPark: "Re-searched with easy parking first. Places with big lots are on top.", recAdded: "Added to Day 2 at {t}",
     aiAdded: "Added {n} to Day 2 at {t} and recalculated travel time and budget up to dinner.",
-    annotChat: "Mockup note: the yellow hint shows one missing item at a time (stay → dates → arrival). Ask in chat, e.g. 'recommend a cafe', and place cards appear under the reply; tapping [Add to Day 2] recalculates the plan, map and budget. Places closed that day can't be added. Turn on 'Easy parking first' or ask for easy parking to move places with big lots to the top. Hot spots show when they get busy and when it's quieter (daily crowding from the tourism agency's forecast, hours from each place's visit pattern). All amounts and places are examples.",
+    annotChat: "Mockup note: the yellow hint shows one missing item at a time (stay → dates → arrival). Ask in chat, e.g. 'recommend a cafe', and place cards appear under the reply; tapping [Add to Day 2] recalculates the plan, map and budget. Places closed that day can't be added. Cards carry no photos; tapping one centers the map on it and opens a popup card with photo, hours, address and board rating (replacing the old place search page). Photos load only for the chosen place to save API calls. Turn on 'Easy parking first' or ask for easy parking to move places with big lots to the top. Hot spots show when they get busy and when it's quieter (daily crowding from the tourism agency's forecast, hours from each place's visit pattern). All amounts and places are examples.",
     aiRec: "Here's what I found for that. Tap a place's button to drop it straight into your plan."
   });
   const REC = [
-    { id: "r1", ko: "○○ 오션뷰 카페", en: "○○ Ocean View Cafe", amt: 12000, walk: 8, state: "open", src: "db", pref: true, park: ["hard", 6] },
-    { id: "r4", ko: "◇◇ 드라이브인 카페", en: "◇◇ Drive-in Cafe", amt: 13000, walk: 14, state: "open", src: "db", pref: false, park: ["good", 40], parkOnly: true },
-    { id: "r2", ko: "△△ 북카페", en: "△△ Book Cafe", amt: 10000, walk: 5, state: "closed", src: "db", pref: false, park: ["good", 12] },
-    { id: "r3", ko: "□□ 로스터리", en: "□□ Roastery", amt: null, walk: 11, state: "unknown", src: "kakao", pref: false, park: ["none", 0] }
+    { id: "r1", ko: "○○ 오션뷰 카페", en: "○○ Ocean View Cafe", amt: 12000, walk: 8, state: "open", src: "db", pref: true, park: ["hard", 6], xy: [270, 70], addr: "부산 해운대구 ○○로 12", hours: "10:00–22:00", rate: "4.5" },
+    { id: "r4", ko: "◇◇ 드라이브인 카페", en: "◇◇ Drive-in Cafe", amt: 13000, walk: 14, state: "open", src: "db", pref: false, park: ["good", 40], parkOnly: true, xy: [292, 110], addr: "부산 해운대구 ◇◇길 7", hours: "09:00–21:00", rate: "4.2" },
+    { id: "r2", ko: "△△ 북카페", en: "△△ Book Cafe", amt: 10000, walk: 5, state: "closed", src: "db", pref: false, park: ["good", 12], xy: [240, 92], addr: "부산 해운대구 △△로 30", hours: "11:00–20:00 · 목 휴무", rate: "4.4" },
+    { id: "r3", ko: "□□ 로스터리", en: "□□ Roastery", amt: null, walk: 11, state: "unknown", src: "kakao", pref: false, park: ["none", 0], xy: [214, 58], addr: "부산 해운대구 □□로 5", hours: "", rate: "" }
   ];
   const CROWD = {
     "흰여울문화마을": { lv: "busy", ko: ["오후 2–4시", "오전 9–11시"], en: ["2–4 pm", "9–11 am"] },
@@ -1495,8 +1517,8 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
         const btn = added[r.id]
           ? `<button type="button" class="btn done" disabled>${icon("i-plan")}<span>${esc(t("recAdded").replace("{t}", added[r.id]))}</span></button>`
           : `<button type="button" class="btn" data-rec="${r.id}" ${r.state === "closed" ? "disabled" : ""}>${icon("i-plan")}<span>${esc(t("recAdd"))}</span></button>`;
-        return `<div class="rec${r.state === "closed" ? " off" : ""}${state.parking && r.park[0] === "good" ? " hi" : ""}"><div class="thumb">${icon("i-food")}</div><div>
-          <div class="nm">${esc(recName(r))}${r.pref ? `<span class="pill ok">${esc(t("recPref"))}</span>` : ""}</div>
+        return `<div class="rec${r.state === "closed" ? " off" : ""}${state.parking && r.park[0] === "good" ? " hi" : ""}${state.selRec === r.id ? " sel" : ""}" data-selrec="${r.id}"><div>
+          <div class="nm">${esc(recName(r))}${r.pref ? `<span class="pill ok">${esc(t("recPref"))}</span>` : ""}<span class="pickhint">${icon("i-map")}${esc(t(state.selRec === r.id ? "recOnMap" : "recPick"))}</span></div>
           <div class="sub"><span>${icon("i-indoor")}${esc(t("recIndoor"))}</span><span>${icon("i-budget")}${esc(r.amt ? fmt(r.amt) : t("recNoPrice"))}</span><span>${icon("i-route")}${esc(t("recWalk").replace("{n}", r.walk))}</span><span>${esc(r.src === "db" ? t("recDb") : t("recKakao"))}</span></div>
           <div class="state ${st[0]}">${icon(st[1])}<span>${esc(t(st[2]))}</span></div>
           <div class="park ${pk[0]}">${icon("i-parking")}<span>${esc(pk[1])}</span></div>
@@ -1655,6 +1677,30 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
     $("#tmap-list").innerHTML = T[state.lang].names.d2.map(([tm, nm], i) => `<li><b>${i + 1}</b><time>${tm}</time><span>${esc(nm)}</span></li>`).join("");
   }
   document.addEventListener("click", e => { const b = e.target.closest("[data-tview]"); if (b) { tView = b.dataset.tview; renderTabletMap(); } });
+
+  // 안건7(2026-10-30): place_search 대신, 채팅 추천에서 장소를 고르면 지도 가운데 + 사진 카드 팝업
+  Object.assign(T.ko, { recPick: "지도에서 보기", recOnMap: "지도에 표시 중", mapCentered: "{n} · 지도 가운데", popPhoto: "사진은 고른 장소만 불러와요", popHours: "영업시간 정보 없음", popRate: "게시판 평점 {r}", popNoRate: "리뷰 아직 없음", popKakao: "카카오맵에서 보기", popClose: "닫기" });
+  Object.assign(T.en, { recPick: "Show on map", recOnMap: "Shown on map", mapCentered: "{n} · centered", popPhoto: "Photos load only for the chosen place", popHours: "No hours info", popRate: "Board rating {r}", popNoRate: "No reviews yet", popKakao: "Open in Kakao Map", popClose: "Close" });
+  function popHTML(r) {
+    const st = r.state === "open" ? ["i-check", "recOpen"] : r.state === "closed" ? ["i-closed", "recClosed"] : ["i-info", "recUnknown"];
+    const add = added[r.id]
+      ? `<button type="button" class="btn done" disabled>${esc(t("recAdded").replace("{t}", added[r.id]))}</button>`
+      : `<button type="button" class="btn" data-rec="${r.id}" ${r.state === "closed" ? "disabled" : ""}>${esc(t("recAdd"))}</button>`;
+    return `<div class="mappop" role="dialog" aria-label="${esc(recName(r))}">
+      <div class="photo">${icon("i-indoor")}<small>${esc(t("popPhoto"))}</small><button type="button" class="x" data-popclose aria-label="${esc(t("popClose"))}">×</button></div>
+      <div class="in"><b>${esc(recName(r))}</b>
+        <span class="row">${icon(st[0])}${esc(t(st[1]))}</span>
+        <span class="row">${icon("i-plan")}${esc(r.hours || t("popHours"))}</span>
+        <span class="row">${icon("i-map")}${esc(r.addr)}</span>
+        <span class="row">${icon("i-star")}${esc(r.rate ? t("popRate").replace("{r}", r.rate) : t("popNoRate"))}</span>
+        <div class="acts">${add}<a href="#chat" onclick="return false">${esc(t("popKakao"))}</a></div></div></div>`;
+  }
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-popclose]")) { state.selRec = null; renderRecs(); renderMap(); return; }
+    if (e.target.closest("button, a")) return;
+    const c = e.target.closest("[data-selrec]");
+    if (c) { state.selRec = c.dataset.selrec; renderRecs(); renderMap(); }
+  });
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const t = k => T[state.lang][k] ?? k;
@@ -1707,7 +1753,9 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
   $$("#su-gender .chip").forEach((b, i) => b.addEventListener("click", () => { gender = i; $$("#su-gender .chip").forEach((x, j) => x.setAttribute("aria-pressed", i === j)); }));
   $("#signup-form").addEventListener("submit", e => {
     e.preventDefault(); const m = $("#su-msg"); m.hidden = false;
-    m.textContent = gender === null ? t("suErrGender") : !$("#su-age").value ? t("suErrAge") : !$("#su-agree").checked ? t("suErrAgree") : t("suOk");
+    // 성별·나이대는 선택. 하나라도 넣었으면 동의가 있어야 저장, 둘 다 비우면 동의 없이 가입
+    const gave = gender !== null || !!$("#su-age").value;
+    m.textContent = gave && !$("#su-agree").checked ? t("suErrAgree") : gave ? t("suOk") : t("suOkNoInfo");
   });
   $("#reset-form").addEventListener("submit", e => { e.preventDefault(); $("#rs-msg").hidden = false; });
 
@@ -1878,6 +1926,18 @@ h1, h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink-st
     const pts = { d1: [[40,150],[80,118],[120,128],[150,170],[230,96],[200,70]], d2: [[230,96],[250,60],[262,82],[244,104],[226,80]], d3: [[230,96],[290,40],[300,24],[120,128]] }[state.day];
     const path = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
     const dots = pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="7" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/><text x="${p[0]}" y="${p[1] + 3.5}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono, monospace" fill="var(--ink)">${i + 1}</text>`).join("");
+    const sel = REC.find(r => r.id === state.selRec);
+    if (sel) {
+      // 고른 장소를 지도 가운데(160,150)로 옮긴 모습: 일정 핀은 같이 밀려나고, 고른 장소 핀이 크게
+      const dx = 160 - sel.xy[0], dy = 150 - sel.xy[1];
+      const moved = pts.map(p => [p[0] + dx, p[1] + dy]);
+      const mpath = moved.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
+      const mdots = moved.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="6" fill="var(--surface)" stroke="var(--accent)" stroke-width="2" opacity=".55"/>`).join("");
+      $("#mapbox").innerHTML = `<svg viewBox="0 0 320 210" role="img" aria-label="selected place"><rect width="320" height="210" fill="var(--surface-2)"/><path d="M0 ${180 + dy} C60 ${170 + dy} 90 ${200 + dy} 140 ${190 + dy} S240 ${160 + dy} 320 ${175 + dy} L320 260 L0 260 Z" fill="var(--rain-soft)"/><path d="${mpath}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="5 4" opacity=".45"/>${mdots}<path d="M160 168 C150 152 146 146 146 139 a14 14 0 0 1 28 0 c0 7 -4 13 -14 29z" fill="var(--stop)" stroke="#fff" stroke-width="2"/><circle cx="160" cy="139" r="5" fill="#fff"/></svg>${popHTML(sel)}`;
+      $("#legend").innerHTML = icon("i-map") + "<span></span>";
+      $("#legend").lastChild.textContent = t("mapCentered").replace("{n}", recName(sel));
+      return;
+    }
     $("#mapbox").innerHTML = `<svg viewBox="0 0 320 210" role="img" aria-label="route sketch"><rect width="320" height="210" fill="var(--surface-2)"/><path d="M0 180 C60 170 90 200 140 190 S240 160 320 175 L320 210 L0 210 Z" fill="var(--rain-soft)"/><path d="M0 60 C80 40 120 70 180 50 S280 20 320 30" fill="none" stroke="var(--line)" stroke-width="6"/><path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="5 4"/>${dots}</svg>`;
     $("#legend").innerHTML = icon("i-route") + "<span></span>";
     $("#legend").lastChild.textContent = `${pts.length}${state.lang === "ko" ? "" : " "}${t("lgStops")} · ${t("lgTransit")}`;

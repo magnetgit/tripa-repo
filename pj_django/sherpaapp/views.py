@@ -2120,13 +2120,8 @@ def login_ok(request):
                 'login_ok_user'
             ] = member.email
 
-
-            return HttpResponse("""
-                <script>
-                    alert('로그인되었습니다.');
-                    location.href = '../';
-                </script>
-            """)
+            # 팝업 없이 바로 홈으로
+            return redirect('index')
 
         elif not member.pwd.startswith('pbkdf2_') and member.pwd == pwd:
             member.pwd = make_password(pwd)
@@ -2134,13 +2129,9 @@ def login_ok(request):
             request.session[
                 'login_ok_user'
             ] = member.email
-    
-            return HttpResponse("""
-                <script>
-                    alert('로그인되었습니다.');
-                    location.href = '../';
-                </script>
-            """)
+
+            # 팝업 없이 바로 홈으로
+            return redirect('index')
         
         else:
 
@@ -2211,13 +2202,8 @@ def logout(request):
 
     request.session.flush()
 
-
-    return HttpResponse("""
-        <script>
-            alert('로그아웃되었습니다.');
-            location.href = '../';
-        </script>
-    """)
+    # 팝업 없이 바로 홈으로
+    return redirect('index')
 
 
 # ==============================================

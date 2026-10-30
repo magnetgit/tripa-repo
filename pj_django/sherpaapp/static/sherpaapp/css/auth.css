@@ -1,0 +1,941 @@
+/* TRIPA 로그인·회원가입·ID/PW 찾기 공용 디자인 */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Malgun Gothic", Arial, sans-serif;
+}
+
+/* 홈 화면과 같은 연한 하늘색 바탕 */
+body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: linear-gradient(180deg, #d6e6f4 0%, #e6f0f9 45%, #f5f7fb 100%);
+    color: #1f2d4a;
+}
+
+.tp-icon {
+    width: 1.15em;
+    height: 1.15em;
+    flex-shrink: 0;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 40px 36px 32px;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow: 0 18px 40px rgba(31, 45, 74, 0.10), 0 2px 6px rgba(31, 45, 74, 0.05);
+}
+
+/* 로고 */
+.auth-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 26px;
+    font-weight: 800;
+    color: #2d6cdf;
+    text-decoration: none;
+}
+
+.auth-logo .tp-icon {
+    width: 30px;
+    height: 30px;
+}
+
+.auth-head {
+    margin-bottom: 28px;
+    text-align: center;
+}
+
+.auth-head h1 {
+    margin-top: 18px;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.auth-head p {
+    margin-top: 6px;
+    font-size: 14px;
+    color: #6b7891;
+}
+
+/* 입력칸 */
+.field {
+    margin-bottom: 16px;
+}
+
+.field label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.field-box {
+    position: relative;
+}
+
+.field-box > svg {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    width: 18px;
+    height: 18px;
+    transform: translateY(-50%);
+    color: #9aa6b8;
+    pointer-events: none;
+}
+
+.field input {
+    width: 100%;
+    padding: 13px 14px 13px 42px;
+    font-size: 15px;
+    border: 1px solid #dfe5ee;
+    border-radius: 10px;
+    background: #f8fafd;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+.field input:focus {
+    border-color: #2d6cdf;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.15);
+}
+
+.field input[type="password"],
+.field input.is-shown {
+    padding-right: 46px;
+}
+
+/* 비밀번호 보기 버튼 */
+.pw-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #9aa6b8;
+    cursor: pointer;
+    transform: translateY(-50%);
+}
+
+.pw-toggle:hover,
+.pw-toggle:focus-visible {
+    background: #eef3fb;
+    color: #2d6cdf;
+    outline: none;
+}
+
+.pw-toggle svg {
+    width: 18px;
+    height: 18px;
+}
+
+.pw-toggle .eye-off { display: none; }
+.pw-toggle.is-on .eye-on { display: none; }
+.pw-toggle.is-on .eye-off { display: block; }
+
+/* 입력 안내 문구 */
+.form-error {
+    min-height: 20px;
+    margin: -4px 0 8px;
+    font-size: 13px;
+    color: #e5484d;
+}
+
+.btn-submit {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    border: 0;
+    border-radius: 10px;
+    background: #2d6cdf;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-submit:hover { background: #2459bd; }
+.btn-submit:active { transform: translateY(1px); }
+
+.btn-submit:focus-visible {
+    outline: 3px solid rgba(45, 108, 223, 0.35);
+    outline-offset: 2px;
+}
+
+/* 아래 링크 */
+.auth-links {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #edf1f6;
+    display: grid;
+    gap: 10px;
+    text-align: center;
+    font-size: 14px;
+    color: #6b7891;
+}
+
+.auth-links a {
+    color: #2d6cdf;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+}
+
+.auth-home {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.auth-links .auth-home a {
+    color: #6b7891;
+    font-weight: 500;
+}
+
+@media (max-width: 420px) {
+    .auth-card { padding: 32px 22px 26px; }
+}
+
+/* ===== 회원가입·ID/PW 찾기에서 추가로 쓰는 것 ===== */
+
+.auth-card--wide { max-width: 440px; }
+
+/* 아이콘 없는 입력칸 */
+.field input.no-icon { padding-left: 14px; }
+
+/* 입력칸 + 옆 버튼 (이메일 중복확인) */
+.field-row {
+    display: flex;
+    gap: 8px;
+}
+
+.field-row .field-box { flex: 1; }
+
+.btn-side {
+    flex-shrink: 0;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #2d6cdf;
+    border: 1px solid #c9d8f3;
+    border-radius: 10px;
+    background: #eef4ff;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-side:hover,
+.btn-side:focus-visible {
+    background: #2d6cdf;
+    color: #ffffff;
+    outline: none;
+}
+
+/* 칸 아래 결과 문구 (중복확인·비밀번호 일치) */
+.field-msg {
+    display: block;
+    min-height: 18px;
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.field-msg.is-ok  { color: #1f9d55; }
+.field-msg.is-bad { color: #e5484d; }
+
+.field-stack {
+    display: grid;
+    gap: 8px;
+}
+
+/* 탭 (아이디 찾기 / 비밀번호 찾기) */
+.auth-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-bottom: 22px;
+    padding: 4px;
+    border-radius: 12px;
+    background: #f0f3f8;
+}
+
+.auth-tab {
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #6b7891;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.auth-tab[aria-selected="true"] {
+    color: #2d6cdf;
+    background: #ffffff;
+    box-shadow: 0 2px 6px rgba(31, 45, 74, 0.08);
+}
+
+.auth-tab:focus-visible {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 1px;
+}
+
+.auth-panel[hidden] { display: none; }
+
+.auth-panel__desc {
+    margin: -6px 0 16px;
+    font-size: 13px;
+    color: #6b7891;
+    line-height: 1.5;
+}
+
+
+/* =========================================
+   로그인 배경: 해 뜨는 하늘 위 구름바다 (body.auth-page--login 에서만)
+========================================= */
+
+.auth-page--login {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg,
+        #4d78c4 0%,
+        #7c9fdb 30%,
+        #b7c3e6 52%,
+        #f2c6b6 72%,
+        #ffdcbc 86%,
+        #fff1df 100%);
+}
+
+.auth-page--login .auth-card {
+    position: relative;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 24px 60px rgba(40, 60, 110, 0.28), 0 2px 8px rgba(40, 60, 110, 0.10);
+    -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+}
+
+.auth-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* 해: 구름 바로 위에서 번지는 빛 */
+.auth-bg__sun {
+    position: absolute;
+    left: 18%;
+    bottom: 22%;
+    width: 520px;
+    height: 520px;
+    margin-left: -260px;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+        rgba(255, 250, 235, 1) 0 7%,
+        rgba(255, 226, 170, 0.75) 14%,
+        rgba(255, 196, 150, 0.35) 34%,
+        rgba(255, 190, 150, 0) 68%);
+    animation: auth-glow 8s ease-in-out infinite alternate;
+}
+
+@keyframes auth-glow {
+    from { opacity: 0.85; transform: scale(0.96); }
+    to   { opacity: 1;    transform: scale(1.04); }
+}
+
+/* 구름바다: 같은 무늬가 두 번 이어진 그림을 왼쪽으로 반만큼 밀어 끊김 없이 반복 */
+.auth-bg__clouds {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 200%;
+    animation: auth-clouds 120s linear infinite;
+}
+
+.auth-bg__clouds--back {
+    height: 46%;
+    fill: #f6dfe0;
+    opacity: 0.75;
+    filter: blur(1.5px);
+    animation-duration: 160s;
+}
+
+.auth-bg__clouds--mid {
+    height: 36%;
+    fill: #fff1ea;
+    opacity: 0.9;
+    filter: blur(1px);
+    animation-duration: 110s;
+}
+
+.auth-bg__clouds--front {
+    height: 24%;
+    fill: #ffffff;
+    filter: drop-shadow(0 -6px 12px rgba(255, 255, 255, 0.6));
+    animation-duration: 70s;
+}
+
+@keyframes auth-clouds {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+/* 비행기: 하늘 위쪽을 가로질러 감, 뒤에 하얀 비행운 */
+.auth-bg__plane {
+    position: absolute;
+    top: 16%;
+    left: 0;
+    display: flex;
+    align-items: center;
+    animation: auth-fly 34s linear infinite;
+    animation-delay: -12s;
+}
+
+.auth-bg__plane svg {
+    width: 70px;
+    height: 28px;
+    fill: #ffffff;
+    filter: drop-shadow(0 3px 4px rgba(40, 60, 110, 0.25));
+}
+
+.auth-bg__trail {
+    width: 260px;
+    height: 3px;
+    margin-right: -6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.85));
+}
+
+@keyframes auth-fly {
+    from { transform: translate(-360px, 30px) rotate(-4deg); }
+    to   { transform: translate(calc(100vw + 40px), -40px) rotate(-4deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .auth-bg__sun,
+    .auth-bg__clouds,
+    .auth-bg__plane {
+        animation: none;
+    }
+
+    .auth-bg__plane { transform: translateX(60vw); }
+}
+
+@media (max-width: 520px) {
+    .auth-bg__sun { width: 340px; height: 340px; margin-left: -170px; bottom: 26%; }
+    .auth-bg__clouds--back  { height: 38%; }
+    .auth-bg__clouds--mid   { height: 28%; }
+    .auth-bg__clouds--front { height: 18%; }
+}
+
+
+/* =========================================
+   회원가입: 책상 위 탑승권에 손으로 적는 느낌 (body.auth-page--join 에서만)
+========================================= */
+
+/* 탑승권 카드에서 쓰는 볼펜 잉크색·손글씨 글꼴 */
+.auth-ticket {
+    --ink: #1f4fae;
+    --hand: "Nanum Pen Script", "Malgun Gothic", cursive;
+}
+
+.auth-page--join {
+    position: relative;
+    overflow-x: hidden;
+    background:
+        radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.55), transparent 45%),
+        radial-gradient(circle at 85% 90%, rgba(196, 160, 110, 0.18), transparent 50%),
+        repeating-linear-gradient(0deg, rgba(120, 90, 50, 0.025) 0 2px, transparent 2px 5px),
+        #efe6d6;
+}
+
+/* ----- 배경 소품 ----- */
+.join-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.join-bg__ticket {
+    position: absolute;
+    width: 300px;
+    border-radius: 14px;
+    background: #fffdf8;
+    box-shadow: 0 10px 24px rgba(90, 70, 40, 0.16), 0 1px 3px rgba(90, 70, 40, 0.12);
+    overflow: hidden;
+}
+
+.join-bg__ticket--1 { top: 9%;  left: 6%;  transform: rotate(-11deg); }
+.join-bg__ticket--2 { bottom: 8%; right: 6%; transform: rotate(8deg); }
+
+.join-bg__band {
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #ffffff;
+    background: #2d6cdf;
+}
+
+.join-bg__ticket--2 .join-bg__band { background: #e0754a; }
+
+.join-bg__ticket dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+    margin: 0;
+    padding: 14px 16px 18px;
+}
+
+.join-bg__ticket dt {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #a9a196;
+}
+
+.join-bg__ticket dd {
+    margin: 0;
+    padding-bottom: 2px;
+    font-family: var(--hand);
+    font-size: 26px;
+    line-height: 1.1;
+    color: var(--ink);
+    border-bottom: 1.5px dashed #d8d0c2;
+}
+
+/* 고무 도장 */
+.join-bg__stamp {
+    position: absolute;
+    left: 9%;
+    bottom: 12%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 150px;
+    height: 150px;
+    border: 4px double rgba(214, 69, 69, 0.55);
+    border-radius: 50%;
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: 2px;
+    text-align: center;
+    color: rgba(214, 69, 69, 0.55);
+    transform: rotate(-16deg);
+}
+
+.join-bg__stamp small {
+    margin-top: 6px;
+    font-size: 11px;
+    letter-spacing: 4px;
+}
+
+/* 손글씨 메모 */
+.join-bg__note {
+    position: absolute;
+    margin: 0;
+    font-family: var(--hand);
+    font-size: 30px;
+    color: rgba(31, 79, 174, 0.75);
+}
+
+.join-bg__note--1 { top: 12%; right: 12%; transform: rotate(6deg); }
+.join-bg__note--2 { top: 58%; left: 7%;  transform: rotate(-5deg); color: rgba(224, 117, 74, 0.8); }
+
+/* 볼펜 */
+.join-bg__pen {
+    position: absolute;
+    top: 30%;
+    right: 9%;
+    width: 220px;
+    height: 37px;
+    transform: rotate(-32deg);
+    filter: drop-shadow(0 6px 6px rgba(90, 70, 40, 0.2));
+}
+
+/* ----- 탑승권 모양 카드 (로그인·회원가입 공용: body.auth-ticket) ----- */
+.auth-ticket .auth-card {
+    position: relative;
+    z-index: 1;
+    padding-top: 0;
+    overflow: hidden;
+    background: #fffdf8;
+
+    /* 아래 점선 높이(--cut)에 양옆 반원 홈 */
+    -webkit-mask:
+        radial-gradient(circle at 0 var(--cut, 88%), #0000 11px, #000 11.5px) 0 0 / 51% 100% no-repeat,
+        radial-gradient(circle at 100% var(--cut, 88%), #0000 11px, #000 11.5px) 100% 0 / 51% 100% no-repeat;
+            mask:
+        radial-gradient(circle at 0 var(--cut, 88%), #0000 11px, #000 11.5px) 0 0 / 51% 100% no-repeat,
+        radial-gradient(circle at 100% var(--cut, 88%), #0000 11px, #000 11.5px) 100% 0 / 51% 100% no-repeat;
+}
+
+.join-strip {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 -36px 26px;
+    padding: 12px 22px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    color: #ffffff;
+    background: linear-gradient(90deg, #2d6cdf, #4a86ec);
+}
+
+.join-strip span:last-child { opacity: 0.8; }
+
+.auth-ticket .auth-head { margin-bottom: 22px; }
+
+/* 칸 이름: 탑승권 항목처럼 작고 또렷하게 */
+.auth-ticket .field label {
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #8a8478;
+}
+
+/* 입력칸: 상자 대신 종이 위 점선 밑줄 + 손글씨 */
+.auth-ticket .field-box > svg { display: none; }
+
+.auth-ticket .field input {
+    padding: 4px 2px 3px;
+    font-family: var(--hand);
+    font-size: 27px;
+    line-height: 1.2;
+    color: var(--ink);
+    caret-color: var(--ink);
+    border: 0;
+    border-bottom: 2px dashed #d3cabb;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.auth-ticket .field input::placeholder {
+    color: #c2baad;
+}
+
+.auth-ticket .field input:focus {
+    border-bottom: 2px solid var(--ink);
+    background: transparent;
+    box-shadow: none;
+}
+
+/* 비밀번호 점(●)은 손글씨 폰트에서 작게 보여서 기본 글꼴로 */
+.auth-ticket .field input[type="password"] {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Malgun Gothic", Arial, sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+    padding-top: 8px;
+    padding-bottom: 6px;
+}
+
+.auth-ticket .field input[type="password"]::placeholder {
+    font-family: var(--hand);
+    font-size: 27px;
+    letter-spacing: 0;
+}
+
+.auth-ticket .field input[type="password"],
+.auth-ticket .field input.is-shown {
+    padding-right: 40px;
+}
+
+.auth-ticket .pw-toggle { right: 0; }
+
+.auth-ticket .field-stack { gap: 6px; }
+
+.auth-ticket .btn-side {
+    align-self: flex-end;
+    padding: 7px 14px;
+    border-style: dashed;
+    border-radius: 999px;
+    background: transparent;
+}
+
+.auth-ticket .field-msg {
+    font-family: var(--hand);
+    font-size: 21px;
+    font-weight: 400;
+}
+
+/* 아래 링크 영역 = 떼어내는 부분 (점선) */
+.auth-ticket .auth-links {
+    border-top: 2px dashed #ddd4c4;
+}
+
+/* 회원가입 책상 위에서는 갈색 그림자 */
+.auth-page--join .auth-card {
+    box-shadow: 0 22px 50px rgba(90, 70, 40, 0.22), 0 2px 6px rgba(90, 70, 40, 0.10);
+}
+
+/* 로그인 하늘 위에서는 반투명 대신 종이색, 그림자는 하늘색 계열 그대로 */
+.auth-page--login.auth-ticket .auth-card {
+    background: #fffdf8;
+    -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+}
+
+@media (max-width: 900px) {
+    .join-bg__ticket--1 { left: -60px; }
+    .join-bg__ticket--2 { right: -60px; }
+    .join-bg__note,
+    .join-bg__pen { display: none; }
+}
+
+@media (max-width: 520px) {
+    .join-bg__ticket,
+    .join-bg__stamp { opacity: 0.5; }
+    .auth-ticket .join-strip { margin: 0 -22px 22px; padding: 11px 16px; font-size: 10px; }
+}
+
+
+/* =========================================
+   ID/PW 찾기: 공항 수하물 찾는 곳 (body.auth-page--find 에서만)
+========================================= */
+
+.auth-page--find {
+    --belt-h: 74px;
+
+    position: relative;
+    overflow-x: hidden;
+    padding-bottom: calc(var(--belt-h) + 40px);
+    /* 터미널 벽 → 바닥 */
+    background:
+        linear-gradient(180deg, #e7ebf1 0%, #eef1f5 58%, #dfe4ea 58.2%, #e8ecf1 100%);
+}
+
+.find-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* 큰 창: 하늘 + 창틀 */
+.find-window {
+    position: absolute;
+    top: 6%;
+    left: 4%;
+    right: 4%;
+    height: 44%;
+    border: 10px solid #cfd6df;
+    border-radius: 6px;
+    background:
+        linear-gradient(90deg, transparent calc(33.33% - 4px), #cfd6df calc(33.33% - 4px) calc(33.33% + 4px), transparent calc(33.33% + 4px) calc(66.66% - 4px), #cfd6df calc(66.66% - 4px) calc(66.66% + 4px), transparent calc(66.66% + 4px)),
+        linear-gradient(180deg, #8fb8e8 0%, #bcd6f2 60%, #e3eefa 100%);
+    box-shadow: inset 0 0 40px rgba(255, 255, 255, 0.5), 0 2px 0 #b9c2cd;
+    overflow: hidden;
+}
+
+/* 창 반사광 */
+.find-window::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.35) 38%, transparent 46%);
+}
+
+.find-window__plane {
+    position: absolute;
+    top: 30%;
+    left: 0;
+    animation: find-plane 30s linear infinite;
+    animation-delay: -9s;
+}
+
+.find-window__plane svg {
+    display: block;
+    width: 110px;
+    height: 44px;
+    fill: #ffffff;
+    filter: drop-shadow(0 3px 4px rgba(40, 70, 120, 0.25));
+}
+
+@keyframes find-plane {
+    from { transform: translate(-140px, 20px) rotate(-6deg); }
+    to   { transform: translate(calc(100vw + 20px), -50px) rotate(-6deg); }
+}
+
+/* 노란 공항 표지판 */
+.find-sign {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 8px;
+    background: #ffd23f;
+    color: #1d1f24;
+    box-shadow: 0 8px 18px rgba(40, 50, 70, 0.18);
+}
+
+/* 천장에 매단 줄 */
+.find-sign::before,
+.find-sign::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    width: 2px;
+    height: 200px;
+    background: #9aa4b1;
+}
+
+.find-sign::before { left: 22px; }
+.find-sign::after  { right: 22px; }
+
+.find-sign--1 { top: 5%; left: 7%; }
+.find-sign--2 { top: 5%; right: 7%; }
+
+.find-sign__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+    background: #1d1f24;
+    color: #ffd23f;
+}
+
+.find-sign__icon svg { width: 24px; height: 24px; }
+
+.find-sign strong {
+    display: block;
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.find-sign small {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    opacity: 0.75;
+}
+
+.find-sign__arrow {
+    margin-left: 4px;
+    font-size: 26px;
+    line-height: 1;
+}
+
+/* 수하물 벨트: 윗면 판이 흘러가고, 앞쪽은 금속 테두리 */
+.find-belt {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--belt-h);
+    background:
+        linear-gradient(180deg, transparent 0 62%, #aab3be 62% 66%, #7d8692 66% 100%),
+        repeating-linear-gradient(90deg, #3c434e 0 54px, #2e343d 54px 58px);
+    background-size: 100% 100%, 58px 100%;
+    box-shadow: 0 -4px 10px rgba(30, 40, 55, 0.18);
+    animation: find-belt 1.6s linear infinite;
+}
+
+@keyframes find-belt {
+    from { background-position: 0 0, 0 0; }
+    to   { background-position: 0 0, 58px 0; }
+}
+
+/* 캐리어: 벨트 위에서 왼쪽 → 오른쪽 */
+.find-bags {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--belt-h) * 0.38);
+    height: 90px;
+}
+
+.find-bag {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    animation: find-bag 36s linear infinite;
+    animation-delay: calc(var(--i) * -6s);
+    filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.3));
+}
+
+.find-bag svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.find-bag--big   { width: 64px; height: 75px; }
+.find-bag--small { width: 48px; height: 56px; }
+
+@keyframes find-bag {
+    from { transform: translateX(-90px); }
+    to   { transform: translateX(calc(100vw + 20px)); }
+}
+
+/* 카드: 터미널 위에서는 차분한 회청색 그림자 */
+.auth-page--find .auth-card {
+    box-shadow: 0 22px 50px rgba(40, 55, 80, 0.20), 0 2px 6px rgba(40, 55, 80, 0.08);
+}
+
+/* 탭도 탑승권 종이색에 맞춤 */
+.auth-ticket .auth-tabs { background: #f1ece2; }
+.auth-ticket .auth-tab[aria-selected="true"] { background: #fffdf8; }
+
+@media (prefers-reduced-motion: reduce) {
+    .find-window__plane,
+    .find-belt,
+    .find-bag {
+        animation: none;
+    }
+
+    .find-window__plane { transform: translateX(55vw); }
+    .find-bag { transform: translateX(calc(var(--i) * 16vw + 2vw)); }
+}
+
+@media (max-width: 900px) {
+    .find-sign--2 { display: none; }
+    .find-sign--1 { left: 50%; transform: translateX(-50%); top: 2%; }
+}
+
+@media (max-width: 520px) {
+    .auth-page--find { --belt-h: 58px; }
+    .find-sign { display: none; }
+    .find-window { top: 3%; height: 30%; border-width: 6px; }
+    .find-bag--big   { width: 46px; height: 54px; }
+    .find-bag--small { width: 36px; height: 42px; }
+}
