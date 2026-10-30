@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261041">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261052">
 
 </head>
 
@@ -94,7 +94,23 @@
          MAIN
     ========================= -->
 
-    <main class="detail-content">
+    <main class="detail-content tl-page">
+
+        <!-- 배경: 밤하늘 오로라 + 별 + 별똥별 + 산 능선 (꾸밈용) -->
+        <div class="tl-bg" aria-hidden="true">
+            <div class="tl-aurora">
+                <span></span><span></span><span></span>
+            </div>
+            <svg class="tl-stars" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+                <circle cx="543" cy="347" r="1"/><circle cx="1026" cy="118" r="1.2"/><circle cx="737" cy="115" r="1" class="tw1"/><circle cx="646" cy="552" r="1.6" class="tw2"/><circle cx="1158" cy="405" r="1.2"/><circle cx="748" cy="516" r="0.6" class="tw1"/><circle cx="1055" cy="372" r="1" class="tw3"/><circle cx="1011" cy="322" r="1.6" class="tw1"/><circle cx="795" cy="284" r="0.8"/><circle cx="662" cy="578" r="0.6"/><circle cx="378" cy="142" r="0.8" class="tw3"/><circle cx="920" cy="248" r="0.8"/><circle cx="1150" cy="525" r="0.6" class="tw1"/><circle cx="564" cy="608" r="1"/><circle cx="679" cy="123" r="1.6" class="tw1"/><circle cx="373" cy="9" r="1"/><circle cx="142" cy="153" r="0.6" class="tw2"/><circle cx="956" cy="110" r="1.2" class="tw3"/><circle cx="229" cy="454" r="0.8"/><circle cx="461" cy="245" r="0.8" class="tw3"/><circle cx="365" cy="549" r="0.8" class="tw3"/><circle cx="770" cy="62" r="0.8" class="tw2"/><circle cx="11" cy="378" r="0.8"/><circle cx="89" cy="129" r="1.6" class="tw3"/><circle cx="442" cy="386" r="0.8"/><circle cx="580" cy="356" r="1" class="tw1"/><circle cx="373" cy="142" r="1.2" class="tw1"/><circle cx="190" cy="390" r="1.2" class="tw2"/><circle cx="1059" cy="374" r="1" class="tw1"/><circle cx="46" cy="597" r="0.8"/><circle cx="470" cy="261" r="1.2"/><circle cx="624" cy="576" r="0.6" class="tw2"/><circle cx="671" cy="528" r="1.2" class="tw1"/><circle cx="1101" cy="126" r="0.6" class="tw2"/><circle cx="535" cy="37" r="0.8" class="tw3"/><circle cx="687" cy="82" r="0.8" class="tw2"/><circle cx="1177" cy="407" r="1.6"/><circle cx="1136" cy="366" r="0.6"/><circle cx="429" cy="193" r="0.6" class="tw3"/><circle cx="90" cy="42" r="0.8" class="tw1"/><circle cx="90" cy="339" r="1.6" class="tw3"/><circle cx="885" cy="80" r="0.8"/><circle cx="822" cy="559" r="1"/><circle cx="36" cy="310" r="0.6"/><circle cx="459" cy="361" r="1.2" class="tw1"/><circle cx="767" cy="616" r="1"/><circle cx="466" cy="456" r="1.2"/><circle cx="555" cy="336" r="1.2"/><circle cx="36" cy="373" r="1" class="tw3"/><circle cx="135" cy="484" r="1.6"/><circle cx="307" cy="7" r="0.8" class="tw3"/><circle cx="243" cy="105" r="0.8"/><circle cx="530" cy="553" r="0.8"/><circle cx="301" cy="393" r="0.8"/><circle cx="461" cy="362" r="0.8" class="tw1"/><circle cx="596" cy="519" r="0.6"/><circle cx="1140" cy="172" r="0.8" class="tw2"/><circle cx="330" cy="133" r="1"/><circle cx="624" cy="417" r="1.6"/><circle cx="1178" cy="281" r="0.6"/><circle cx="334" cy="377" r="1.6"/><circle cx="685" cy="192" r="1.2" class="tw1"/><circle cx="486" cy="118" r="0.8" class="tw1"/><circle cx="956" cy="610" r="0.6"/><circle cx="756" cy="406" r="0.8"/><circle cx="821" cy="124" r="1" class="tw3"/><circle cx="13" cy="293" r="1.6" class="tw1"/><circle cx="327" cy="214" r="1.6"/><circle cx="600" cy="618" r="0.8"/><circle cx="950" cy="562" r="0.6"/><circle cx="1071" cy="241" r="1"/><circle cx="751" cy="564" r="1"/><circle cx="783" cy="312" r="0.8"/><circle cx="782" cy="127" r="1.6"/><circle cx="958" cy="573" r="0.6" class="tw2"/><circle cx="1177" cy="606" r="1.2"/><circle cx="1119" cy="162" r="1.6"/><circle cx="418" cy="51" r="1" class="tw2"/><circle cx="922" cy="302" r="0.6" class="tw1"/><circle cx="515" cy="22" r="1.2" class="tw1"/><circle cx="565" cy="620" r="1.6"/><circle cx="813" cy="273" r="1"/><circle cx="827" cy="470" r="1"/><circle cx="348" cy="452" r="1.6" class="tw3"/><circle cx="1012" cy="347" r="0.8"/><circle cx="1146" cy="539" r="1.2" class="tw1"/><circle cx="1162" cy="325" r="1.2"/><circle cx="493" cy="71" r="0.6"/><circle cx="33" cy="601" r="1.2"/><circle cx="653" cy="613" r="0.6"/><circle cx="829" cy="41" r="1.2"/><circle cx="1105" cy="496" r="1" class="tw2"/><circle cx="592" cy="211" r="1"/><circle cx="130" cy="260" r="0.6"/><circle cx="155" cy="483" r="0.6" class="tw1"/><circle cx="273" cy="426" r="0.8"/><circle cx="293" cy="309" r="1"/><circle cx="147" cy="316" r="0.8"/><circle cx="842" cy="545" r="0.6"/><circle cx="496" cy="328" r="0.8"/><circle cx="1037" cy="331" r="0.8"/><circle cx="1022" cy="379" r="0.8" class="tw3"/><circle cx="753" cy="216" r="0.8" class="tw2"/><circle cx="1069" cy="121" r="0.8"/><circle cx="161" cy="148" r="1.6" class="tw2"/><circle cx="116" cy="516" r="1"/><circle cx="846" cy="124" r="1.6"/><circle cx="21" cy="125" r="1.6"/><circle cx="985" cy="224" r="1.6"/><circle cx="910" cy="312" r="1.6"/><circle cx="963" cy="299" r="0.6" class="tw3"/><circle cx="736" cy="561" r="1" class="tw1"/><circle cx="138" cy="107" r="0.8"/><circle cx="1112" cy="59" r="0.6" class="tw3"/><circle cx="554" cy="474" r="0.8"/><circle cx="512" cy="220" r="0.8"/><circle cx="16" cy="435" r="0.8" class="tw2"/><circle cx="431" cy="230" r="0.8"/><circle cx="114" cy="491" r="0.8"/><circle cx="962" cy="437" r="1.6"/><circle cx="684" cy="118" r="1.2"/><circle cx="966" cy="160" r="0.6"/><circle cx="934" cy="505" r="1" class="tw2"/><circle cx="1056" cy="431" r="1"/><circle cx="487" cy="448" r="0.6"/><circle cx="362" cy="63" r="0.8"/><circle cx="1083" cy="31" r="0.8"/><circle cx="799" cy="209" r="1.6"/><circle cx="218" cy="48" r="1.2"/><circle cx="771" cy="435" r="1"/><circle cx="27" cy="382" r="1.6" class="tw2"/><circle cx="482" cy="31" r="0.8"/><circle cx="13" cy="160" r="0.8"/><circle cx="660" cy="315" r="1.2"/><circle cx="1194" cy="396" r="1.6" class="tw3"/><circle cx="802" cy="592" r="1"/><circle cx="192" cy="292" r="0.8"/><circle cx="650" cy="370" r="1"/><circle cx="505" cy="327" r="1.2" class="tw3"/><circle cx="343" cy="406" r="1.2"/>
+            </svg>
+            <span class="tl-shoot tl-shoot--1"></span>
+            <span class="tl-shoot tl-shoot--2"></span>
+            <svg class="tl-ridge" viewBox="0 0 1200 200" preserveAspectRatio="none">
+                <path class="tl-ridge__back" d="M0 200 V110 L80 92 L170 120 L260 70 L360 104 L450 84 L560 118 L660 60 L760 98 L860 80 L960 112 L1060 72 L1140 96 L1200 88 V200 Z"/>
+                <path class="tl-ridge__front" d="M0 200 V150 L110 128 L210 150 L330 120 L440 152 L560 134 L680 158 L800 126 L920 154 L1040 136 L1130 156 L1200 146 V200 Z"/>
+            </svg>
+        </div>
 
 
         <div class="travel-list-header">
@@ -130,21 +146,48 @@
 
             {% for travel in travels %}
 
-                <article class="travel-card tl-card">
+                <!-- 항공권(탑승권) 모양 카드 -->
+                <article class="tl-card tl-ticket">
 
                     <a
-                        class="tl-card__link"
+                        class="tl-card__link tl-ticket__link"
                         href="{% url 'travel_detail' travel_id=travel.t_id %}"
                         aria-label="{{ travel.t_title }} 여행 보기"
                     >
-                        <div class="travel-image">
-                            {% include "_icon.html" with name="building" %}
+                        <div class="tl-ticket__main">
+
+                            <div class="tl-ticket__head">
+                                <span class="tl-ticket__brand">{% include "_icon.html" with name="mountain" %} TRIPA</span>
+                                <span class="tl-ticket__kind">BOARDING PASS</span>
+                            </div>
+
+                            <div class="tl-ticket__dest">
+                                <small>DESTINATION</small>
+                                <strong>{{ travel.t_place }}</strong>
+                                <span>{{ travel.t_title }}</span>
+                            </div>
+
+                            <div class="tl-ticket__path" aria-hidden="true">
+                                <i></i>{% include "_icon.html" with name="plane" %}<i></i>
+                            </div>
+
+                            <dl class="tl-ticket__dates">
+                                <div>
+                                    <dt>DEPART</dt>
+                                    <dd>{{ travel.t_start|date:"Y.m.d" }} <small>{{ travel.t_start|date:"D" }}</small></dd>
+                                </div>
+                                <div>
+                                    <dt>RETURN</dt>
+                                    <dd>{{ travel.t_end|date:"Y.m.d" }} <small>{{ travel.t_end|date:"D" }}</small></dd>
+                                </div>
+                            </dl>
+
                         </div>
 
-                        <div class="travel-content">
-                            <h2>{{ travel.t_title }}</h2>
-                            <p>{% include "_icon.html" with name="pin" %} {{ travel.t_place }}</p>
-                            <p>{% include "_icon.html" with name="calendar" %} {{ travel.t_start|date:"Y.m.d" }} ~ {{ travel.t_end|date:"Y.m.d" }}</p>
+                        <!-- 점선 아래 떼어내는 부분: 바코드와 여행 번호 -->
+                        <div class="tl-ticket__stub">
+                            <span class="tl-ticket__barcode" style="--bc: {{ travel.t_id }}" aria-hidden="true"></span>
+                            <span class="tl-ticket__no">TRP-{{ travel.t_id|stringformat:"04d" }}</span>
                         </div>
                     </a>
 
