@@ -1,0 +1,65 @@
+[
+{
+  "model": "sherpaapp.category",
+  "pk": 1,
+  "fields": {
+    "c_name": "쇼핑"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 2,
+  "fields": {
+    "c_name": "역사"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 3,
+  "fields": {
+    "c_name": "전통문화"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 4,
+  "fields": {
+    "c_name": "랜드마크"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 5,
+  "fields": {
+    "c_name": "카페"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 6,
+  "fields": {
+    "c_name": "공원"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 7,
+  "fields": {
+    "c_name": "음식"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 8,
+  "fields": {
+    "c_name": "자연"
+  }
+},
+{
+  "model": "sherpaapp.category",
+  "pk": 9,
+  "fields": {
+    "c_name": "바다"
+  }
+}
+]

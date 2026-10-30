@@ -13,8 +13,9 @@ class Member(models.Model):
     )
 
     email = models.EmailField(
-        max_length=30,
-        db_column='ID'
+        max_length=100,
+        db_column='ID',
+        unique=True
     )
 
     pwd = models.CharField(
@@ -34,7 +35,6 @@ class Member(models.Model):
 
     class Meta:
         db_table = 'member'
-        managed = False
 
     def __str__(self):
         return self.nickname
@@ -68,15 +68,11 @@ class Travel(models.Model):
     t_place = models.CharField(
         max_length=100,
         db_column='T_PLACE',
-        null=True,
-        blank=True
     )
 
     t_title = models.CharField(
         max_length=100,
         db_column='T_TITLE',
-        null=True,
-        blank=True
     )
 
     t_way = models.CharField(
@@ -88,14 +84,10 @@ class Travel(models.Model):
 
     t_start = models.DateField(
         db_column='T_START',
-        null=True,
-        blank=True
     )
 
     t_end = models.DateField(
         db_column='T_END',
-        null=True,
-        blank=True
     )
 
     # ==========================================
@@ -189,7 +181,6 @@ class Travel(models.Model):
 
     class Meta:
         db_table = 'travel'
-        managed = False
 
     def __str__(self):
         return self.t_title or ''
@@ -261,7 +252,6 @@ class TravelDayPlan(models.Model):
 
     class Meta:
         db_table = 'travel_day_plan'
-        managed = False
         ordering = ['plan_date']
 
         constraints = [
@@ -362,8 +352,10 @@ class Place(models.Model):
     )
 
     p_addr = models.CharField(
-        max_length=200,
-        db_column='P_ADDR'
+        max_length=255,
+        db_column='P_ADDR',
+        null=True,
+        blank=True
     )
 
     p_lat = models.DecimalField(
@@ -391,8 +383,7 @@ class Place(models.Model):
         blank=True
     )
 
-    p_image = models.CharField(
-        max_length=500,
+    p_image = models.TextField(
         db_column='P_IMAGE',
         null=True,
         blank=True
@@ -430,6 +421,10 @@ class Schedule(models.Model):
     class Meta:
         db_table = 'schedule'
         ordering = ['s_day']
+        constraints = [models.UniqueConstraint(
+            fields=['travel', 's_day'],
+            name='unique_schedule'
+            )]
 
     def __str__(self):
         return str(self.s_day)
@@ -499,13 +494,6 @@ class SchedulePlace(models.Model):
         db_table = 'schedule_places'
         ordering = ['visit_order']
 
-        constraints = [
-            models.UniqueConstraint(
-                fields=['schedule', 'visit_order'],
-                name='unique_schedule_visit_order'
-            )
-        ]
-
     def __str__(self):
         return (
             f'{self.schedule.s_day}'
@@ -545,7 +533,7 @@ class Pay(models.Model):
     )
 
     pay_context = models.CharField(
-        max_length=100,
+        max_length=255,
         db_column='PAY_CONTENT',
         null=True,
         blank=True
@@ -553,8 +541,6 @@ class Pay(models.Model):
 
     pay_pay = models.IntegerField(
         db_column='PAY_PAY',
-        null=True,
-        blank=True
     )
 
     # 어느 날짜의 비용인지
@@ -562,8 +548,6 @@ class Pay(models.Model):
         Schedule,
         on_delete=models.CASCADE,
         db_column='S_ID',
-        null=True,
-        blank=True,
         related_name='payments'
     )
 
