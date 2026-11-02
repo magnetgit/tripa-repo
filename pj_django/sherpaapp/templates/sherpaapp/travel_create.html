@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRIPA - 여행 만들기</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261038">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261058">
 
     <style>
         .search-input-row {
@@ -387,7 +387,7 @@
         {% endif %}
     </aside>
 
-    <main class="detail-content">
+    <main class="detail-content{% if mode == 'chat' %} trip-sky{% endif %}">
         {% if mode == 'chat' %}
         <div class="page-title">
             <h1>{% include "_icon.html" with name="plane" %} AI와 여행 만들기</h1>
@@ -409,6 +409,7 @@
              data-preview-url="{% url 'travel_chat_preview' %}"
              data-login-url="{% url 'login' %}"
              data-member="{{ member.m_id|default:'guest' }}"
+             data-odsay-key="{{ ODSAY_WEB_API_KEY|default:'' }}"
              data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5"
              data-prefill="{{ prefill_title|default:'' }}"
              data-budget="{{ prefill_budget_code|default:'' }}">
@@ -529,10 +530,6 @@
 
                     {% if error %}
                         <div class="error-message">{{ error }}</div>
-                    {% endif %}
-
-                    {% if prefill_budget_style %}
-                        <div class="plan-notice">{% include "_icon.html" with name="wallet" %} 선택한 예산 성향: <strong>{{ prefill_budget_style }}</strong></div>
                     {% endif %}
 
                     <div class="form-group">
@@ -700,7 +697,7 @@
 
 {% if mode == 'chat' %}
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
-<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261042"></script>
+<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261044"></script>
 {% else %}
 <div id="placeSearchModal" class="place-search-modal" aria-hidden="true">
     <div class="place-search-dialog">
