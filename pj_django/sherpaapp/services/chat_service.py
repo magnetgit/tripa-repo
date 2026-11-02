@@ -936,6 +936,9 @@ def build_system_prompt(draft, category_names, today):
         "'1박 2일'처럼 기간만 말하고 날짜를 말하지 않았으면 start·end는 null로 두고 출발일을 물어보세요. 오늘 날짜를 마음대로 넣지 마세요. "
         "예) 사용자 '수원 1박2일' → place='수원', start=null, end=null, stays=[] 그리고 '언제 출발하시나요?'라고 묻기. "
         "그다음 사용자 '11월1일' → start=11월 1일, end=11월 2일(앞에서 말한 1박 2일).\n"
+        "2-2. 첫날 출발 장소는 start_place_query, 출발 시각은 start_time에 24시간 HH:MM으로 꼭 함께 적습니다. "
+        "예) '첫날은 성남 신흥역 아침8시' → start_place_query='성남 신흥역', start_time='08:00'. "
+        "'오후 2시 반' → '14:30'. 시각을 말했는데 start_time을 비워 두지 마세요.\n"
         "3. 날짜는 오늘(%s, %s요일) 기준으로 해석해 YYYY-MM-DD로 적습니다. "
         "'2박 3일'이면 종료일 = 출발일 + 2일입니다. 연도가 없으면 가장 가까운 미래 날짜로 합니다.\n"
         "4. categories에는 다음 목록의 이름만 쓰고, 취향에 맞게 1~4개를 고릅니다: %s. "
@@ -1128,6 +1131,40 @@ def _keep_previous(ai_draft, prev):
     return ai_draft
 
 
+_SPOKEN_TIME_RE = re.compile(
+    r'(오전|아침|새벽|오후|낮|저녁|밤)?\s*(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분|(반))?'
+)
+
+
+def guess_start_time(text, has_start_place=False):
+    """'아침8시', '오후 2시 반' 같은 말에서 출발 시각(HH:MM)을 읽는다. 못 읽으면 None.
+
+    출발 이야기일 때만 쓴다: '출발'이라는 말이 있거나, 이번에 출발지를 말한 경우.
+    (숙소 도착 시각 등 다른 시각을 출발 시각으로 잘못 넣지 않으려고)
+    """
+    if not isinstance(text, str):
+        return None
+    if '출발' not in text and not has_start_place:
+        return None
+
+    match = _SPOKEN_TIME_RE.search(text)
+    if not match:
+        return None
+
+    when, hour, minute, half = match.groups()
+    hour = int(hour)
+    minute = int(minute) if minute else (30 if half else 0)
+
+    if when in ('오후', '저녁', '밤') and hour < 12:
+        hour += 12
+    if when in ('오전', '아침', '새벽') and hour == 12:
+        hour = 0
+
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return '%02d:%02d' % (hour, minute)
+
+
 def next_question(draft, category_names):
     """지금 사용자에게 물어볼 질문 한 문장. 더 물을 게 없으면 None.
 
@@ -1151,8 +1188,14 @@ def next_question(draft, category_names):
     if nights > 0 and len(draft.get('stays') or []) < nights:
         return '숙소는 어디 쪽으로 잡으실 건가요? 아직 안 정하셨다면 추천해 드릴게요.'
 
-    if not draft.get('start_place') or not draft.get('start_time'):
+    if not draft.get('start_place') and not draft.get('start_time'):
         return '첫날은 어디에서 몇 시쯤 출발하시나요?'
+
+    if not draft.get('start_place'):
+        return '첫날은 어디에서 출발하시나요?'
+
+    if not draft.get('start_time'):
+        return '첫날 몇 시쯤 출발하시나요?'
 
     if not draft.get('transport'):
         return '이동은 자동차, 대중교통, 도보 중 무엇으로 하실 건가요?'
@@ -1191,8 +1234,19 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
             'recommendation': None,
         }
 
+    ai_draft = _keep_previous(result.get('draft'), prev)
+
+    # AI가 출발 시각을 빠뜨리면, 출발 이야기를 한 사용자 문장에서 시각을 직접 읽는다
+    if not _clean_time(ai_draft.get('start_time')):
+        raw_sp = (result.get('draft') or {}).get('start_place_query') if isinstance(result.get('draft'), dict) else None
+        prev_sp = (prev.get('start_place') or {}).get('query')
+        new_start_place = bool(raw_sp) and raw_sp != prev_sp   # 이번 턴에 출발지를 새로 말했을 때만
+        guessed_time = guess_start_time(messages[-1]['content'], new_start_place)
+        if guessed_time:
+            ai_draft['start_time'] = guessed_time
+
     new_draft = normalize_draft(
-        _keep_previous(result.get('draft'), prev), prev, category_names, today, resolve=True, notes=notes
+        ai_draft, prev, category_names, today, resolve=True, notes=notes
     )
 
     reply = _clean_text(result.get('reply'), 800) or '일정 초안을 업데이트했어요.'
