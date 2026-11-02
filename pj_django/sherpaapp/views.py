@@ -2099,6 +2099,17 @@ def join_ok(request):
         'nickname'
     )
 
+    gender = request.POST.get(
+        'gender'
+    )
+
+    age_group = request.POST.get(
+        'age_group'
+    )
+
+    agree_profile = request.POST.get(
+        'agree_profile'
+    )
 
     # 아이디 중복
     if (
@@ -2132,14 +2143,36 @@ def join_ok(request):
             </script>
         """)
 
+    # 동의 안했으면 두 값을 비우기만 하고, 아래로 계속 진행
+    if (
+        agree_profile != '1'
+    ):
+        gender = None
+        age_group = None
+
+    # 성별은 M, F만
+    if (
+        gender not in ('M', 'F')
+    ):
+        gender = None
+
+    # 나이대는 10~60 숫자만
+    try:
+        age_group = int(age_group)
+        if age_group not in (10, 20, 30, 40, 50, 60):
+            age_group = None
+    except (ValueError, TypeError):
+        age_group = None
+
     Member.objects.create(
         user_id=user_id,
         email=email,
         pwd=make_password(pwd),
         name=name,
-        nickname=nickname
+        nickname=nickname,
+        gender=gender,
+        age_group=age_group,
     )
-
 
     return HttpResponse("""
         <script>
