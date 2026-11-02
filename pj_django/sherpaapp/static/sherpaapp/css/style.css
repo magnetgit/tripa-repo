@@ -6081,3 +6081,142 @@ button.preview-day {
     -webkit-backdrop-filter: blur(10px) saturate(1.1);
             backdrop-filter: blur(10px) saturate(1.1);
 }
+
+
+/* =========================================
+   홈: 내 여행 일정 카드 목록 (최근 4개)
+========================================= */
+
+.trip-cards__list {
+    display: grid;
+    gap: 10px;
+    margin: 4px 0 14px;
+}
+
+.trip-card {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 1px solid #e6edf8;
+    border-radius: 14px;
+    background: #f8fbff;
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.trip-card:hover,
+.trip-card:focus-visible {
+    transform: translateY(-2px);
+    border-color: #c9daf5;
+    box-shadow: 0 10px 22px rgba(45, 108, 223, 0.12);
+    outline: none;
+}
+
+/* 왼쪽 날짜 칸: 탑승권 꼬리표처럼 */
+.trip-card__date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 58px;
+    border-radius: 12px;
+    background: #2d6cdf;
+    color: #ffffff;
+}
+
+.trip-card__date strong {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.trip-card__date span {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.trip-card--past .trip-card__date { background: #9aa8bd; }
+.trip-card--now .trip-card__date  { background: #1f9d55; }
+
+.trip-card__body { min-width: 0; }
+
+.trip-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.trip-card__title {
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 800;
+    color: #1f2d4a;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.trip-card__dday {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #2d6cdf;
+    background: #e8f0fd;
+}
+
+.trip-card--now .trip-card__dday  { color: #1f9d55; background: #e3f5ea; }
+.trip-card--past .trip-card__dday { color: #7b88a1; background: #eef1f6; }
+
+.trip-card__meta {
+    margin: 3px 0 7px;
+    overflow: hidden;
+    font-size: 12px;
+    color: #7b88a1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.trip-card__meta .tp-icon {
+    width: 13px;
+    height: 13px;
+    vertical-align: -2px;
+    color: #2d6cdf;
+}
+
+.trip-card__stops {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.trip-card__stop,
+.trip-card__more {
+    max-width: 130px;
+    padding: 3px 8px;
+    overflow: hidden;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #3d4659;
+    background: #ffffff;
+    border: 1px solid #e3e9f3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.trip-card__more {
+    color: #2d6cdf;
+    border-color: #cfe0fa;
+}
+
+.trip-card__empty {
+    font-size: 12px;
+    color: #9aa6b8;
+}

@@ -1043,6 +1043,31 @@ def _format_stay_time(minutes):
     return f'{mins}분'
 
 
+def _home_trip_card(travel, today):
+    """홈 화면 '내 여행 일정' 카드 한 장에 필요한 값 (기존 _build_recent_travel 결과를 재사용)."""
+    card = _build_recent_travel(travel)
+    stops = [item['name'] for day in card['days'] for item in day['items']]
+
+    start, end = travel.t_start, travel.t_end
+    if start and end and start <= today <= end:
+        dday, state = '여행 중', 'now'
+    elif start and start > today:
+        left = (start - today).days
+        dday, state = ('D-DAY' if left == 0 else 'D-%d' % left), 'soon'
+    else:
+        dday, state = '다녀옴', 'past'
+
+    card.update({
+        'stop_count': len(stops),
+        'stops': stops[:3],
+        'more': max(len(stops) - 3, 0),
+        'nights': (end - start).days if start and end else None,
+        'dday': dday,
+        'state': state,
+    })
+    return card
+
+
 def _build_recent_travel(travel):
     """메인 화면 '최근 만든 일정' 카드용 데이터 (최대 3일, 하루 3곳)."""
     days = []
@@ -1106,6 +1131,7 @@ def index(request):
 
     member = None
     recent_travel = None
+    recent_travels = []
 
 
     if login_user:
@@ -1134,6 +1160,13 @@ def index(request):
         if latest_travel:
             recent_travel = _build_recent_travel(latest_travel)
 
+        # 홈 '내 여행 일정' 카드 목록 (최근 4개)
+        today = date.today()
+        recent_travels = [
+            _home_trip_card(t, today)
+            for t in Travel.objects.filter(member=member).order_by('-t_id')[:4]
+        ]
+
 
     return HttpResponse(
         template.render(
@@ -1142,6 +1175,8 @@ def index(request):
                     member,
                 'recent_travel':
                     recent_travel,
+                'recent_travels':
+                    recent_travels,
             },
             request
         )
