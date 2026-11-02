@@ -105,7 +105,7 @@ body {
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: 600px;
+    max-width: 680px;
     border-radius: 18px;
     overflow: hidden;
     background:
@@ -555,4 +555,13 @@ body {
 /* 아직 등록 안 된 값 (이메일 미등록 등) */
 .pp-field dd.pp-empty {
     color: #b3aa9b;
+}
+
+/* 이메일처럼 긴 값은 잘리지 않고 다음 줄로 */
+.pp-field dd.pp-wrap {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
 }

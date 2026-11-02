@@ -8,6 +8,8 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db.models import Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
@@ -2453,6 +2455,26 @@ def mypage_edit(request):
         member.nickname = (
             nickname
         )
+
+        # 이메일 등록·변경 (비워 두면 기존 값 유지: 아이디 찾기에 필요해서 지우지 않음)
+        email = (request.POST.get('email') or '').strip()
+
+        if email and email != (member.email or ''):
+            error = None
+
+            try:
+                validate_email(email)
+            except ValidationError:
+                error = '이메일 형식이 올바르지 않아요. (예: example@tripa.com)'
+
+            if not error and Member.objects.filter(email=email).exclude(m_id=member.m_id).exists():
+                error = '이미 다른 회원이 쓰고 있는 이메일이에요.'
+
+            if error:
+                member.email = email  # 입력한 값을 그대로 다시 보여 주기 (저장은 안 함)
+                return render(request, 'mypage_edit.html', {'member': member, 'error': error})
+
+            member.email = email
 
 
         member.save()
