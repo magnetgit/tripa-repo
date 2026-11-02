@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=6">
 </head>
 
 <body class="auth-page--login auth-ticket">
@@ -49,12 +49,12 @@
         {% csrf_token %}
 
         <div class="field">
-            <label for="email">이메일(아이디)</label>
+            <label for="user_id">아이디</label>
             <div class="field-box">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>
+                    <circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
                 </svg>
-                <input type="text" id="email" name="email" placeholder="example@tripa.com" autocomplete="username" autofocus>
+                <input type="text" id="user_id" name="user_id" placeholder="아이디" autocomplete="username" autofocus>
             </div>
         </div>
 
@@ -105,15 +105,15 @@
 
     function check() {
         var f = document.f;
-        var id = f.email.value.trim();
+        var id = f.user_id.value.trim();
         var pw = f.pwd.value.trim();
 
-        if (id.length === 0) return showError(f.email, '아이디(이메일)를 입력해 주세요.');
-        if (getByteLen(id) > 50) return showError(f.email, '아이디가 너무 길어요.');
+        if (id.length === 0) return showError(f.user_id, '아이디를 입력해 주세요.');
+        if (getByteLen(id) > 50) return showError(f.user_id, '아이디가 너무 길어요.');
         if (pw.length === 0) return showError(f.pwd, '비밀번호를 입력해 주세요.');
         if (getByteLen(pw) > 30) return showError(f.pwd, '비밀번호가 너무 길어요.');
 
-        f.email.value = id;
+        f.user_id.value = id;
         return true;
     }
 
