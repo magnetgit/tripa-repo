@@ -1,0 +1,64 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIPA - 여행 만들기 (React)</title>
+
+    <!-- 화면 모양은 기존 여행 만들기와 같은 style.css 를 그대로 씀 -->
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261058">
+    <!-- React 빌드 결과물 (frontend 에서 npm run build → static/chat/) -->
+    <link rel="stylesheet" href="{% static 'chat/chat.css' %}">
+</head>
+
+<body>
+<div class="detail-container">
+    <aside class="sidebar">
+        <div class="logo">
+            <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>
+        </div>
+
+        <div class="menu-title">MENU</div>
+
+        <ul class="menu">
+            <li><a href="{% url 'travel_list' %}">{% include "_icon.html" with name="suitcase" %} 내 여행</a></li>
+            <li><a href="{% url 'travel_create' %}" class="active">{% include "_icon.html" with name="plus" %} 여행 만들기</a></li>
+            <li><a href="{% url 'schedule_manage' %}">{% include "_icon.html" with name="calendar" %} 일정 관리</a></li>
+            <li><a href="{% url 'budget' %}">{% include "_icon.html" with name="wallet" %} 비용 관리</a></li>
+        </ul>
+
+        {% if member %}
+            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} {{ member.nickname }}</a>
+        {% else %}
+            <a href="{% url 'login' %}" class="user-profile">{% include "_icon.html" with name="user" %} 로그인</a>
+        {% endif %}
+    </aside>
+
+    <main class="detail-content trip-sky">
+        <div class="page-title">
+            <h1>{% include "_icon.html" with name="plane" %} AI와 여행 만들기 <small class="tc-react-badge">React</small></h1>
+            <p>가고 싶은 여행을 말하듯이 적어 주세요. 대화하면서 일정 초안이 채워져요.</p>
+        </div>
+
+        <!-- React 가 이 칸 안에 대화 · 일정 초안 · 지도 3칸을 그림.
+             서버 주소와 키는 data- 속성으로 넘겨줌 (기존 여행 만들기와 같은 주소를 씀) -->
+        <div class="tc-app" id="root"
+             data-chat-url="{% url 'travel_chat' %}"
+             data-apply-url="{% url 'travel_chat_apply' %}"
+             data-add-url="{% url 'schedule_place_add' %}"
+             data-preview-url="{% url 'travel_chat_preview' %}"
+             data-login-url="{% url 'login' %}"
+             data-manual-url="{% url 'travel_create' %}?mode=manual"
+             data-member="{{ member.m_id|default:'guest' }}"
+             data-odsay-key="{{ ODSAY_WEB_API_KEY|default:'' }}"
+             data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5">
+            {% csrf_token %}
+        </div>
+    </main>
+</div>
+
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
+<script type="module" src="{% static 'chat/chat.js' %}"></script>
+
+</body>
+</html>

@@ -147,6 +147,12 @@ urlpatterns = [
         views.api_trip,
         name='api_trip'
     ),
+    # React 채팅 시험 화면 (frontend 빌드 결과를 띄움)
+    path(
+        'chat/',
+        views.chat_page,
+        name='chat_page'
+    ),
 
     path(
         'travel_list/',

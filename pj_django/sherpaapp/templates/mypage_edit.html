@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=1">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=2">
 </head>
 
 <body>
@@ -63,10 +63,17 @@
                                placeholder="닉네임" autocomplete="nickname" required>
                     </div>
                 </div>
-                <div class="pp-field">
-                    <label for="email">아이디 <em>/ Email</em></label>
-                    <input type="text" id="email" value="{{ member.email }}" readonly aria-readonly="true">
-                    <small>아이디(이메일)는 바꿀 수 없어요.</small>
+                <div class="pp-row">
+                    <div class="pp-field">
+                        <label for="userIdView">아이디 <em>/ ID</em></label>
+                        <input type="text" id="userIdView" value="{{ member.user_id }}" readonly aria-readonly="true">
+                        <small>아이디는 바꿀 수 없어요.</small>
+                    </div>
+                    <div class="pp-field">
+                        <label for="emailView">이메일 <em>/ Email</em></label>
+                        <input type="text" id="emailView" value="{{ member.email|default:'미등록' }}" readonly aria-readonly="true">
+                        <small>이메일 등록·변경은 곧 열려요.</small>
+                    </div>
                 </div>
                 <p class="pp-error" id="formError" role="alert"></p>
             </div>

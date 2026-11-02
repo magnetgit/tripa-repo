@@ -551,3 +551,8 @@ body {
 }
 
 .pp-foot:empty { padding: 0 0 8px; }
+
+/* 아직 등록 안 된 값 (이메일 미등록 등) */
+.pp-field dd.pp-empty {
+    color: #b3aa9b;
+}

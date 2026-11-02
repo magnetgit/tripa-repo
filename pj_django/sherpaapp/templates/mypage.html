@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=1">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=2">
 </head>
 
 <body>
@@ -59,9 +59,15 @@
                     <dd>{{ member.nickname }}</dd>
                 </div>
             </div>
-            <div class="pp-field">
-                <dt>아이디 <em>/ Email</em></dt>
-                <dd>{{ member.email }}</dd>
+            <div class="pp-row">
+                <div class="pp-field">
+                    <dt>아이디 <em>/ ID</em></dt>
+                    <dd>{{ member.user_id }}</dd>
+                </div>
+                <div class="pp-field">
+                    <dt>이메일 <em>/ Email</em></dt>
+                    <dd class="{% if not member.email %}pp-empty{% endif %}">{{ member.email|default:"미등록" }}</dd>
+                </div>
             </div>
             <div class="pp-row">
                 <div class="pp-field">

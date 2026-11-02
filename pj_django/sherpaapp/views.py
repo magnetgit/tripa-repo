@@ -4714,6 +4714,13 @@ def _read_mock():
     return data
 
 
+def chat_page(request):
+    """React 채팅 시험 화면. frontend 를 npm run build 한 결과(static/chat/)를 띄운다."""
+    if not request.session.get('login_ok_user'):
+        return redirect('login')
+    return render(request, 'sherpaapp/chat.html')
+
+
 @require_POST
 def api_chat(request):
     member = _chat_member(request)
