@@ -106,6 +106,7 @@ class PayInline(admin.TabularInline):
 class MemberAdmin(admin.ModelAdmin):
     list_display = (
         "m_id",
+        "user_id",
         "email",
         "nickname",
         "name",
@@ -118,7 +119,7 @@ class MemberAdmin(admin.ModelAdmin):
         "age_group",
     )
     search_fields = (
-        "email",
+        "user_id",
         "nickname",
         "name",
     )
@@ -153,7 +154,7 @@ class TravelAdmin(admin.ModelAdmin):
     search_fields = (
         "t_title",
         "t_place",
-        "member__email",
+        "member__user_id",
         "member__nickname",
     )
     autocomplete_fields = ("member",)
@@ -310,7 +311,7 @@ class ScheduleAdmin(admin.ModelAdmin):
     list_filter = ("s_day",)
     search_fields = (
         "travel__t_title",
-        "travel__member__email",
+        "travel__member__user_id",
     )
     autocomplete_fields = ("travel",)
     ordering = ("-s_day",)
@@ -445,7 +446,7 @@ class ReviewAdmin(admin.ModelAdmin):
         "place_name",
         "content",
         "kakao_id",
-        "member__email",
+        "member__user_id",
     )
     autocomplete_fields = (
         "member",

@@ -25,9 +25,17 @@ class Member(models.Model):
         db_column='M_ID'
     )
 
-    email = models.EmailField(
+    user_id = models.CharField(
         max_length=100,
         db_column='ID',
+        unique=True
+    )
+
+    email = models.EmailField(
+        max_length=100,
+        db_column='EMAIL',
+        null=True,
+        blank=True,
         unique=True
     )
 
