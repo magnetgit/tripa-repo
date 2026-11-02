@@ -1021,6 +1021,68 @@ body {
     outline-offset: 2px;
 }
 
+/* 프로필 캐릭터 고르기 (동그란 얼굴 버튼) */
+.avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.avatar-opt {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.avatar-opt input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.avatar-face {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 2.5px solid transparent;
+    border-radius: 50%;
+    background: #ffffff;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.avatar-face--random {
+    font-size: 20px;
+    font-weight: 800;
+    color: #6b7891;
+    border: 2px dashed #cfc6b4;
+}
+
+.avatar-opt:hover .avatar-face { transform: translateY(-2px); }
+
+.avatar-opt input:checked + .avatar-face {
+    border-color: #2d6cdf;
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.18);
+    transform: scale(1.06);
+}
+
+.avatar-opt input:focus-visible + .avatar-face {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+}
+
+/* 이름은 화면엔 숨기고(마우스를 올리면 title로 보임) 읽어주기 프로그램에만 */
+.avatar-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
 /* 나이대 선택 */
 .opt-select {
     width: 100%;

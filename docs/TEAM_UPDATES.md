@@ -10,6 +10,31 @@
 
 ---
 
+## 2026-11-02 · 프로필 캐릭터, 내 정보 여행 기록, 일정 순서 드래그, AI 컨셉 저장 — 🟦 임영준
+
+> ⚠️ **DB가 바뀌어요.** pull 뒤에 `python manage.py migrate`로 **0008**(`member.PROFILE_IMG` 칸 추가)을 적용하세요. 빈 값을 허용해서 기존 회원 데이터는 그대로예요.
+
+### 1) 프로필 캐릭터 18종 — 🟧 `models.py`·`views.py` 추가
+- 그림: `static/sherpaapp/avatars/<키>.svg` 18개 (곰·고양이·여우·펭귄·토끼·강아지·판다·개구리·사자·코알라·햄스터·오리·너구리·돼지·원숭이·부엉이·호랑이·양, 모두 악세서리 착용)
+- `models.py` **추가만**: `AVATAR_CHOICES`·`AVATAR_KEYS`, `Member.profile_img`(DB `PROFILE_IMG`, 빈 값 허용), 속성 `member.avatar_key`(값이 없는 기존 회원은 회원번호로 정해 늘 같은 캐릭터)
+- 회원가입: `join.html`에 `name="profile_img"` 라디오. `join_ok`는 **안 고르거나 목록에 없는 값이면 랜덤**으로 저장. `join` 뷰가 `avatars` 목록을 넘김
+- 내 정보: 증명사진 칸에 캐릭터. 내정보 수정: 사진 칸을 누르면 고르기가 열리고, '저장하기' 때 `mypage_edit`가 저장(목록에 있는 값만)
+- 확인: 고른 값 저장·안 고르면 랜덤·이상한 값 무시·수정 저장·이메일 오류 땐 저장 안 함 (트랜잭션 되돌려서 시험 회원 안 남김)
+
+### 2) 내 정보 '여행 기록' — 🟧 `views.py` 추가
+- `mypage`가 `record`도 넘김(도우미 `build_travel_record`): 완성한 여행(끝난 여행)·여행한 날(끝난 여행 날짜 합)·담은 장소(일정 장소 수)·다가오는 여행, 총 지출(`Pay` 합)·여행당 평균 지출·평균 예산(`t_budget`)·자주 간 지역(`t_place`)·자주 고른 컨셉(`TravelCategory`)
+- 기존 `member` 값은 그대로
+
+### 3) 일정 상세: 사진 없는 간단 리스트 + 꾹 눌러 순서 바꾸기 — 🟧 새 주소 추가
+- `travel_detail.html`: 장소를 한 줄 리스트로, 누르면 펼쳐져 사진·주소·체류시간·삭제, **0.25초 꾹 눌러 드래그**로 순서 변경
+- 🟧 `views.py`·`urls.py` **추가만**: `POST /schedule_place_reorder/` (`sp_ids`=그날 장소 sp_id를 새 순서대로 쉼표로). 로그인·본인 여행·그날 장소 전부인지 확인(401/403/409/400), `visit_order` 다시 매기고 `recalculate_schedule_timeline`으로 시간 다시 계산. 첫 장소 도착 시각은 유지
+- 응답: `{"success": true, "message": "순서를 바꿨습니다."}` (실패는 `success: false` + `message`)
+
+### 4) AI 대화 컨셉이 저장 안 되던 문제 — 🟩 `services/chat_service.py` 수정 (응답 키 변경 없음)
+- '수원 랜드마크 1박2일'처럼 다른 말과 섞이거나 '랜드마크'만 답해도 `categories`에 들어가게: 규칙 4에 예시 추가, AI가 빠뜨리면 서버가 사용자 말에서 DB 컨셉 이름을 찾음(`match_categories`·`guess_categories`, '빼줘·말고' 같은 말이 있으면 안 함)
+- 컨셉 이름이 숙소·출발지로 잘못 들어가면 걸러냄, 컨셉이 정해졌는데 다시 묻는 문장은 지움, 새로 정해지면 "여행 컨셉은 '랜드마크'(으)로 반영했어요." 덧붙임
+- 진짜 AI로 확인: 첫 문장에 섞어 말한 경우·마지막에 따로 답한 경우 모두 저장
+
 ## 2026-11-02 · 홈 '내 여행 일정'을 카드 목록으로 — 🟦 임영준
 - 홈 오른쪽: 최근 일정 하나 → **최근 여행 4개 카드** (날짜·기간, D-day/여행 중/다녀옴, 장소 앞 3곳 +N, 누르면 상세)
 - 🟧 `views.py` **추가만**: `index`가 `recent_travels`(카드용 목록)도 넘김, 도우미 `_home_trip_card` (기존 `_build_recent_travel` 재사용). 기존 `recent_travel`·함수 변경 없음

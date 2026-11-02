@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, time, date
 import hashlib
 import json
 import logging
+import random
 import re
 from decimal import Decimal
 import requests
@@ -10,7 +11,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.db.models import Prefetch
+from django.db.models import Avg, Count, Prefetch, Sum
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
@@ -18,6 +19,7 @@ from django.template import loader
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from .models import Member
+from .models import AVATAR_CHOICES, AVATAR_KEYS
 from .models import Travel
 from .models import Place
 from .models import Schedule
@@ -121,7 +123,7 @@ def _search_kakao_places(query, size=5):
 def join(request):
     template = loader.get_template('sherpaapp/join.html')
     return HttpResponse(
-        template.render({},request))
+        template.render({'avatars': AVATAR_CHOICES}, request))
 
 # 로그인
 def login(request):
@@ -2111,6 +2113,11 @@ def join_ok(request):
         'agree_profile'
     )
 
+    # 프로필 캐릭터: 고른 게 없거나 목록에 없는 값이면 랜덤 배정
+    profile_img = request.POST.get('profile_img')
+    if profile_img not in AVATAR_KEYS:
+        profile_img = random.choice(AVATAR_KEYS)
+
     # 아이디 중복
     if (
         Member.objects
@@ -2172,6 +2179,7 @@ def join_ok(request):
         nickname=nickname,
         gender=gender,
         age_group=age_group,
+        profile_img=profile_img,
     )
 
     return HttpResponse("""
@@ -2279,9 +2287,66 @@ def mypage(request):
         'mypage.html',
         {
             'member':
-                member
+                member,
+            'record':
+                build_travel_record(member)
         }
     )
+
+
+# 내 정보 '여행 기록' 숫자들 (완성한 여행, 지출, 자주 간 지역 등)
+def build_travel_record(member):
+
+    today = date.today()
+    travels = Travel.objects.filter(member=member)
+    travel_count = travels.count()
+
+    # 끝난 여행 = 마지막 날이 오늘보다 전
+    done = list(travels.filter(t_end__lt=today).values('t_start', 't_end'))
+    travel_days = sum(
+        (t['t_end'] - t['t_start']).days + 1
+        for t in done
+        if t['t_start'] and t['t_end'] and t['t_end'] >= t['t_start']
+    )
+
+    total_spend = (
+        Pay.objects
+        .filter(schedule__travel__member=member)
+        .aggregate(total=Sum('pay_pay'))['total']
+    ) or 0
+
+    avg_budget = travels.aggregate(avg=Avg('t_budget'))['avg'] or 0
+
+    top_place = (
+        travels
+        .values('t_place')
+        .annotate(n=Count('t_id'))
+        .order_by('-n', 't_place')
+        .first()
+    )
+
+    top_concept = (
+        TravelCategory.objects
+        .filter(travel__member=member)
+        .values('category__c_name')
+        .annotate(n=Count('tc_id'))
+        .order_by('-n', 'category__c_name')
+        .first()
+    )
+
+    return {
+        'done_count': len(done),
+        'travel_days': travel_days,
+        'place_count': SchedulePlace.objects.filter(schedule__travel__member=member).count(),
+        'upcoming_count': travels.filter(t_start__gt=today).count(),
+        'total_spend': '{:,}'.format(total_spend),
+        'avg_spend': '{:,}'.format(round(total_spend / travel_count)) if travel_count else '0',
+        'avg_budget': '{:,}'.format(round(avg_budget)),
+        'top_place': top_place['t_place'] if top_place else '',
+        'top_place_count': top_place['n'] if top_place else 0,
+        'top_concept': top_concept['category__c_name'] if top_concept else '',
+        'top_concept_count': top_concept['n'] if top_concept else 0,
+    }
 
 
 # ==============================================
@@ -2489,6 +2554,11 @@ def mypage_edit(request):
             nickname
         )
 
+        # 프로필 캐릭터 (목록에 있는 값일 때만 바꿈)
+        profile_img = request.POST.get('profile_img')
+        if profile_img in AVATAR_KEYS:
+            member.profile_img = profile_img
+
         # 이메일 등록·변경 (비워 두면 기존 값 유지: 아이디 찾기에 필요해서 지우지 않음)
         email = (request.POST.get('email') or '').strip()
 
@@ -2505,7 +2575,7 @@ def mypage_edit(request):
 
             if error:
                 member.email = email  # 입력한 값을 그대로 다시 보여 주기 (저장은 안 함)
-                return render(request, 'mypage_edit.html', {'member': member, 'error': error})
+                return render(request, 'mypage_edit.html', {'member': member, 'error': error, 'avatars': AVATAR_CHOICES})
 
             member.email = email
 
@@ -2522,7 +2592,8 @@ def mypage_edit(request):
         request,
         'mypage_edit.html',
         {
-            'member': member
+            'member': member,
+            'avatars': AVATAR_CHOICES
         }
     )
 
@@ -3345,6 +3416,73 @@ def schedule_place_delete(request):
         'message':
             '일정이 삭제되었습니다.'
     })
+
+
+# ==============================================
+# 일정 장소 순서 변경 (드래그로 옮겼을 때)
+# ==============================================
+
+def schedule_place_reorder(request):
+    """sp_ids='12,15,13' 처럼 그날 장소 전체를 새 순서대로 받아 저장하고 시간을 다시 계산한다."""
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': '잘못된 요청입니다.'}, status=400)
+
+    login_user = request.session.get('login_ok_user')
+
+    if not login_user:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    try:
+        sp_ids = [int(value) for value in request.POST.get('sp_ids', '').split(',') if value.strip()]
+    except ValueError:
+        sp_ids = []
+
+    if not sp_ids or len(sp_ids) != len(set(sp_ids)):
+        return JsonResponse({'success': False, 'message': '순서 정보가 올바르지 않습니다.'}, status=400)
+
+    first = get_object_or_404(
+        SchedulePlace.objects.select_related('schedule__travel__member'),
+        sp_id=sp_ids[0]
+    )
+    schedule = first.schedule
+
+    # 내 여행의 일정만 바꿀 수 있다
+    if schedule.travel.member.user_id != login_user:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    rows = list(
+        SchedulePlace.objects
+        .filter(schedule=schedule)
+        .order_by('visit_order', 'sp_id')
+    )
+
+    # 그날 장소를 빠짐없이 한 번씩 보내야 한다 (다른 날 장소가 섞이면 거절)
+    if sorted(sp_ids) != sorted(row.sp_id for row in rows):
+        return JsonResponse(
+            {'success': False, 'message': '일정이 바뀌었어요. 새로고침 후 다시 시도해 주세요.'},
+            status=409
+        )
+
+    if sp_ids == [row.sp_id for row in rows]:
+        return JsonResponse({'success': True, 'message': '변경 사항이 없습니다.'})
+
+    by_id = {row.sp_id: row for row in rows}
+    ordered = [by_id[sp_id] for sp_id in sp_ids]
+
+    # 하루의 시작 시각은 그대로 두고, 첫 장소가 바뀌어도 그 시각부터 이어서 계산한다
+    first_arrival = next((row.arrive_time for row in rows if row.arrive_time), None)
+
+    for new_order, row in enumerate(ordered, start=1):
+        row.visit_order = new_order
+
+    if first_arrival:
+        ordered[0].arrive_time = first_arrival
+
+    SchedulePlace.objects.bulk_update(ordered, ['visit_order', 'arrive_time'])
+    recalculate_schedule_timeline(schedule)
+
+    return JsonResponse({'success': True, 'message': '순서를 바꿨습니다.'})
 
 
 # ==============================================

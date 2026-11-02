@@ -18,6 +18,29 @@ AGE_GROUP_CHOICES = [
     (60, '60대 이상')
 ]
 
+# 프로필 캐릭터 (그림: static/sherpaapp/avatars/<키>.svg)
+AVATAR_CHOICES = [
+    ('bear', '배낭 곰'),
+    ('cat', '선글라스 고양이'),
+    ('fox', '밀짚모자 여우'),
+    ('penguin', '고글 펭귄'),
+    ('rabbit', '베레모 토끼'),
+    ('dog', '모자 강아지'),
+    ('panda', '비니 판다'),
+    ('frog', '안경 개구리'),
+    ('lion', '선글라스 사자'),
+    ('koala', '꽃핀 코알라'),
+    ('hamster', '헤드폰 햄스터'),
+    ('duck', '캡모자 오리'),
+    ('raccoon', '나비넥타이 너구리'),
+    ('pig', '고깔모자 돼지'),
+    ('monkey', '두건 원숭이'),
+    ('owl', '학사모 부엉이'),
+    ('tiger', '하트안경 호랑이'),
+    ('sheep', '리본 양'),
+]
+AVATAR_KEYS = [key for key, _ in AVATAR_CHOICES]
+
 class Member(models.Model):
 
     m_id = models.AutoField(
@@ -69,11 +92,27 @@ class Member(models.Model):
         db_column='AGE_GROUP'
     )
 
+    # 프로필 캐릭터 키 (AVATAR_CHOICES 중 하나, 가입 때 안 고르면 랜덤)
+    profile_img = models.CharField(
+        max_length=30,
+        choices=AVATAR_CHOICES,
+        null=True,
+        blank=True,
+        db_column='PROFILE_IMG'
+    )
+
     class Meta:
         db_table = 'member'
 
     def __str__(self):
         return self.nickname
+
+    @property
+    def avatar_key(self):
+        # 값이 없는 예전 회원은 회원번호로 정해서 항상 같은 캐릭터가 나오게 함
+        if self.profile_img in AVATAR_KEYS:
+            return self.profile_img
+        return AVATAR_KEYS[(self.m_id or 0) % len(AVATAR_KEYS)]
 
 
 # ==============================================

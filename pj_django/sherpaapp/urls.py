@@ -214,6 +214,12 @@ urlpatterns = [
     ),
 
     path(
+        'schedule_place_reorder/',
+        views.schedule_place_reorder,
+        name='schedule_place_reorder'
+    ),
+
+    path(
         'schedule_place_time_update/',
         views.schedule_place_time_update,
         name='schedule_place_time_update'
