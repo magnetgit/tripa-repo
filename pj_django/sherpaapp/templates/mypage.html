@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=6">
 </head>
 
 <body>
@@ -39,12 +39,10 @@
             <p>TRIPA 여행자 정보</p>
         </div>
 
-        <!-- 증명사진 자리 -->
-        <div class="pp-photo" aria-hidden="true">
-            <svg viewBox="0 0 112 132" fill="currentColor">
-                <circle cx="56" cy="48" r="26"/>
-                <path d="M8 132 C8 98 30 82 56 82 C82 82 104 98 104 132 Z"/>
-            </svg>
+        <!-- 증명사진 자리: 프로필 캐릭터 -->
+        <div class="pp-photo pp-photo--avatar">
+            <img src="{% static 'sherpaapp/avatars/'|add:member.avatar_key|add:'.svg' %}"
+                 alt="프로필 캐릭터: {{ member.get_profile_img_display|default:'기본 캐릭터' }}" width="104" height="104">
         </div>
         <div class="pp-seal" aria-hidden="true">TRIPA<br>MEMBER<br>★</div>
 
@@ -82,6 +80,32 @@
         </dl>
 
     </div>
+
+    <!-- 여행 기록: 도장 4개 + 지출·자주 간 곳 -->
+    <section class="pp-record" aria-labelledby="recordTitle">
+        <h2 id="recordTitle">여행 기록 <em>/ Travel Record</em></h2>
+
+        <ul class="pp-rec-stamps">
+            <li class="pp-rec-stamp"><b>{{ record.done_count }}</b><span>완성한 여행</span></li>
+            <li class="pp-rec-stamp pp-rec-stamp--red"><b>{{ record.travel_days }}</b><span>여행한 날</span></li>
+            <li class="pp-rec-stamp"><b>{{ record.place_count }}</b><span>담은 장소</span></li>
+            <li class="pp-rec-stamp pp-rec-stamp--red"><b>{{ record.upcoming_count }}</b><span>다가오는 여행</span></li>
+        </ul>
+
+        <dl class="pp-stats">
+            <div><dt>총 지출</dt><dd>{{ record.total_spend }}원</dd></div>
+            <div><dt>여행당 평균 지출</dt><dd>{{ record.avg_spend }}원</dd></div>
+            <div><dt>여행당 평균 예산</dt><dd>{{ record.avg_budget }}원</dd></div>
+            <div>
+                <dt>자주 간 지역</dt>
+                <dd>{% if record.top_place %}{{ record.top_place }} <small>{{ record.top_place_count }}번</small>{% else %}아직 없어요{% endif %}</dd>
+            </div>
+            <div>
+                <dt>자주 고른 컨셉</dt>
+                <dd>{% if record.top_concept %}{{ record.top_concept }} <small>{{ record.top_concept_count }}번</small>{% else %}아직 없어요{% endif %}</dd>
+            </div>
+        </dl>
+    </section>
 
     <!-- 여권 맨 아래 기계 판독 줄 (꾸밈) -->
     <div class="pp-mrz" aria-hidden="true">

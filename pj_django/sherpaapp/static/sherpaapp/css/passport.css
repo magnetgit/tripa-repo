@@ -227,6 +227,15 @@ body {
     color: #8fa6c8;
 }
 
+/* 프로필 캐릭터를 사진 칸 가운데에 */
+.pp-photo--avatar { align-items: center; }
+
+.pp-photo img {
+    width: 104px;
+    height: 104px;
+    border-radius: 50%;
+}
+
 /* 사진 위 홀로그램 */
 .pp-photo::after {
     content: "";
@@ -340,6 +349,212 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 18px;
+}
+
+/* 내정보 수정: 사진 칸을 눌러 캐릭터 바꾸기 */
+.pp-photo--edit {
+    padding: 0;
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+}
+
+.pp-photo--edit img { transition: transform 0.15s; }
+.pp-photo--edit:hover img { transform: scale(1.04); }
+
+.pp-photo--edit:focus-visible {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 3px;
+}
+
+.pp-photo__change {
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #ffffff;
+    border-radius: 999px;
+    background: rgba(31, 45, 74, 0.78);
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.pp-photo__change svg { width: 11px; height: 11px; }
+
+.pp-avatar-picker {
+    margin: 0 28px 18px;
+    padding: 12px 16px 12px;
+    border: 1.5px dashed #d8cfbf;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.pp-avatar-picker[hidden] { display: none; }
+
+.pp-avatar-picker legend {
+    padding: 0 6px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #1f2d4a;
+}
+
+.pp-avatar-picker legend em {
+    font-style: normal;
+    font-weight: 500;
+    color: var(--pp-mute);
+}
+
+.pp-avatar-picker small {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--pp-mute);
+}
+
+.pp-avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+    gap: 8px;
+}
+
+.pp-avatar-opt {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.pp-avatar-opt input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pp-avatar-opt img {
+    width: 48px;
+    height: 48px;
+    border: 2.5px solid transparent;
+    border-radius: 50%;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.pp-avatar-opt:hover img { transform: translateY(-2px); }
+
+.pp-avatar-opt input:checked + img {
+    border-color: #2d6cdf;
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.18);
+    transform: scale(1.06);
+}
+
+.pp-avatar-opt input:focus-visible + img {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+}
+
+.pp-avatar-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* 여행 기록 (도장 4개 + 통계 줄) */
+.pp-record {
+    margin: 4px 28px 18px;
+    padding: 16px 18px 10px;
+    border: 1.5px dashed #d8cfbf;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.pp-record h2 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #1f2d4a;
+}
+
+.pp-record h2 em {
+    font-style: normal;
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--pp-mute);
+}
+
+.pp-rec-stamps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+
+.pp-rec-stamp {
+    --stamp: #2a4fa8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    max-width: 118px;
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border: 2px solid var(--stamp);
+    border-radius: 50%;
+    color: var(--stamp);
+    text-align: center;
+}
+
+.pp-rec-stamp--red { --stamp: #b5413b; }
+
+.pp-rec-stamp b {
+    font-family: var(--pp-hand);
+    font-size: 30px;
+    line-height: 1;
+}
+
+.pp-rec-stamp span {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.pp-stats {
+    margin: 0;
+}
+
+.pp-stats div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px dotted #ddd4c4;
+    font-size: 13px;
+}
+
+.pp-stats div:last-child { border-bottom: 0; }
+
+.pp-stats dt { color: #6b7280; }
+
+.pp-stats dd {
+    margin: 0;
+    font-weight: 800;
+    color: #1f2d4a;
+    text-align: right;
+}
+
+.pp-stats dd small {
+    font-weight: 600;
+    color: var(--pp-mute);
 }
 
 /* 기계 판독 줄 (여권 맨 아래) */
@@ -535,8 +750,12 @@ body {
     .pp-body { grid-template-columns: 1fr; gap: 18px; padding: 22px 20px 14px; }
     .pp-photo { width: 110px; height: 136px; }
     .pp-photo svg { width: 94px; height: 112px; }
+    .pp-photo img { width: 88px; height: 88px; }
     .pp-seal { top: 112px; left: 96px; width: 66px; height: 66px; font-size: 9px; }
     .pp-row { grid-template-columns: 1fr; gap: 14px; }
+    .pp-record { margin: 4px 20px 16px; padding: 14px 14px 8px; }
+    .pp-rec-stamps { grid-template-columns: repeat(2, 1fr); }
+    .pp-avatar-picker { margin: 0 20px 16px; }
     .pp-mrz { margin: 0 20px; font-size: 11px; letter-spacing: 1px; }
     .pp-actions { grid-template-columns: 1fr; padding: 16px 20px 10px; }
     .pp-actions--two { grid-template-columns: 1fr; }

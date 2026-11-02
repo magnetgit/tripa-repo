@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=6">
 </head>
 
 <body>
@@ -42,12 +42,13 @@
                 <p>밑줄 위에 새로 적어 주세요</p>
             </div>
 
-            <div class="pp-photo" aria-hidden="true">
-                <svg viewBox="0 0 112 132" fill="currentColor">
-                    <circle cx="56" cy="48" r="26"/>
-                    <path d="M8 132 C8 98 30 82 56 82 C82 82 104 98 104 132 Z"/>
-                </svg>
-            </div>
+            <!-- 사진 칸을 누르면 아래에 캐릭터 고르기가 열림 -->
+            <button type="button" class="pp-photo pp-photo--avatar pp-photo--edit" id="avatarToggle"
+                    aria-expanded="false" aria-controls="avatarPicker">
+                <img id="avatarPreview" src="{% static 'sherpaapp/avatars/'|add:member.avatar_key|add:'.svg' %}"
+                     alt="" width="104" height="104">
+                <span class="pp-photo__change">{% include "_icon.html" with name="edit" %} 바꾸기</span>
+            </button>
             <div class="pp-seal" aria-hidden="true">TRIPA<br>MEMBER<br>★</div>
 
             <div class="pp-fields">
@@ -78,6 +79,22 @@
             </div>
 
         </div>
+
+        <!-- 프로필 캐릭터 고르기 (사진 칸을 누르면 열림) -->
+        <fieldset class="pp-avatar-picker" id="avatarPicker" hidden>
+            <legend>프로필 캐릭터 <em>/ Profile</em></legend>
+            <div class="pp-avatar-grid" role="radiogroup" aria-label="프로필 캐릭터">
+                {% for key, label in avatars %}
+                <label class="pp-avatar-opt" title="{{ label }}">
+                    <input type="radio" name="profile_img" value="{{ key }}" data-label="{{ label }}"
+                           {% if key == member.avatar_key %}checked{% endif %}>
+                    <img src="{% static 'sherpaapp/avatars/'|add:key|add:'.svg' %}" alt="" width="48" height="48" loading="lazy">
+                    <span class="pp-avatar-name">{{ label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <small id="avatarMsg" aria-live="polite">고른 뒤 '저장하기'를 눌러야 바뀌어요.</small>
+        </fieldset>
 
         <div class="pp-mrz" aria-hidden="true">
             TRP&lt;KOR&lt;&lt;<span id="mrzNick">{{ member.nickname }}</span>&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;<br>
@@ -132,6 +149,29 @@
 
     document.getElementById("name").addEventListener("input", function () {
         document.getElementById("formError").textContent = "";
+    });
+
+    // 사진 칸 누르면 캐릭터 고르기 열기/닫기
+    var avatarToggle = document.getElementById("avatarToggle");
+    var avatarPicker = document.getElementById("avatarPicker");
+    avatarToggle.addEventListener("click", function () {
+        var open = avatarPicker.hidden;
+        avatarPicker.hidden = !open;
+        avatarToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) {
+            avatarPicker.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            var picked = avatarPicker.querySelector("input:checked");
+            if (picked) picked.focus();
+        }
+    });
+
+    // 캐릭터를 고르면 사진 칸에 바로 미리 보여줌 (저장은 '저장하기' 때)
+    avatarPicker.querySelectorAll('input[name="profile_img"]').forEach(function (radio) {
+        radio.addEventListener("change", function () {
+            document.getElementById("avatarPreview").src = radio.nextElementSibling.src;
+            document.getElementById("avatarMsg").textContent =
+                "'" + radio.dataset.label + "'(으)로 바꿀게요. '저장하기'를 눌러 주세요.";
+        });
     });
 </script>
 

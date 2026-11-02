@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=6">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=7">
 </head>
 
 <body class="auth-page--join auth-ticket">
@@ -146,6 +146,28 @@
                 <input id="nickname" name="nickname" type="text" placeholder="여행에서 불릴 이름" autocomplete="nickname">
             </div>
         </div>
+
+        <!-- 프로필 캐릭터 (선택): 안 고르면 서버에서 랜덤으로 정함 -->
+        <fieldset class="opt-box avatar-box">
+            <legend>프로필 캐릭터 <em>(선택)</em></legend>
+            <p class="opt-desc">내 정보에 보일 캐릭터를 골라 주세요. 고르지 않으면 랜덤으로 정해져요.</p>
+
+            <div class="avatar-grid" role="radiogroup" aria-label="프로필 캐릭터">
+                <label class="avatar-opt" title="랜덤">
+                    <input type="radio" name="profile_img" value="" data-label="랜덤" checked>
+                    <span class="avatar-face avatar-face--random" aria-hidden="true">?</span>
+                    <span class="avatar-name">랜덤</span>
+                </label>
+                {% for key, label in avatars %}
+                <label class="avatar-opt" title="{{ label }}">
+                    <input type="radio" name="profile_img" value="{{ key }}" data-label="{{ label }}">
+                    <img class="avatar-face" src="{% static 'sherpaapp/avatars/'|add:key|add:'.svg' %}" alt="" width="48" height="48" loading="lazy">
+                    <span class="avatar-name">{{ label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <span id="avatar-msg" class="field-msg" aria-live="polite">가입하면 랜덤 캐릭터가 정해져요.</span>
+        </fieldset>
 
         <!-- 맞춤 추천 정보 (선택): 회의 결정 8 — 비워도 가입 가능, 넣으면 [선택] 동의 필요 -->
         <fieldset class="opt-box">
@@ -307,6 +329,15 @@
         f.email.value = email;
         return true;
     }
+
+    // 프로필 캐릭터를 고르면 아래 안내 문구를 바꿈
+    document.querySelectorAll('input[name="profile_img"]').forEach(function (radio) {
+        radio.addEventListener("change", function () {
+            setMsg("avatar-msg", radio.value
+                ? "'" + radio.dataset.label + "'(으)로 할게요."
+                : "가입하면 랜덤 캐릭터가 정해져요.");
+        });
+    });
 
     // 입력을 다시 시작하면 아래 안내 문구 지우기
     document.f.addEventListener("input", function () {

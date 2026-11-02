@@ -246,6 +246,57 @@ def _from_client_place(query, data):
 # 일정 초안 검증 / 정리
 # =========================================================
 
+def _squash(text):
+    """비교용: 공백을 없애고 소문자로."""
+    return re.sub(r'\s+', '', str(text or '')).lower()
+
+
+def match_categories(raw, category_names):
+    """AI가 준 컨셉 값을 DB 컨셉 이름 목록으로 맞춘다.
+
+    AI가 배열 대신 문자열('랜드마크, 역사')을 주거나,
+    '랜드마크 투어'처럼 이름에 말을 덧붙여도 DB 이름으로 알아듣는다.
+    """
+    if isinstance(raw, str):
+        raw = re.split(r'[,/·、]|\s+및\s+|\s+그리고\s+', raw)
+    elif not isinstance(raw, (list, tuple)):
+        raw = []
+
+    categories = []
+
+    for item in raw:
+        text = _squash(_clean_text(item, 30))
+
+        if not text:
+            continue
+
+        for name in category_names:
+            key = _squash(name)
+
+            if key and (key == text or key in text) and name not in categories:
+                categories.append(name)
+
+    return categories[:MAX_CATEGORIES]
+
+
+_NOT_CONCEPT_WORDS = ('추천', '빼', '제외', '말고', '싫', '별로')
+
+
+def guess_categories(text, category_names):
+    """사용자 문장에 컨셉 이름(예: 랜드마크, 역사)이 그대로 있으면 그 이름들을 돌려준다.
+
+    '카페 추천해줘'(장소 추천)나 '쇼핑은 빼줘'(제외)는 컨셉 선택이 아니므로 읽지 않는다.
+    """
+    text = text or ''
+
+    if any(word in text for word in _NOT_CONCEPT_WORDS):
+        return []
+
+    squashed = _squash(text)
+    found = [name for name in category_names if _squash(name) and _squash(name) in squashed]
+    return found[:MAX_CATEGORIES]
+
+
 def normalize_draft(data, prev, category_names, today, resolve, notes=None):
     """어떤 입력이 와도 안전한 초안(dict)으로 만든다.
 
@@ -301,16 +352,7 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
     draft['start_time'] = _clean_time(data.get('start_time'))
 
     # ---- 컨셉 (DB에 있는 이름만) ----
-    allowed = set(category_names)
-    categories = []
-
-    for raw in data.get('categories') or []:
-        name = _clean_text(raw, 30)
-
-        if name in allowed and name not in categories:
-            categories.append(name)
-
-    draft['categories'] = categories[:MAX_CATEGORIES]
+    draft['categories'] = match_categories(data.get('categories'), category_names)
 
     # ---- 지역 중심 좌표 (지도용) ----
     prev_center = prev.get('center') if isinstance(prev.get('center'), dict) else None
@@ -942,7 +984,9 @@ def build_system_prompt(draft, category_names, today):
         "3. 날짜는 오늘(%s, %s요일) 기준으로 해석해 YYYY-MM-DD로 적습니다. "
         "'2박 3일'이면 종료일 = 출발일 + 2일입니다. 연도가 없으면 가장 가까운 미래 날짜로 합니다.\n"
         "4. categories에는 다음 목록의 이름만 쓰고, 취향에 맞게 1~4개를 고릅니다: %s. "
-        "취향 언급이 전혀 없으면 비워 두고 취향을 물어보세요.\n"
+        "취향 언급이 전혀 없으면 비워 두고 취향을 물어보세요. "
+        "사용자가 목록에 있는 이름을 말하면 다른 정보와 한 문장에 섞여 있어도 그 이름을 categories 배열에 그대로 넣습니다. "
+        "예) '수원 랜드마크 1박2일' → place='수원', categories=['랜드마크']. 컨셉 질문에 '역사'라고만 답해도 categories=['역사'].\n"
         "5. transport는 car(자동차), walk(도보), public_transport(대중교통), bike(자전거) 중 하나입니다.\n"
         "6. budget_style은 쓰지 않으므로 항상 null로 둡니다. 가성비·프리미엄·비싸도 괜찮음 같은 예산 성향은 묻지 마세요. "
         "예산을 물을 때는 '총예산이 얼마인지'만 묻고, 금액을 말하면 budget_total에 전체 여행 총예산을 원 단위 정수로 적습니다.\n"
@@ -1236,6 +1280,24 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
 
     ai_draft = _keep_previous(result.get('draft'), prev)
 
+    # AI가 컨셉을 빠뜨리면, 사용자가 방금 말한 문장에서 컨셉 이름을 직접 읽는다
+    # (예: '수원 랜드마크 1박2일' / 컨셉 질문에 '랜드마크'라고만 답한 경우)
+    # 숙소 칸에 '랜드마크'처럼 컨셉 이름만 들어오면 숙소가 아니므로 버린다
+    concept_keys = {_squash(name) for name in category_names}
+    if isinstance(ai_draft.get('stays'), list):
+        ai_draft['stays'] = [
+            s for s in ai_draft['stays']
+            if not (isinstance(s, dict) and _squash(s.get('query')) in concept_keys)
+        ]
+    if _squash(ai_draft.get('start_place_query')) in concept_keys:
+        ai_draft['start_place_query'] = (prev.get('start_place') or {}).get('query')
+
+    guessed_cats = []
+    if not match_categories(ai_draft.get('categories'), category_names):
+        guessed_cats = guess_categories(messages[-1]['content'], category_names)
+        if guessed_cats:
+            ai_draft['categories'] = guessed_cats
+
     # AI가 출발 시각을 빠뜨리면, 출발 이야기를 한 사용자 문장에서 시각을 직접 읽는다
     if not _clean_time(ai_draft.get('start_time')):
         raw_sp = (result.get('draft') or {}).get('start_place_query') if isinstance(result.get('draft'), dict) else None
@@ -1250,6 +1312,19 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
     )
 
     reply = _clean_text(result.get('reply'), 800) or '일정 초안을 업데이트했어요.'
+
+    # 컨셉이 이미 정해졌는데 AI 답이 컨셉을 또 묻고 있으면, 그 질문 문장을 뺀다.
+    # 이번 턴에 컨셉이 새로 정해졌고 답에 그 말이 없으면 반영 안내를 붙인다.
+    if new_draft.get('categories'):
+        sentences = re.split(r'(?<=[.?!])\s+', reply)
+        kept = [s for s in sentences if not ('컨셉' in s and '?' in s)]
+        cats_text = ', '.join(new_draft['categories'])
+        newly_set = new_draft['categories'] != prev.get('categories')
+
+        if newly_set and new_draft['categories'][0] not in ' '.join(kept):
+            kept.append("여행 컨셉은 '%s'(으)로 반영했어요." % cats_text)
+
+        reply = ' '.join(kept).strip() or '일정 초안을 업데이트했어요.'
 
     # 숙소/출발지를 못 찾았으면 알려준다
     for place in [new_draft.get('start_place')] + (new_draft.get('stays') or []):
