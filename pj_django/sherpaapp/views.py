@@ -143,7 +143,7 @@ def place_search(request):
 
     try:
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -193,7 +193,7 @@ def place_search_search(request):
 
     try:
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -251,7 +251,7 @@ def travel_create(request):
         return redirect('login')
 
     try:
-        member = Member.objects.get(email=login_user)
+        member = Member.objects.get(user_id=login_user)
     except Member.DoesNotExist:
         return redirect('login')
 
@@ -507,7 +507,7 @@ def travel_list(request):
     if not login_user:
         return redirect('login')
     try:
-        member = Member.objects.get(email=login_user)
+        member = Member.objects.get(user_id=login_user)
     except Member.DoesNotExist:
         return redirect('login')
     travels = (Travel.objects.filter(member=member).order_by('-t_id'))
@@ -520,7 +520,7 @@ def schedule_manage(request):
     if not login_user:
         return redirect('login')
     try:
-        member = Member.objects.get(email=login_user)
+        member = Member.objects.get(user_id=login_user)
     except Member.DoesNotExist:
         return redirect('login')
 
@@ -538,7 +538,7 @@ def travel_detail(request, travel_id):
     member = None
     if login_user:
         try:
-            member = Member.objects.get(email=login_user)
+            member = Member.objects.get(user_id=login_user)
         except Member.DoesNotExist:
             member = None
 
@@ -886,7 +886,7 @@ def travel_update(
         try:
 
             member = Member.objects.get(
-                email=login_user
+                user_id=login_user
             )
 
         except Member.DoesNotExist:
@@ -1113,7 +1113,7 @@ def index(request):
         try:
 
             member = Member.objects.get(
-                email=login_user
+                user_id=login_user
             )
 
         except Member.DoesNotExist:
@@ -1290,7 +1290,7 @@ def budget(
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -1515,7 +1515,7 @@ def budget_update_total(
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -1616,7 +1616,7 @@ def budget_add(
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -1887,7 +1887,7 @@ def budget_delete(
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -1953,7 +1953,7 @@ def budget_update_pay(
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -2016,15 +2016,15 @@ def budget_update_pay(
 
 def check_email(request):
 
-    email = request.GET.get(
-        'email'
+    user_id = request.GET.get(
+        'user_id'
     )
 
 
     exists = (
         Member.objects
         .filter(
-            email=email
+            user_id=user_id
         )
         .exists()
     )
@@ -2041,6 +2041,10 @@ def check_email(request):
 # ==============================================
 
 def join_ok(request):
+
+    user_id = request.POST.get(
+        'user_id'
+    )
 
     email = request.POST.get(
         'email'
@@ -2059,6 +2063,22 @@ def join_ok(request):
     )
 
 
+    # 아이디 중복
+    if (
+        Member.objects
+        .filter(
+            user_id=user_id
+        )
+        .exists()
+    ):
+
+        return HttpResponse("""
+            <script>
+                alert('이미 사용 중인 ID입니다.');
+                history.back();
+            </script>
+        """)
+
     # 이메일 중복
     if (
         Member.objects
@@ -2075,8 +2095,8 @@ def join_ok(request):
             </script>
         """)
 
-
     Member.objects.create(
+        user_id=user_id,
         email=email,
         pwd=make_password(pwd),
         name=name,
@@ -2098,8 +2118,8 @@ def join_ok(request):
 
 def login_ok(request):
 
-    email = request.POST.get(
-        'email'
+    user_id = request.POST.get(
+        'user_id'
     )
 
     pwd = request.POST.get(
@@ -2110,7 +2130,7 @@ def login_ok(request):
     try:
 
         member = Member.objects.get(
-            email=email
+            user_id=user_id
         )
 
 
@@ -2118,7 +2138,7 @@ def login_ok(request):
 
             request.session[
                 'login_ok_user'
-            ] = member.email
+            ] = member.user_id
 
             # 팝업 없이 바로 홈으로
             return redirect('index')
@@ -2128,7 +2148,7 @@ def login_ok(request):
             member.save()
             request.session[
                 'login_ok_user'
-            ] = member.email
+            ] = member.user_id
 
             # 팝업 없이 바로 홈으로
             return redirect('index')
@@ -2174,7 +2194,7 @@ def mypage(request):
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -2235,8 +2255,8 @@ def id_find(request):
         'name'
     )
 
-    nickname = request.POST.get(
-        'nickname'
+    email = request.POST.get(
+        'email'
     )
 
 
@@ -2244,22 +2264,22 @@ def id_find(request):
         Member.objects
         .filter(
             name=name,
-            nickname=nickname
+            email=email
         )
     )
 
 
     if members.exists():
 
-        emails = [
-            member.email
+        ids = [
+            member.user_id
             for member in members
         ]
 
 
         return HttpResponse(f"""
             <script>
-                alert('회원님의 아이디는 {", ".join(emails)} 입니다.');
+                alert('회원님의 아이디는 {", ".join(ids)} 입니다.');
                 location.href = '../idpw/';
             </script>
         """)
@@ -2278,6 +2298,10 @@ def id_find(request):
 # ==============================================
 
 def pw_find(request):
+
+    user_id = request.POST.get(
+        'user_id'
+    )
 
     email = request.POST.get(
         'email'
@@ -2299,6 +2323,7 @@ def pw_find(request):
     try:
 
         member = Member.objects.get(
+            user_id=user_id,
             email=email,
             name=name
         )
@@ -2365,7 +2390,7 @@ def mypage_edit(request):
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -2442,7 +2467,7 @@ def member_delete(request):
     try:
 
         member = Member.objects.get(
-            email=login_user
+            user_id=login_user
         )
 
     except Member.DoesNotExist:
@@ -4653,7 +4678,7 @@ def _chat_member(request):
         return None
 
     try:
-        return Member.objects.get(email=login_user)
+        return Member.objects.get(user_id=login_user)
     except Member.DoesNotExist:
         return None
 
