@@ -8,6 +8,8 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db.models import Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
@@ -1043,6 +1045,31 @@ def _format_stay_time(minutes):
     return f'{mins}분'
 
 
+def _home_trip_card(travel, today):
+    """홈 화면 '내 여행 일정' 카드 한 장에 필요한 값 (기존 _build_recent_travel 결과를 재사용)."""
+    card = _build_recent_travel(travel)
+    stops = [item['name'] for day in card['days'] for item in day['items']]
+
+    start, end = travel.t_start, travel.t_end
+    if start and end and start <= today <= end:
+        dday, state = '여행 중', 'now'
+    elif start and start > today:
+        left = (start - today).days
+        dday, state = ('D-DAY' if left == 0 else 'D-%d' % left), 'soon'
+    else:
+        dday, state = '다녀옴', 'past'
+
+    card.update({
+        'stop_count': len(stops),
+        'stops': stops[:3],
+        'more': max(len(stops) - 3, 0),
+        'nights': (end - start).days if start and end else None,
+        'dday': dday,
+        'state': state,
+    })
+    return card
+
+
 def _build_recent_travel(travel):
     """메인 화면 '최근 만든 일정' 카드용 데이터 (최대 3일, 하루 3곳)."""
     days = []
@@ -1106,6 +1133,7 @@ def index(request):
 
     member = None
     recent_travel = None
+    recent_travels = []
 
 
     if login_user:
@@ -1134,6 +1162,13 @@ def index(request):
         if latest_travel:
             recent_travel = _build_recent_travel(latest_travel)
 
+        # 홈 '내 여행 일정' 카드 목록 (최근 4개)
+        today = date.today()
+        recent_travels = [
+            _home_trip_card(t, today)
+            for t in Travel.objects.filter(member=member).order_by('-t_id')[:4]
+        ]
+
 
     return HttpResponse(
         template.render(
@@ -1142,6 +1177,8 @@ def index(request):
                     member,
                 'recent_travel':
                     recent_travel,
+                'recent_travels':
+                    recent_travels,
             },
             request
         )
@@ -2418,6 +2455,26 @@ def mypage_edit(request):
         member.nickname = (
             nickname
         )
+
+        # 이메일 등록·변경 (비워 두면 기존 값 유지: 아이디 찾기에 필요해서 지우지 않음)
+        email = (request.POST.get('email') or '').strip()
+
+        if email and email != (member.email or ''):
+            error = None
+
+            try:
+                validate_email(email)
+            except ValidationError:
+                error = '이메일 형식이 올바르지 않아요. (예: example@tripa.com)'
+
+            if not error and Member.objects.filter(email=email).exclude(m_id=member.m_id).exists():
+                error = '이미 다른 회원이 쓰고 있는 이메일이에요.'
+
+            if error:
+                member.email = email  # 입력한 값을 그대로 다시 보여 주기 (저장은 안 함)
+                return render(request, 'mypage_edit.html', {'member': member, 'error': error})
+
+            member.email = email
 
 
         member.save()
