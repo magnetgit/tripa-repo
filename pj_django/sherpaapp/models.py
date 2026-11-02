@@ -589,8 +589,8 @@ class Review(models.Model):
 
         constraints = [
             models.UniqueConstraint(
-                fields=['member', 'place'],
-                name='unique_review_member_place'
+                fields=['member', 'kakao_id'],
+                name='unique_review_member_kakao_id'
             )
         ]
 

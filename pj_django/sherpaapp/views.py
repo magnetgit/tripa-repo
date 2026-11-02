@@ -5546,3 +5546,35 @@ def travel_chat_preview(request):
     cache.set(cache_key, result, PREVIEW_CACHE_SECONDS)
 
     return JsonResponse(result)
+
+
+def review_list(request):
+    kakao_id = request.GET.get('kakao_id')
+    if not kakao_id:
+        return _chat_error('kakao_id가 필요합니다.', 400)
+    Review.objects.filter(place__p_kakao_id=kakao_id).select_related('member').annotate(helfpul_count=Count('helpfuls'))
+    if sort == 'helfpul':
+        reviews = reviews.order_by('-helfpul_count', '-created_at')
+    elif sort == 'recent':
+        reviews = reviews.order_by('-created_at')
+    return JsonResponse({
+        'success': True,
+    })
+
+
+def review_write(request):
+    return JsonResponse({
+        'success': True,
+    })
+
+
+def review_helpful(request):
+    return JsonResponse({
+        'success': True,
+    })
+
+
+def review_summary(request):
+    return JsonResponse({
+        'success': True,
+    })
