@@ -2101,11 +2101,22 @@ def join_ok(request):
         'nickname'
     )
 
+    gender = request.POST.get(
+        'gender'
+    )
+
+    age_group = request.POST.get(
+        'age_group'
+    )
+
+    agree_profile = request.POST.get(
+        'agree_profile'
+    )
+
     # 프로필 캐릭터: 고른 게 없거나 목록에 없는 값이면 랜덤 배정
     profile_img = request.POST.get('profile_img')
     if profile_img not in AVATAR_KEYS:
         profile_img = random.choice(AVATAR_KEYS)
-
 
     # 아이디 중복
     if (
@@ -2139,15 +2150,37 @@ def join_ok(request):
             </script>
         """)
 
+    # 동의 안했으면 두 값을 비우기만 하고, 아래로 계속 진행
+    if (
+        agree_profile != '1'
+    ):
+        gender = None
+        age_group = None
+
+    # 성별은 M, F만
+    if (
+        gender not in ('M', 'F')
+    ):
+        gender = None
+
+    # 나이대는 10~60 숫자만
+    try:
+        age_group = int(age_group)
+        if age_group not in (10, 20, 30, 40, 50, 60):
+            age_group = None
+    except (ValueError, TypeError):
+        age_group = None
+
     Member.objects.create(
         user_id=user_id,
         email=email,
         pwd=make_password(pwd),
         name=name,
         nickname=nickname,
-        profile_img=profile_img
+        gender=gender,
+        age_group=age_group,
+        profile_img=profile_img,
     )
-
 
     return HttpResponse("""
         <script>
