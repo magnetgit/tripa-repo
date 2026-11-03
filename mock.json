@@ -8,9 +8,19 @@
     {"day": 1, "date": "2026-10-28", "weather": {"kind": "sun", "temp": 21},
      "excluded": [{"name": "△△ 갤러리", "reason": "weekly_off"}],
      "stops": [{"time": "10:30", "spot_id": 12, "name": "부산역", "kind": "arrive",
-                "lat": 35.115, "lon": 129.041, "move_min": null, "cost": {"amount": 0, "cat": "move", "source": "ai"}}]}
+                "lat": 35.115, "lon": 129.041, "move_min": null, "cost": {"amount": 0, "cat": "move", "source": "ai"},
+                "photo": {"url": "https://example.com/busan-station.jpg", "source": "tour"}}]}
   ]},
-  "places": null, "transport": null,
+  "places": {"title": "해운대 근처 카페", "anchor": "해운대", "day": 2, "time": "오후",
+             "items": [{"name": "○○카페", "kakao_id": "12345", "kind": "카페",
+                        "addr": "부산 해운대구 ○○로 1", "lat": 35.163, "lon": 129.163,
+                        "phone": "051-000-0000", "url": "https://place.map.kakao.com/12345", "distance": "350m",
+                        "photo": {"url": "https://example.com/cafe.jpg", "source": "kakao"},
+                        "open": {"closed": false, "reason": null},
+                        "indoor": true,
+                        "review": {"rating": 4.6, "count": 23},
+                        "cost": {"amount": 8000, "cat": "food", "source": "ai"}}]},
+  "transport": null,
   "budget": {"total": 500000, "planned": 547200,
              "limit": {"sight": 30000, "food": 150000, "move": 200000, "stay": 120000, "shop": 0, "etc": 0},
              "by": {"sight": 56000, "food": 184000, "move": 197200, "stay": 110000, "shop": 0, "etc": 0}}
