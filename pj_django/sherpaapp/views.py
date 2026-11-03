@@ -517,6 +517,17 @@ def travel_list(request):
     travels = (Travel.objects.filter(member=member).order_by('-t_id'))
     return render(request,'sherpaapp/travel_list.html',{'member':member,'travels':travels})
 
+# 리뷰 게시판 (사이드바 메뉴) — 지금은 화면 틀만, 리뷰 목록은 나중에
+def review_board(request):
+    login_user = request.session.get('login_ok_user')
+    if not login_user:
+        return redirect('login')
+    try:
+        member = Member.objects.get(user_id=login_user)
+    except Member.DoesNotExist:
+        return redirect('login')
+    return render(request, 'sherpaapp/review.html', {'member': member})
+
 # 일정 관리 (사이드바 메뉴)
 # 가장 최근 여행의 일정으로 보내고, 여행이 하나도 없으면 안내 카드를 보여준다.
 def schedule_manage(request):
