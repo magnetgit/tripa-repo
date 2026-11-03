@@ -26,6 +26,7 @@ from django.conf import settings
 from langchain_openai import ChatOpenAI
 
 from .place_service import concept_plan, is_junk_kind, kakao_documents
+from .photo_service import attach_photos
 
 logger = logging.getLogger(__name__)
 
@@ -733,6 +734,52 @@ def _concept_of(query):
     return query if query in ('역사', '전통문화') else None
 
 
+# 추천 카드에 나오면 안 되는 카카오 분류 (화장실·관리사무소·대리점 등)
+# place_service.JUNK_KINDS(주차장·아파트 등)에 더해 추천 카드에서만 쓴다
+CARD_JUNK_KINDS = (
+    '화장실', '관리,운영', '사회,공공기관', '금융,보험', '정보통신',
+    '게임방,PC방', '관광안내소', '의료,건강', '교육,학문', '회사', '대리점',
+)
+
+# '카페 추천'처럼 장소 종류를 말하면 카카오 분류 코드로 그 종류만 찾는다
+# (안 그러면 '전포카페거리점' 같은 이름의 휴대폰 가게가 섞인다)
+KIND_GROUPS = {
+    '카페': 'CE7', '디저트': 'CE7', '커피': 'CE7',
+    '맛집': 'FD6', '식당': 'FD6', '음식점': 'FD6',
+    '숙소': 'AD5', '숙박': 'AD5', '호텔': 'AD5', '게스트하우스': 'AD5', '펜션': 'AD5',
+}
+
+
+def _is_card_junk(kind, query):
+    """추천 카드로 쓰면 안 되는 분류인지. 사용자가 그 말을 직접 찾으면(예: '주차장') 거르지 않는다."""
+    kind = kind or ''
+    query = query or ''
+
+    for word in CARD_JUNK_KINDS:
+        if word in kind and word not in query:
+            return True
+
+    return is_junk_kind(kind) and not any(w in query for w in ('주차', '교통'))
+
+
+# 여행 장소로 볼 카카오 분류 (분류 코드 또는 맨 앞 분류 이름)
+TRAVEL_GROUPS = ('AT4', 'CT1', 'FD6', 'CE7', 'AD5')
+TRAVEL_TOPS = ('여행', '음식점', '문화,예술', '스포츠,레저')
+
+
+def _is_travel_place(doc, query):
+    """여행 장소 분류인지. 아니어도 사용자가 그 종류를 직접 찾았으면(예: '주차장', '시장') 통과."""
+    kind = doc.get('category_name') or ''
+
+    if doc.get('category_group_code') in TRAVEL_GROUPS:
+        return True
+
+    if kind.split(' > ')[0].strip() in TRAVEL_TOPS:
+        return True
+
+    return any(len(word) >= 2 and word in kind for word in (query or '').split())
+
+
 def search_recommendations(rec, draft, size=4):
     """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다."""
     key = getattr(settings, 'KAKAO_REST_API_KEY', '')
@@ -758,10 +805,9 @@ def search_recommendations(rec, draft, size=4):
     # 넓은 뜻의 말(랜드마크 등)은 글자 그대로 검색하지 않고 실제 관광명소를 찾는다
     concept = _concept_of(rec['query'])
     plan = concept_plan(concept, size) if concept else None
-    wide = bool(plan)
 
     if not plan:
-        plan = [(rec['query'], '', None, size)]
+        plan = [(rec['query'], KIND_GROUPS.get((rec['query'] or '').strip(), ''), None, size)]
 
     documents = []
     seen = set()
@@ -770,7 +816,7 @@ def search_recommendations(rec, draft, size=4):
         try:
             found = kakao_documents(
                 ' '.join(x for x in (region, query) if x),
-                count + 6,
+                15,   # 걸러 낼 것을 생각해 최대(15개)로 받아 둔다
                 group,
                 **extra
             )
@@ -784,7 +830,11 @@ def search_recommendations(rec, draft, size=4):
             kind = doc.get('category_name') or ''
             name = doc.get('place_name') or ''
 
-            if wide and is_junk_kind(kind):
+            if _is_card_junk(kind, rec['query']):
+                continue
+
+            # 쇼핑몰처럼 허용 분류(allow)를 따로 정한 검색은 그 분류로만 거른다
+            if not allow and not _is_travel_place(doc, rec['query']):
                 continue
 
             if allow and not any(w in kind for w in allow):
@@ -830,6 +880,9 @@ def search_recommendations(rec, draft, size=4):
             item['distance'] = _distance_text(_distance_m(anchor, coord))
 
         items.append(item)
+
+    # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
+    attach_photos(items)
 
     return anchor_name, items
 
@@ -982,7 +1035,9 @@ def build_system_prompt(draft, category_names, today):
         "예) '첫날은 성남 신흥역 아침8시' → start_place_query='성남 신흥역', start_time='08:00'. "
         "'오후 2시 반' → '14:30'. 시각을 말했는데 start_time을 비워 두지 마세요.\n"
         "3. 날짜는 오늘(%s, %s요일) 기준으로 해석해 YYYY-MM-DD로 적습니다. "
-        "'2박 3일'이면 종료일 = 출발일 + 2일입니다. 연도가 없으면 가장 가까운 미래 날짜로 합니다.\n"
+        "'2박 3일'이면 종료일 = 출발일 + 2일입니다. 연도가 없으면 가장 가까운 미래 날짜로 합니다. "
+        "요일은 직접 세지 말고 아래 날짜표에서 찾으세요. 한 주는 월요일부터 일요일까지입니다.\n"
+        "[날짜표] %s\n"
         "4. categories에는 다음 목록의 이름만 쓰고, 취향에 맞게 1~4개를 고릅니다: %s. "
         "취향 언급이 전혀 없으면 비워 두고 취향을 물어보세요. "
         "사용자가 목록에 있는 이름을 말하면 다른 정보와 한 문장에 섞여 있어도 그 이름을 categories 배열에 그대로 넣습니다. "
@@ -1018,6 +1073,7 @@ def build_system_prompt(draft, category_names, today):
     ) % (
         today.isoformat(),
         WEEKDAYS[today.weekday()],
+        date_table(today),
         ', '.join(category_names) or '(없음)',
         json.dumps(_llm_view(draft), ensure_ascii=False),
         ', '.join(missing) if missing else '없음',
@@ -1175,6 +1231,182 @@ def _keep_previous(ai_draft, prev):
     return ai_draft
 
 
+_WEEKDAY_INDEX = {name: i for i, name in enumerate(WEEKDAYS)}
+_NIGHTS_RE = re.compile(r'(\d{1,2})\s*박(?:\s*(\d{1,2})\s*일)?')
+_MONTH_DAY_RE = re.compile(r'(?:(\d{4})\s*[년.\-/]\s*)?(\d{1,2})\s*(?:월|[./])\s*(\d{1,2})\s*일?')
+_UNTIL_DAY_RE = re.compile(r'(?:부터|~|-)\s*(\d{1,2})\s*일')
+_WEEK_DAY_RE = re.compile(r'(이번\s*주|금주|다음\s*주|담주|다다음\s*주)?\s*(?:의\s*)?([월화수목금토일])요일')
+_WEEKEND_RE = re.compile(r'(이번\s*주?|금주|다음\s*주?|담주|다다음\s*주?)?\s*주말')   # '다음 주말'·'다음주 주말'
+_AFTER_DAYS_RE = re.compile(r'(\d{1,2})\s*일\s*(?:뒤|후)')
+_RELATIVE_WORDS = (('글피', 3), ('모레', 2), ('내일', 1), ('오늘', 0))
+
+# 숙소 이야기에 나온 날짜를 출발일로 잘못 읽지 않으려고
+_STAY_WORDS = ('숙소', '숙박', '호텔', '게스트하우스', '펜션', '체크인', '체크아웃', '묵')
+
+
+def _week_offset(word):
+    """'이번주'=0, '다음주'=1, '다다음주'=2, 말이 없으면 None."""
+    word = re.sub(r'\s+', '', word or '')
+    if not word:
+        return None
+    if word.startswith('다다음'):
+        return 2
+    if word.startswith('다음') or word == '담주':
+        return 1
+    return 0
+
+
+def _weekday_date(today, weekday, week):
+    """week=None이면 오늘 이후 가장 가까운 그 요일(오늘 포함), 숫자면 그 주(월~일)의 그 요일."""
+    if week is None:
+        return today + timedelta(days=(weekday - today.weekday()) % 7)
+
+    monday = today - timedelta(days=today.weekday())
+    return monday + timedelta(days=7 * week + weekday)
+
+
+def _month_day(year, month, day, today):
+    try:
+        found = date(int(year) if year else today.year, int(month), int(day))
+    except ValueError:
+        return None
+
+    # 연도를 말하지 않았고 이미 지난 날짜면 내년으로
+    if not year and found < today:
+        try:
+            found = found.replace(year=today.year + 1)
+        except ValueError:
+            return None
+
+    return found
+
+
+def guess_nights(text):
+    """'2박3일'·'1박 2일' → 박 수, '당일치기' → 0, 없으면 None."""
+    if not isinstance(text, str):
+        return None
+
+    if '당일치기' in text or '당일 여행' in text:
+        return 0
+
+    match = _NIGHTS_RE.search(text)
+    return int(match.group(1)) if match else None
+
+
+def guess_dates(text, today):
+    """사용자 문장에서 출발일·종료일을 직접 계산한다. (AI는 요일 계산을 자주 틀림)
+
+    돌려주는 값: {'start': date 또는 None, 'end': date 또는 None, 'nights': int 또는 None}
+    예) 오늘 11-02(월) 기준 '이번주 토요일' → start 11-07
+        '다음주 금요일부터 2박3일' → start 11-13, nights 2
+    """
+    found = {'start': None, 'end': None, 'nights': guess_nights(text)}
+
+    if not isinstance(text, str) or any(word in text for word in _STAY_WORDS):
+        return found
+
+    # 1) '11월 7일', '11/7', '2026-11-07' (두 개면 출발·종료)
+    # '2026-11-07' 은 '2026년 11월 07일'로 바꿔서 읽는다 ('3-4명' 같은 말은 날짜로 안 읽게 연도가 있을 때만)
+    dated = re.sub(r'(\d{4})-(\d{1,2})-(\d{1,2})', r'\1년 \2월 \3일', text)
+
+    days = []
+    for match in _MONTH_DAY_RE.finditer(dated):
+        day = _month_day(match.group(1), match.group(2), match.group(3), today)
+        if day:
+            days.append(day)
+
+    if days:
+        found['start'] = days[0]
+
+        if len(days) > 1 and days[1] >= days[0]:
+            found['end'] = days[1]
+        else:
+            # '11월 7일부터 9일까지'
+            until = _UNTIL_DAY_RE.search(text)
+            if until:
+                end = _month_day(None, days[0].month, until.group(1), days[0])
+                if end and end > days[0]:
+                    found['end'] = end
+
+        return found
+
+    # 2) '이번주 토요일', '다음주 금요일', '토요일'
+    match = _WEEK_DAY_RE.search(text)
+    if match:
+        found['start'] = _weekday_date(today, _WEEKDAY_INDEX[match.group(2)], _week_offset(match.group(1)))
+        return found
+
+    # 3) '이번 주말', '다음주 주말' → 그 주 토요일
+    match = _WEEKEND_RE.search(text)
+    if match:
+        found['start'] = _weekday_date(today, 5, _week_offset(match.group(1)))
+        return found
+
+    # 4) '3일 뒤', '내일', '모레'
+    match = _AFTER_DAYS_RE.search(text)
+    if match:
+        found['start'] = today + timedelta(days=int(match.group(1)))
+        return found
+
+    for word, add in _RELATIVE_WORDS:
+        if word in text:
+            found['start'] = today + timedelta(days=add)
+            break
+
+    return found
+
+
+def _apply_guessed_dates(ai_draft, prev, messages, today):
+    """사용자가 말한 날짜·기간을 코드로 계산해 AI 값 대신 쓴다.
+
+    - 이번 문장에 날짜가 있으면 그것이 출발일(종료일)
+    - 기간(N박)은 이번 문장, 없으면 앞서 사용자가 말한 마지막 기간 ('수원 1박2일' → '11월1일')
+    - 출발일만 바꾸고 기간을 안 말하면 이전 초안의 기간을 유지
+    """
+    text = messages[-1]['content'] if messages else ''
+    guessed = guess_dates(text, today)
+    new_start = guessed['start'] if guessed['start'] and guessed['start'] >= today else None
+
+    if new_start:
+        ai_draft['start'] = new_start.isoformat()
+        ai_draft['end'] = guessed['end'].isoformat() if guessed['end'] else None
+
+        if guessed['end']:
+            return ai_draft
+
+    nights = guessed['nights']
+
+    if nights is None and new_start:
+        for message in reversed(messages[:-1]):
+            if message.get('role') == 'user':
+                nights = guess_nights(message.get('content'))
+                if nights is not None:
+                    break
+
+    start = _parse_date(ai_draft.get('start')) or _parse_date(prev.get('start'))
+
+    if nights is not None and start:
+        ai_draft['start'] = start.isoformat()
+        ai_draft['end'] = (start + timedelta(days=nights)).isoformat()
+    elif new_start:
+        p_start, p_end = _parse_date(prev.get('start')), _parse_date(prev.get('end'))
+        if p_start and p_end:
+            ai_draft['end'] = (new_start + (p_end - p_start)).isoformat()
+
+    return ai_draft
+
+
+def date_table(today, days=21):
+    """프롬프트용 날짜표 '2026-11-02(월) 2026-11-03(화) ...' (AI가 요일을 직접 세지 않게)."""
+    cells = []
+
+    for add in range(days):
+        day = today + timedelta(days=add)
+        cells.append('%s(%s)' % (day.isoformat(), WEEKDAYS[day.weekday()]))
+
+    return ' '.join(cells)
+
+
 _SPOKEN_TIME_RE = re.compile(
     r'(오전|아침|새벽|오후|낮|저녁|밤)?\s*(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분|(반))?'
 )
@@ -1307,6 +1539,9 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         if guessed_time:
             ai_draft['start_time'] = guessed_time
 
+    # 날짜는 사용자 문장에서 코드로 계산한 값을 먼저 쓴다 ('이번주 토요일', '2박 3일')
+    ai_draft = _apply_guessed_dates(ai_draft, prev, messages, today)
+
     new_draft = normalize_draft(
         ai_draft, prev, category_names, today, resolve=True, notes=notes
     )
@@ -1324,6 +1559,14 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         if newly_set and new_draft['categories'][0] not in ' '.join(kept):
             kept.append("여행 컨셉은 '%s'(으)로 반영했어요." % cats_text)
 
+        reply = ' '.join(kept).strip() or '일정 초안을 업데이트했어요.'
+
+    # 날짜가 이미 정해졌는데 AI 답이 출발일을 또 묻고 있으면 그 질문 문장을 뺀다.
+    # (날짜는 AI 답이 나온 뒤 코드가 채우므로, AI는 아직 비어 있다고 생각하고 묻는 경우가 있음)
+    if new_draft.get('start') and new_draft.get('end'):
+        sentences = re.split(r'(?<=[.?!])\s+', reply)
+        kept = [s for s in sentences
+                if not ('?' in s and any(w in s for w in ('언제', '출발일', '날짜', '며칠')))]
         reply = ' '.join(kept).strip() or '일정 초안을 업데이트했어요.'
 
     # 숙소/출발지를 못 찾았으면 알려준다
