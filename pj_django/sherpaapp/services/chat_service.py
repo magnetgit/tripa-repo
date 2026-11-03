@@ -31,6 +31,7 @@ from .photo_service import attach_photos
 from .agent_tools import CHAT_TOOLS, rainy_note, trip_weather
 from .tour_service import REASON_LABELS, drop_closed
 from .indoor_service import indoor_first, is_indoor
+from .busan_spots import MAX_PICKS, NEAR_LIMIT_M, QUERY_CONCEPTS, pick_rows
 
 logger = logging.getLogger(__name__)
 
@@ -753,7 +754,7 @@ def _stay_pin(draft, day):
     return tomorrow[0] if tomorrow else None
 
 
-def stay_recommend(messages, rec, draft):
+def stay_recommend(messages, rec, draft, ai_query=''):
     """숙소를 추천해 달라는 말이면 숙소 추천 조건을, 아니면 None.
 
     - '숙소 추천해줘', '해운대 쪽 저렴한 호텔 찾아줘'
@@ -761,14 +762,17 @@ def stay_recommend(messages, rec, draft):
     """
     text = messages[-1]['content'] if messages else ''
     last_ai = next((m['content'] for m in reversed(messages[:-1]) if m['role'] == 'assistant'), '')
-    rec_query = (rec or {}).get('query') or ''
 
     if not any(w in text for w in _STAY_REQUEST_WORDS):
         return None
 
-    mentions = any(w in text or w in rec_query for w in _STAY_ASK_WORDS)
+    mentions = any(w in text for w in _STAY_ASK_WORDS)
     # 숙소 질문에 '추천해줘'라고만 답했을 때 (다른 장소 종류를 말했으면 그 추천)
-    answered = '숙소' in last_ai and not any(k in text for k in _RECO_KEYWORDS if k != '숙소')
+    # (AI가 '바다'처럼 다른 추천 종류를 읽었거나, 사용자가 다른 종류를 말했으면 그 추천)
+    stay_query = not ai_query or any(w in ai_query for w in _STAY_ASK_WORDS)
+    answered = ('숙소' in last_ai and stay_query
+                and not any(k in text for k in _RECO_KEYWORDS + tuple(QUERY_CONCEPTS)
+                            if k not in ('숙소', '호텔')))
 
     if not mentions and not answered:
         return None
@@ -922,6 +926,53 @@ def _is_travel_place(doc, query):
     return any(len(word) >= 2 and word in kind for word in (query or '').split())
 
 
+# 부산 장소 표의 컨셉 → 카드의 kind
+PICK_KINDS = {'숙소': '숙박', '카페': '카페', '음식': '음식', '쇼핑': '쇼핑'}
+
+
+def _with_picks(items, rec, draft, anchor, near_found, exclude, size):
+    """팀이 고른 부산 장소를 최대 2곳 앞에 넣고, 같은 곳은 카카오 결과에서 뺀다."""
+    picks = []
+
+    for row in pick_rows(rec.get('query'), draft.get('place')):
+        coord = (row['lat'], row['lon'])
+        meters = _distance_m(anchor, coord) if anchor else None
+
+        # '○○ 근처' 추천이면 가까운 곳만
+        if near_found and meters is not None and meters > NEAR_LIMIT_M:
+            continue
+
+        if exclude and _is_excluded(exclude, row['name'], row['kind_text']):
+            continue
+
+        picks.append((meters if near_found and meters is not None else 0, {
+            'name': row['name'],
+            'kakao_id': row['kakao_id'],
+            'kind': PICK_KINDS.get(row['concept'], '관광'),
+            'addr': row['addr'],
+            'lat': row['lat'],
+            'lon': row['lon'],
+            'phone': row['phone'],
+            'url': _clean_url(row['url']),
+            'distance': _distance_text(meters) if meters is not None else None,
+            'indoor': row['indoor'],
+            'pick': dict(row['pick']),
+        }))
+
+    if not picks:
+        return items
+
+    # 근처 추천이면 가까운 순, 아니면 표의 순서
+    picks = [item for _, item in sorted(picks, key=lambda x: x[0])][:MAX_PICKS]
+    ids = {p['kakao_id'] for p in picks if p['kakao_id']}
+    names = {_squash(p['name']) for p in picks}
+    rest = [item for item in items
+            if item.get('kakao_id') not in ids and _squash(item['name']) not in names]
+
+    total = max(len(items), size)
+    return picks + rest[:total - len(picks)]
+
+
 def search_recommendations(rec, draft, size=4):
     """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다."""
     key = getattr(settings, 'KAKAO_REST_API_KEY', '')
@@ -1021,12 +1072,16 @@ def search_recommendations(rec, draft, size=4):
             'distance': None,
             # 실내 true / 야외 false / 모름 null (비 오는 날 실내를 앞에 둘 때 씀)
             'indoor': is_indoor(doc.get('category_name'), doc.get('category_group_code'), name),
+            'pick': None,   # 팀이 고른 부산 장소면 표의 정보 (_with_picks)
         }
 
         if anchor:
             item['distance'] = _distance_text(_distance_m(anchor, coord))
 
         items.append(item)
+
+    # 부산이면 팀이 고른 장소(부산 장소 표)를 앞에 둔다
+    items = _with_picks(items, rec, draft, anchor, near_found, exclude, size)
 
     # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
     attach_photos(items)
@@ -1905,9 +1960,19 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         # AI가 추천 신호를 빠뜨렸어도, 사용자가 추천을 요청했다면 직접 조건을 읽는다
         rec = _guess_recommend(messages[-1]['content'])
         guessed = bool(rec)
+    elif rec.get('near') and _squash(rec['near']) not in _squash(messages[-1]['content']):
+        # 사용자가 이번에 말하지 않은 기준 장소는 쓰지 않는다 (앞 턴의 '해운대 근처'가 따라오던 문제)
+        rec['near'] = None
 
     # 숙소 추천은 서버가 조건을 정한다 (빈 밤·담아 둔 장소 근처·가격대)
-    stay_rec = stay_recommend(messages, rec, dict(new_draft, stays=prev.get('stays') or []))
+    ai_query = rec['query'] if rec and not guessed else ''
+    stay_rec = stay_recommend(messages, rec, dict(new_draft, stays=prev.get('stays') or []), ai_query)
+
+    if not stay_rec and ai_query and any(w in ai_query for w in _STAY_ASK_WORDS):
+        # 숙소 질문 뒤에 '바다 추천해줘'라고 하면 AI가 '바다 근처 숙소'로 읽는 경우가 있었음 → 사용자 말 그대로
+        rec = _guess_recommend(messages[-1]['content']) or rec
+        new_draft['stays'] = prev.get('stays') or []   # 그때 AI가 숙소를 골라 넣기도 했음
+
     if stay_rec:
         rec, guessed = stay_rec, False
         # 카드를 보기도 전에 AI가 숙소를 골라 넣는 경우가 있었음 → 숙소는 사용자가 카드에서 넣는다
