@@ -6220,3 +6220,152 @@ button.preview-day {
     font-size: 12px;
     color: #9aa6b8;
 }
+
+
+/* =========================================
+   홈: 여행 리뷰 추천 카드 (틀만, 데이터는 나중에 review_picks)
+========================================= */
+
+/* 넓은 화면: 소개 | 내 여행 일정 | 리뷰 추천 세 칸 */
+@media (min-width: 1281px) {
+    .hero--reviews {
+        max-width: 1560px;
+        grid-template-columns: 1.3fr 1fr 1fr;
+        gap: 40px;
+    }
+}
+
+/* 중간 화면: 리뷰 카드는 아래 줄 가운데 */
+@media (min-width: 901px) and (max-width: 1280px) {
+    .hero--reviews .hero-reviews {
+        grid-column: 1 / -1;
+    }
+}
+
+.review-board__desc {
+    margin: -8px 0 14px;
+    font-size: 12.5px;
+    color: #7b88a1;
+}
+
+.review-board__list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.review-pick {
+    position: relative;
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 14px;
+    border: 1px solid #e6edf8;
+    border-radius: 14px;
+    background: #f8fbff;
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+a.review-pick:hover,
+a.review-pick:focus-visible {
+    transform: translateY(-2px);
+    border-color: #c9dafa;
+    box-shadow: 0 8px 20px rgba(45, 108, 223, 0.1);
+}
+
+.review-pick__rank {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #2d6cdf;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.review-board__list li:nth-child(n+4) .review-pick__rank { background: #9aa8bd; }
+
+.review-pick__body { min-width: 0; }
+
+.review-pick__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.review-pick__head strong {
+    font-size: 15px;
+    color: #1f2d4a;
+}
+
+.review-pick__rating {
+    font-size: 12px;
+    font-weight: 800;
+    color: #e08a00;
+}
+
+.review-pick__meta {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: #7b88a1;
+}
+
+.review-pick__quote {
+    margin: 6px 0 0;
+    font-size: 12.5px;
+    color: #4a5568;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 예시 줄: 실제 데이터가 아님을 표시 */
+.review-pick--sample { opacity: 0.85; }
+
+.review-pick__sample {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #eef1f6;
+    color: #7b88a1;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.review-board .preview-open:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+/* 넓은 화면: 내 여행 일정·리뷰 추천 카드 높이를 같게, 아래 버튼은 맨 아래에 맞춤 */
+@media (min-width: 1281px) {
+    .hero--reviews .hero-preview {
+        align-self: stretch;
+    }
+
+    .hero--reviews .preview-window {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .hero--reviews .preview-window--empty .preview-empty {
+        flex: 1;
+    }
+
+    .hero--reviews .preview-open {
+        margin-top: auto;
+    }
+
+    .hero--reviews .review-board__list {
+        margin-bottom: 18px;
+    }
+}

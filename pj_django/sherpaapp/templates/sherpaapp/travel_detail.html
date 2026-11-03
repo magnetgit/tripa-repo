@@ -1360,6 +1360,14 @@
 
             </li>
 
+            <li>
+
+                <a href="{% url 'review_board' %}">
+                    {% include "_icon.html" with name="chat" %} 리뷰 게시판
+                </a>
+
+            </li>
+
 
         </ul>
 
@@ -5101,25 +5109,6 @@ function buildTransportSegmentHtml(
             buildTransitStepsHtml(
                 matchedRoute
             );
-
-        if (matchedRoute.short_distance_walk) {
-            transitDetailHtml += `
-                <span class="transport-detail-text">
-                    700m 이내의 가까운 구간이라 ODsay를 호출하지 않고 도보 예상으로 처리했습니다.
-                </span>
-            `;
-        } else if (
-            matchedRoute.estimated
-            && String(routeData?.transport || "")
-                .toLowerCase()
-                .includes("public")
-        ) {
-            transitDetailHtml += `
-                <span class="transport-detail-text">
-                    ODsay 기본 경로를 불러오지 못해 현재는 예상 이동시간으로 표시 중입니다.
-                </span>
-            `;
-        }
 
         const routeIndex =
             routes.indexOf(

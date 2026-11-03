@@ -282,4 +282,15 @@ urlpatterns = [
         views.member_delete,
         name='member_delete'
     ),
+
+
+    # ==========================================
+    # 리뷰 게시판
+    # ==========================================
+
+    path(
+        'review/',
+        views.review_board,
+        name='review_board'
+    ),
 ]

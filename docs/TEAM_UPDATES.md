@@ -10,6 +10,22 @@
 
 ---
 
+## 2026-11-03 · 리뷰 게시판 메뉴·화면 틀, 홈 리뷰 추천 카드 — 🟦 임영준
+
+### 1) 리뷰 게시판 (화면 틀만) — 🟧 `views.py`·`urls.py` 추가
+- 새 화면 `templates/sherpaapp/review.html` (메뉴 + 제목만, 본문은 비어 있음)
+- 🟧 **추가만**: `views.py` `review_board` (로그인 확인 후 `member`만 넘김), `urls.py` `path('review/', ..., name='review_board')`. 기존 함수·주소 변경 없음
+- 사이드바 메뉴 8곳에 '리뷰 게시판' 추가 (`budget`·`chat`·`place_search`·`schedule_empty`·`travel_create`·`travel_detail`·`travel_list`·`travel_update`)
+- [ ] 🟧 리뷰 목록·글쓰기·저장은 아직 없음 (`Review` 모델은 이미 있음)
+
+### 2) 홈 '여행 리뷰 추천' 카드 (틀만) → 🟧 데이터 요청
+- 넓은 화면(1281px 이상)은 소개 | 내 여행 일정 | 리뷰 추천 세 칸, 두 카드 높이 같게. 지금은 **'예시' 표시가 붙은 견본 3줄**이 나옴
+- [ ] 🟧 `index` 뷰가 `review_picks`를 넘기면 견본 대신 그 목록이 나옴. 항목 키: `region`(지역)·`place`(대표 장소)·`rating`(평점 예: 4.8)·`count`(리뷰 수)·`quote`(한 줄 후기)·`url`(누르면 갈 주소). 평점 높고 리뷰 많은 순으로 몇 개
+- 홈 질문 박스가 조금 넓어짐 (예시 버튼 두 개가 한 줄에)
+
+### 3) 일정 상세 이동 카드 문구 정리
+- 이동 구간 카드에서 ODsay 안내 문장 두 개 삭제 ("ODsay 기본 경로를 불러오지 못해…", "700m 이내… ODsay를 호출하지 않고…"). 시간·출발 시각·도보 표시는 그대로. 🟧🟩 영향 없음
+
 ## 2026-11-02 · 프로필 캐릭터, 내 정보 여행 기록, 일정 순서 드래그, AI 컨셉 저장 — 🟦 임영준
 
 > ⚠️ **DB가 바뀌어요.** pull 뒤에 `python manage.py migrate`로 **0008**(`member.PROFILE_IMG` 칸 추가)을 적용하세요. 빈 값을 허용해서 기존 회원 데이터는 그대로예요.
