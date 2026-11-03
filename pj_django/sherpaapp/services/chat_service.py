@@ -734,6 +734,52 @@ def _concept_of(query):
     return query if query in ('역사', '전통문화') else None
 
 
+# 추천 카드에 나오면 안 되는 카카오 분류 (화장실·관리사무소·대리점 등)
+# place_service.JUNK_KINDS(주차장·아파트 등)에 더해 추천 카드에서만 쓴다
+CARD_JUNK_KINDS = (
+    '화장실', '관리,운영', '사회,공공기관', '금융,보험', '정보통신',
+    '게임방,PC방', '관광안내소', '의료,건강', '교육,학문', '회사', '대리점',
+)
+
+# '카페 추천'처럼 장소 종류를 말하면 카카오 분류 코드로 그 종류만 찾는다
+# (안 그러면 '전포카페거리점' 같은 이름의 휴대폰 가게가 섞인다)
+KIND_GROUPS = {
+    '카페': 'CE7', '디저트': 'CE7', '커피': 'CE7',
+    '맛집': 'FD6', '식당': 'FD6', '음식점': 'FD6',
+    '숙소': 'AD5', '숙박': 'AD5', '호텔': 'AD5', '게스트하우스': 'AD5', '펜션': 'AD5',
+}
+
+
+def _is_card_junk(kind, query):
+    """추천 카드로 쓰면 안 되는 분류인지. 사용자가 그 말을 직접 찾으면(예: '주차장') 거르지 않는다."""
+    kind = kind or ''
+    query = query or ''
+
+    for word in CARD_JUNK_KINDS:
+        if word in kind and word not in query:
+            return True
+
+    return is_junk_kind(kind) and not any(w in query for w in ('주차', '교통'))
+
+
+# 여행 장소로 볼 카카오 분류 (분류 코드 또는 맨 앞 분류 이름)
+TRAVEL_GROUPS = ('AT4', 'CT1', 'FD6', 'CE7', 'AD5')
+TRAVEL_TOPS = ('여행', '음식점', '문화,예술', '스포츠,레저')
+
+
+def _is_travel_place(doc, query):
+    """여행 장소 분류인지. 아니어도 사용자가 그 종류를 직접 찾았으면(예: '주차장', '시장') 통과."""
+    kind = doc.get('category_name') or ''
+
+    if doc.get('category_group_code') in TRAVEL_GROUPS:
+        return True
+
+    if kind.split(' > ')[0].strip() in TRAVEL_TOPS:
+        return True
+
+    return any(len(word) >= 2 and word in kind for word in (query or '').split())
+
+
 def search_recommendations(rec, draft, size=4):
     """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다."""
     key = getattr(settings, 'KAKAO_REST_API_KEY', '')
@@ -759,10 +805,9 @@ def search_recommendations(rec, draft, size=4):
     # 넓은 뜻의 말(랜드마크 등)은 글자 그대로 검색하지 않고 실제 관광명소를 찾는다
     concept = _concept_of(rec['query'])
     plan = concept_plan(concept, size) if concept else None
-    wide = bool(plan)
 
     if not plan:
-        plan = [(rec['query'], '', None, size)]
+        plan = [(rec['query'], KIND_GROUPS.get((rec['query'] or '').strip(), ''), None, size)]
 
     documents = []
     seen = set()
@@ -771,7 +816,7 @@ def search_recommendations(rec, draft, size=4):
         try:
             found = kakao_documents(
                 ' '.join(x for x in (region, query) if x),
-                count + 6,
+                15,   # 걸러 낼 것을 생각해 최대(15개)로 받아 둔다
                 group,
                 **extra
             )
@@ -785,7 +830,11 @@ def search_recommendations(rec, draft, size=4):
             kind = doc.get('category_name') or ''
             name = doc.get('place_name') or ''
 
-            if wide and is_junk_kind(kind):
+            if _is_card_junk(kind, rec['query']):
+                continue
+
+            # 쇼핑몰처럼 허용 분류(allow)를 따로 정한 검색은 그 분류로만 거른다
+            if not allow and not _is_travel_place(doc, rec['query']):
                 continue
 
             if allow and not any(w in kind for w in allow):
