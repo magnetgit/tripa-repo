@@ -11,7 +11,8 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.db.models import Avg, Count, Prefetch, Sum
+from django.core.paginator import Paginator
+from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Sum
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
@@ -35,6 +36,7 @@ from .services.schedule_service import (
 from .services import chat_service
 from .services.route_service import get_kakao_route, get_travel_time
 from .models import TravelCategory
+from .models import Review, ReviewHelpful
 from .models import TravelDayPlan
 
 # ==============================================
@@ -517,16 +519,201 @@ def travel_list(request):
     travels = (Travel.objects.filter(member=member).order_by('-t_id'))
     return render(request,'sherpaapp/travel_list.html',{'member':member,'travels':travels})
 
-# 리뷰 게시판 (사이드바 메뉴) — 지금은 화면 틀만, 리뷰 목록은 나중에
-def review_board(request):
+# ==============================================
+# 리뷰 게시판
+# ==============================================
+
+REVIEW_TAGS = ['가족과', '친구와', '연인과', '혼자', '아이와', '다시 가고 싶어요', '사진 맛집', '가성비']
+REVIEW_PAGE_SIZE = 10
+REVIEW_BEST_COUNT = 5
+
+
+def _login_member(request):
     login_user = request.session.get('login_ok_user')
     if not login_user:
+        return None
+    return Member.objects.filter(user_id=login_user).first()
+
+
+def _reviews_with_counts(member):
+    # 추천 수(helpful_count)와 내가 추천했는지(is_helped)를 함께 붙인 리뷰 목록
+    return (
+        Review.objects
+        .select_related('member', 'place__travel')
+        .annotate(
+            helpful_count=Count('helpfuls', distinct=True),
+            is_helped=Exists(
+                ReviewHelpful.objects.filter(review=OuterRef('pk'), member=member)
+            ),
+        )
+    )
+
+
+# 리뷰 게시판 (사이드바 메뉴): 전체 리뷰 목록 + 옆에 추천 많은 리뷰
+def review_board(request):
+    member = _login_member(request)
+    if not member:
         return redirect('login')
-    try:
-        member = Member.objects.get(user_id=login_user)
-    except Member.DoesNotExist:
+
+    reviews = _reviews_with_counts(member).order_by('-created_at', '-rv_id')
+    page = Paginator(reviews, REVIEW_PAGE_SIZE).get_page(request.GET.get('page'))
+
+    best_reviews = (
+        _reviews_with_counts(member)
+        .filter(helpful_count__gt=0)
+        .order_by('-helpful_count', '-rating', '-created_at')[:REVIEW_BEST_COUNT]
+    )
+
+    return render(request, 'sherpaapp/review.html', {
+        'member': member,
+        'page': page,
+        'best_reviews': best_reviews,
+        'review_total': page.paginator.count,
+        'message': request.session.pop('review_message', ''),
+    })
+
+
+# 내가 다녀온 곳(시작한 여행의 장소) 중 아직 리뷰 안 쓴 곳
+def _reviewable_places(member):
+    reviewed = Review.objects.filter(member=member, place__isnull=False).values('place_id')
+    return (
+        Place.objects
+        .filter(travel__member=member, travel__t_start__lte=date.today())
+        .exclude(p_id__in=reviewed)
+        .select_related('travel')
+        .order_by('-travel__t_start', 'travel_id', 'p_name')
+    )
+
+
+# 리뷰 쓰기: GET 화면, POST 저장
+def review_write(request):
+    member = _login_member(request)
+    if not member:
         return redirect('login')
-    return render(request, 'sherpaapp/review.html', {'member': member})
+
+    places = list(_reviewable_places(member))
+    form = {'place_id': '', 'rating': '', 'content': '', 'tags': []}
+    error = ''
+
+    if request.method == 'POST':
+        form = {
+            'place_id': (request.POST.get('place_id') or '').strip(),
+            'rating': (request.POST.get('rating') or '').strip(),
+            'content': (request.POST.get('content') or '').strip(),
+            'tags': [t for t in request.POST.getlist('tags') if t in REVIEW_TAGS],
+        }
+        place = next((p for p in places if str(p.p_id) == form['place_id']), None)
+
+        try:
+            rating = int(form['rating'])
+        except ValueError:
+            rating = 0
+
+        if not place:
+            error = '리뷰를 쓸 장소를 골라 주세요.'
+        elif not 1 <= rating <= 5:
+            error = '별점을 1~5개 중에서 골라 주세요.'
+        elif not form['content']:
+            error = '리뷰 내용을 적어 주세요.'
+        elif len(form['content']) > 100:
+            error = '리뷰는 100자까지 쓸 수 있어요.'
+        else:
+            Review.objects.create(
+                member=member,
+                place=place,
+                kakao_id=place.p_kakao_id or '',
+                place_name=place.p_name,
+                rating=rating,
+                content=form['content'],
+                tags=form['tags'],
+            )
+            request.session['review_message'] = "'%s' 리뷰를 올렸어요." % place.p_name
+            return redirect('review_board')
+
+    # 여행별로 묶어서 고르기 쉽게
+    groups = []
+    for p in places:
+        if not groups or groups[-1]['travel'].t_id != p.travel.t_id:
+            groups.append({'travel': p.travel, 'places': []})
+        groups[-1]['places'].append(p)
+
+    return render(request, 'sherpaapp/review_write.html', {
+        'member': member,
+        'groups': groups,
+        'tags': REVIEW_TAGS,
+        'form': form,
+        'error': error,
+    })
+
+
+# 홈 '여행 리뷰 추천' 카드: 지역별로 묶어 평점 높고 리뷰 많은 순
+def build_review_picks(limit=3):
+    regions = (
+        Review.objects
+        .filter(place__isnull=False)
+        .values('place__travel__t_place')
+        .annotate(avg=Avg('rating'), n=Count('rv_id'))
+        .order_by('-avg', '-n', 'place__travel__t_place')[:limit]
+    )
+
+    picks = []
+    for row in regions:
+        region = row['place__travel__t_place']
+        in_region = Review.objects.filter(place__travel__t_place=region)
+
+        # 그 지역에서 리뷰가 가장 많은 장소
+        top_place = (
+            in_region.values('place_name')
+            .annotate(n=Count('rv_id'))
+            .order_by('-n', 'place_name')
+            .first()
+        )
+
+        # 한 줄 후기: 추천 많고 별점 높은 리뷰
+        best = (
+            in_region.annotate(helpful_count=Count('helpfuls'))
+            .order_by('-helpful_count', '-rating', '-created_at')
+            .first()
+        )
+
+        picks.append({
+            'region': region,
+            'place': top_place['place_name'] if top_place else '',
+            'rating': '%.1f' % row['avg'],
+            'count': row['n'],
+            'quote': best.content if best else '',
+            'url': reverse('review_board'),
+        })
+
+    return picks
+
+
+# 리뷰 추천 누르기/취소 (POST, JSON)
+@require_POST
+def review_helpful(request, rv_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    review = Review.objects.filter(rv_id=rv_id).first()
+    if not review:
+        return JsonResponse({'success': False, 'message': '없는 리뷰예요.'}, status=404)
+    if review.member_id == member.m_id:
+        return JsonResponse({'success': False, 'message': '내 리뷰는 추천할 수 없어요.'}, status=400)
+
+    mine = ReviewHelpful.objects.filter(member=member, review=review)
+    if mine.exists():
+        mine.delete()
+        helped = False
+    else:
+        ReviewHelpful.objects.get_or_create(member=member, review=review)
+        helped = True
+
+    return JsonResponse({
+        'success': True,
+        'helped': helped,
+        'count': ReviewHelpful.objects.filter(review=review).count(),
+    })
 
 # 일정 관리 (사이드바 메뉴)
 # 가장 최근 여행의 일정으로 보내고, 여행이 하나도 없으면 안내 카드를 보여준다.
@@ -985,6 +1172,108 @@ def travel_update(
 
 
 # ==============================================
+# 여행 정보·날짜 수정 (일정 상세의 '여행 수정' 팝업, POST → JSON)
+# - 날짜를 옮기면 DAY별 일정(Schedule)·숙소(TravelDayPlan)도 같은 만큼 함께 옮김 (DAY 1은 계속 DAY 1)
+# - 기간이 늘면 뒤에 빈 날이 생기고, 줄면 잘리는 날의 일정을 지움
+#   잘리는 날에 장소·비용이 있으면 confirm=1 없이는 지우지 않고 무엇이 지워지는지 돌려줌
+# ==============================================
+
+TRAVEL_MAX_DAYS = 30
+
+
+@require_POST
+def travel_reschedule(request, travel_id):
+    login_user = request.session.get('login_ok_user')
+    if not login_user:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = (
+        Travel.objects.select_related('member')
+        .filter(t_id=travel_id).first()
+    )
+    if not travel:
+        return JsonResponse({'success': False, 'message': '없는 여행이에요.'}, status=404)
+    if travel.member.user_id != login_user:
+        return JsonResponse({'success': False, 'message': '내 여행만 수정할 수 있어요.'}, status=403)
+
+    title = (request.POST.get('t_title') or '').strip()
+    place = (request.POST.get('t_place') or '').strip()
+    try:
+        new_start = datetime.strptime(request.POST.get('t_start') or '', '%Y-%m-%d').date()
+        new_end = datetime.strptime(request.POST.get('t_end') or '', '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'success': False, 'message': '날짜를 다시 골라 주세요.'}, status=400)
+
+    if not title:
+        return JsonResponse({'success': False, 'message': '여행 이름을 적어 주세요.'}, status=400)
+    if not place:
+        return JsonResponse({'success': False, 'message': '여행 지역을 적어 주세요.'}, status=400)
+    if len(title) > 100 or len(place) > 100:
+        return JsonResponse({'success': False, 'message': '이름과 지역은 100자까지 쓸 수 있어요.'}, status=400)
+    if new_end < new_start:
+        return JsonResponse({'success': False, 'message': '끝나는 날이 시작하는 날보다 빠를 수 없어요.'}, status=400)
+    if (new_end - new_start).days + 1 > TRAVEL_MAX_DAYS:
+        return JsonResponse({'success': False, 'message': '여행 기간은 %d일까지 정할 수 있어요.' % TRAVEL_MAX_DAYS}, status=400)
+
+    shift = timedelta(days=(new_start - travel.t_start).days)
+    schedules = list(Schedule.objects.filter(travel=travel))
+    day_plans = list(TravelDayPlan.objects.filter(travel=travel))
+
+    # 옮긴 뒤 새 기간 밖으로 나가는 날 = 지워질 날
+    dropped = [s for s in schedules if s.s_day + shift > new_end]
+    dropped_plans = [p for p in day_plans if p.plan_date + shift > new_end]
+
+    if dropped and request.POST.get('confirm') != '1':
+        place_count = SchedulePlace.objects.filter(schedule__in=dropped).count()
+        pay_count = Pay.objects.filter(schedule__in=dropped).count()
+        if place_count or pay_count:
+            old_start = travel.t_start
+            day_labels = sorted(
+                'DAY %d' % ((s.s_day - old_start).days + 1) for s in dropped
+            )
+            parts = []
+            if place_count:
+                parts.append('장소 %d곳' % place_count)
+            if pay_count:
+                parts.append('비용 %d건' % pay_count)
+            return JsonResponse({
+                'success': False,
+                'needs_confirm': True,
+                'message': '기간이 줄어서 %s의 %s이(가) 지워져요. 그래도 바꿀까요?' % (
+                    ', '.join(day_labels), ', '.join(parts)
+                ),
+            }, status=409)
+
+    with transaction.atomic():
+        # 지워질 날 먼저 지움 (장소·비용은 CASCADE로 함께 지워짐)
+        Schedule.objects.filter(pk__in=[s.pk for s in dropped]).delete()
+        TravelDayPlan.objects.filter(pk__in=[p.pk for p in dropped_plans]).delete()
+
+        # 같은 날짜 중복 금지(unique) 때문에, 미는 방향의 끝쪽부터 하나씩 옮김
+        if shift.days:
+            keep = [s for s in schedules if s not in dropped]
+            keep.sort(key=lambda s: s.s_day, reverse=shift.days > 0)
+            for s in keep:
+                s.s_day = s.s_day + shift
+                s.save(update_fields=['s_day'])
+
+            keep_plans = [p for p in day_plans if p not in dropped_plans]
+            keep_plans.sort(key=lambda p: p.plan_date, reverse=shift.days > 0)
+            for p in keep_plans:
+                p.plan_date = p.plan_date + shift
+                p.save(update_fields=['plan_date'])
+
+        travel.t_title = title
+        travel.t_place = place
+        travel.t_start = new_start
+        travel.t_end = new_end
+        travel.t_day = new_start
+        travel.save(update_fields=['t_title', 't_place', 't_start', 't_end', 't_day'])
+
+    return JsonResponse({'success': True, 'message': '여행 정보를 바꿨어요.'})
+
+
+# ==============================================
 # 여행 삭제
 # ==============================================
 
@@ -1192,6 +1481,8 @@ def index(request):
                     recent_travel,
                 'recent_travels':
                     recent_travels,
+                'review_picks':
+                    build_review_picks(),
             },
             request
         )

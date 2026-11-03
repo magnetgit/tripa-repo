@@ -266,6 +266,43 @@
     return !!s && (s.name === item.name || s.query === item.name);
   }
 
+  // 카드 왼쪽: 사진(photo.url)이 있으면 사진, 없거나 못 불러오면 종류 아이콘(기본 이미지)
+  function kindTile(item) {
+    var tile = make('div', 'tc-card__icon');
+    tile.appendChild(icon(KIND_ICON[item.kind] || 'pin'));
+    return tile;
+  }
+
+  function cardPhoto(item) {
+    var photo = item.photo;
+    if (!photo || !photo.url) return kindTile(item);
+
+    var fig = make('figure', 'tc-card__photo');
+    var img = document.createElement('img');
+    img.src = photo.url;
+    img.alt = item.name + ' 사진';
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', function () {
+      if (fig.parentNode) fig.parentNode.replaceChild(kindTile(item), fig);
+    });
+    fig.appendChild(img);
+    // 관광공사 사진은 출처 표시가 이용 조건
+    if (photo.source === 'tour') fig.appendChild(make('figcaption', null, '사진: 한국관광공사'));
+    return fig;
+  }
+
+  function cardExtra(item) {
+    var parts = [];
+    if (item.review && item.review.count) {
+      parts.push('★ ' + Number(item.review.rating).toFixed(1) + ' · 리뷰 ' + item.review.count + '개');
+    }
+    if (item.cost && item.cost.amount) {
+      parts.push('예상 ' + Number(item.cost.amount).toLocaleString('ko-KR') + '원');
+    }
+    return parts.join(' · ');
+  }
+
   function renderRec(rec) {
     var box = make('div', 'tc-rec');
 
@@ -281,9 +318,7 @@
     rec.items.forEach(function (item) {
       var card = make('div', 'tc-card');
 
-      var tile = make('div', 'tc-card__icon');
-      tile.appendChild(icon(KIND_ICON[item.kind] || 'pin'));
-      card.appendChild(tile);
+      card.appendChild(cardPhoto(item));
 
       var body = make('div', 'tc-card__body');
       var head = make('div', 'tc-card__head');
@@ -310,6 +345,10 @@
         sub.appendChild(link);
       }
       if (sub.childNodes.length) body.appendChild(sub);
+
+      // 평점(review)·예상 비용(cost)은 값이 올 때만 (mock.json 키)
+      var extraText = cardExtra(item);
+      if (extraText) body.appendChild(make('p', 'tc-card__extra', extraText));
 
       var actions = make('div', 'tc-card__actions');
       var n = tripDays();

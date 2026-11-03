@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261063">
 
 </head>
 
@@ -374,8 +374,8 @@
 
         {% endif %}
 
-        <!-- 여행 리뷰 추천 (틀만): 나중에 평점 높고 리뷰 많은 지역을 review_picks 로 넘겨 채움
-             review_picks 항목 키(예정): region, place, rating(4.8), count(리뷰 수), quote(한 줄 후기), url -->
+        <!-- 여행 리뷰 추천: 지역별로 평점 높고 리뷰 많은 순 (views.build_review_picks)
+             review_picks 항목 키: region, place, rating(4.8), count(리뷰 수), quote(한 줄 후기), url -->
         <div class="hero-preview hero-reviews">
 
             <div class="preview-window review-board">
@@ -385,7 +385,7 @@
                         {% include "_icon.html" with name="chat" %} 여행 리뷰 추천
                     </span>
                     <span class="preview-status">
-                        {% if review_picks %}인기 {{ review_picks|length }}곳{% else %}준비 중{% endif %}
+                        {% if review_picks %}인기 {{ review_picks|length }}곳{% else %}리뷰 없음{% endif %}
                     </span>
                 </div>
 
@@ -407,55 +407,17 @@
                         </a>
                     </li>
                     {% empty %}
-                    <!-- 리뷰 데이터가 생기기 전까지 보여주는 예시 (모양 확인용) -->
-                    <li>
-                        <div class="review-pick review-pick--sample">
-                            <span class="review-pick__rank">1</span>
-                            <div class="review-pick__body">
-                                <div class="review-pick__head">
-                                    <strong>강릉</strong>
-                                    <span class="review-pick__rating">★ 4.8</span>
-                                </div>
-                                <p class="review-pick__meta">경포해변 · 리뷰 126개</p>
-                                <p class="review-pick__quote">"바다 보면서 걷기 좋아요"</p>
-                            </div>
-                            <span class="review-pick__sample">예시</span>
-                        </div>
-                    </li>
-                    <li>
-                        <div class="review-pick review-pick--sample">
-                            <span class="review-pick__rank">2</span>
-                            <div class="review-pick__body">
-                                <div class="review-pick__head">
-                                    <strong>경주</strong>
-                                    <span class="review-pick__rating">★ 4.7</span>
-                                </div>
-                                <p class="review-pick__meta">황리단길 · 리뷰 98개</p>
-                                <p class="review-pick__quote">"밤에 동궁과 월지가 정말 예뻐요"</p>
-                            </div>
-                            <span class="review-pick__sample">예시</span>
-                        </div>
-                    </li>
-                    <li>
-                        <div class="review-pick review-pick--sample">
-                            <span class="review-pick__rank">3</span>
-                            <div class="review-pick__body">
-                                <div class="review-pick__head">
-                                    <strong>여수</strong>
-                                    <span class="review-pick__rating">★ 4.6</span>
-                                </div>
-                                <p class="review-pick__meta">낭만포차거리 · 리뷰 87개</p>
-                                <p class="review-pick__quote">"야경이랑 해산물 둘 다 만족"</p>
-                            </div>
-                            <span class="review-pick__sample">예시</span>
-                        </div>
+                    <li class="review-board__empty">
+                        <strong>아직 올라온 리뷰가 없어요</strong>
+                        <p>다녀온 여행지의 첫 리뷰를 남겨 보세요.</p>
+                        <a href="{% url 'review_write' %}">리뷰 쓰러 가기 →</a>
                     </li>
                     {% endfor %}
                 </ol>
 
-                <button type="button" class="btn btn-secondary preview-open" disabled>
-                    리뷰 전체 보기 (준비 중)
-                </button>
+                <a href="{% url 'review_board' %}" class="btn btn-secondary preview-open">
+                    리뷰 전체 보기
+                </a>
 
             </div>
 

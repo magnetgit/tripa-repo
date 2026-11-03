@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIPA - 리뷰 쓰기</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=3">
+</head>
+<body>
+<div class="detail-container">
+
+    <aside class="sidebar">
+        <div class="logo">
+            <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>
+        </div>
+
+        <div class="menu-title">MENU</div>
+
+        <ul class="menu">
+            <li><a href="{% url 'travel_list' %}">{% include "_icon.html" with name="suitcase" %} 내 여행</a></li>
+            <li><a href="{% url 'travel_create' %}">{% include "_icon.html" with name="plus" %} 여행 만들기</a></li>
+            <li><a href="{% url 'schedule_manage' %}">{% include "_icon.html" with name="calendar" %} 일정 관리</a></li>
+            <li><a href="{% url 'budget' %}">{% include "_icon.html" with name="wallet" %} 비용 관리</a></li>
+            <li><a href="{% url 'review_board' %}" class="active">{% include "_icon.html" with name="chat" %} 리뷰 게시판</a></li>
+        </ul>
+
+        {% if member %}
+            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} {{ member.nickname }}</a>
+        {% else %}
+            <a href="{% url 'login' %}" class="user-profile">{% include "_icon.html" with name="user" %} 로그인</a>
+        {% endif %}
+    </aside>
+
+    <main class="detail-content rv-page trip-sky">
+        <div class="page-title">
+            <h1>{% include "_icon.html" with name="edit" %} 리뷰 쓰기</h1>
+            <p>내 여행에서 다녀온 장소를 골라 별점과 후기를 남겨 주세요.</p>
+        </div>
+
+        {% if groups %}
+        <form method="post" class="rv-form" novalidate onsubmit="return checkReview(this);">
+            {% csrf_token %}
+
+            <!-- 1단계: 여행 고르기 (내 여행 중 시작한 여행) -->
+            <div class="rv-field">
+                <span class="rv-label" id="tripLabel">어떤 여행이었나요?</span>
+                <div class="rv-trips" role="group" aria-labelledby="tripLabel">
+                    {% for g in groups %}
+                    <button type="button" class="rv-trip" data-trip="{{ g.travel.t_id }}" aria-pressed="false">
+                        <strong>{{ g.travel.t_title }}</strong>
+                        <span>{% include "_icon.html" with name="pin" %} {{ g.travel.t_place }} · {{ g.travel.t_start|date:"Y.m.d" }} ~ {{ g.travel.t_end|date:"m.d" }}</span>
+                        <em>리뷰 쓸 장소 {{ g.places|length }}곳</em>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 2단계: 고른 여행의 장소 (아직 리뷰 안 쓴 곳) -->
+            <div class="rv-field" id="placeStep" hidden>
+                <span class="rv-label" id="placeLabel">다녀온 장소</span>
+                {% for g in groups %}
+                <div class="rv-place-list" data-trip="{{ g.travel.t_id }}" role="radiogroup" aria-labelledby="placeLabel" hidden>
+                    {% for p in g.places %}
+                    <label class="rv-place-opt">
+                        <input type="radio" name="place_id" value="{{ p.p_id }}"{% if form.place_id == p.p_id|stringformat:'s' %} checked{% endif %}>
+                        <span><b>{{ p.p_name }}</b>{% if p.p_kind %}<em>{{ p.p_kind }}</em>{% endif %}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 별점 1~5 -->
+            <div class="rv-field">
+                <span class="rv-label" id="ratingLabel">별점</span>
+                <div class="rv-rating" role="radiogroup" aria-labelledby="ratingLabel">
+                    {% for i in "54321" %}
+                    <input type="radio" id="rate{{ i }}" name="rating" value="{{ i }}"{% if form.rating == i %} checked{% endif %}>
+                    <label for="rate{{ i }}" title="{{ i }}점">★</label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 후기 -->
+            <div class="rv-field">
+                <label for="content">후기 <em id="contentCount">{{ form.content|length }}/100</em></label>
+                <textarea id="content" name="content" rows="4" maxlength="100"
+                          placeholder="예: 야경이 정말 예뻐요. 저녁에 가는 걸 추천해요!">{{ form.content }}</textarea>
+            </div>
+
+            <!-- 태그 (선택) -->
+            <div class="rv-field">
+                <span class="rv-label">태그 <em>(선택)</em></span>
+                <div class="rv-tag-pick">
+                    {% for t in tags %}
+                    <label><input type="checkbox" name="tags" value="{{ t }}"{% if t in form.tags %} checked{% endif %}><span>#{{ t }}</span></label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <p class="rv-error" id="formError" role="alert">{{ error }}</p>
+
+            <div class="rv-actions">
+                <a href="{% url 'review_board' %}" class="btn btn-secondary">취소</a>
+                <button type="submit" class="btn btn-primary">리뷰 올리기</button>
+            </div>
+        </form>
+        {% else %}
+        <div class="rv-empty">
+            <strong>리뷰를 쓸 수 있는 장소가 없어요</strong>
+            <p>여행을 시작한 일정의 장소만 리뷰할 수 있어요.<br>이미 리뷰를 쓴 장소는 목록에서 빠져요.</p>
+            <a href="{% url 'review_board' %}" class="btn btn-secondary">리뷰 게시판으로</a>
+        </div>
+        {% endif %}
+    </main>
+
+</div>
+
+<script>
+    // 빠진 게 있으면 막고 안내 (서버에서도 한 번 더 확인함)
+    function checkReview(f) {
+        var err = document.getElementById("formError");
+        if (!document.querySelector(".rv-trip.is-on")) { err.textContent = "어떤 여행이었는지 먼저 골라 주세요."; return false; }
+        if (!f.querySelector('input[name="place_id"]:checked')) { err.textContent = "리뷰를 쓸 장소를 골라 주세요."; return false; }
+        if (!f.querySelector('input[name="rating"]:checked')) { err.textContent = "별점을 1~5개 중에서 골라 주세요."; return false; }
+        if (!f.content.value.trim()) { err.textContent = "리뷰 내용을 적어 주세요."; f.content.focus(); return false; }
+        return true;
+    }
+
+    // 여행 카드를 누르면 그 여행의 장소만 아래에 보여줌
+    function pickTrip(tripId) {
+        document.querySelectorAll(".rv-trip").forEach(function (b) {
+            var on = b.dataset.trip === tripId;
+            b.classList.toggle("is-on", on);
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        document.querySelectorAll(".rv-place-list").forEach(function (list) {
+            var on = list.dataset.trip === tripId;
+            list.hidden = !on;
+            // 다른 여행에서 골라 둔 장소는 풀어 줌
+            if (!on) list.querySelectorAll("input:checked").forEach(function (r) { r.checked = false; });
+        });
+        document.getElementById("placeStep").hidden = false;
+        document.getElementById("formError").textContent = "";
+    }
+
+    document.querySelectorAll(".rv-trip").forEach(function (b) {
+        b.addEventListener("click", function () { pickTrip(b.dataset.trip); });
+    });
+
+    // 여행이 하나뿐이면 바로 열고, 저장 실패로 돌아왔으면 고른 장소의 여행을 다시 열어 줌
+    (function () {
+        var picked = document.querySelector('input[name="place_id"]:checked');
+        var trips = document.querySelectorAll(".rv-trip");
+        if (picked) pickTrip(picked.closest(".rv-place-list").dataset.trip);
+        else if (trips.length === 1) pickTrip(trips[0].dataset.trip);
+    })();
+
+    var content = document.getElementById("content");
+    if (content) {
+        content.addEventListener("input", function () {
+            document.getElementById("contentCount").textContent = content.value.length + "/100";
+            document.getElementById("formError").textContent = "";
+        });
+    }
+</script>
+</body>
+</html>
