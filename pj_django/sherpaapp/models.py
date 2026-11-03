@@ -803,3 +803,52 @@ class Pay(models.Model):
             return f'{self.pay_context} - {self.pay_pay or 0}원'
 
         return f'{self.pay_pay or 0}원'
+
+# ==============================================
+# 장소 사진 (카카오 장소 ID당 한 장)
+# ==============================================
+
+PHOTO_SOURCE_CHOICES = [
+    ('tour', '한국관광공사'),
+    ('kakao', '카카오 이미지 검색'),
+    ('none', '사진 없음'),
+]
+
+
+class PlacePhoto(models.Model):
+
+    ph_id = models.AutoField(
+        primary_key=True,
+        db_column='PH_ID'
+    )
+
+    kakao_id = models.CharField(
+        max_length=20,
+        unique=True,
+        db_column='KAKAO_ID'
+    )
+
+    # 사진 없음(none)이면 NULL
+    url = models.TextField(
+        null=True,
+        blank=True,
+        db_column='URL'
+    )
+
+    source = models.CharField(
+        max_length=10,
+        choices=PHOTO_SOURCE_CHOICES,
+        db_column='SOURCE'
+    )
+
+    # 사진 없음은 이 날짜로부터 일정 기간 뒤 다시 찾는다
+    checked_at = models.DateTimeField(
+        auto_now=True,
+        db_column='CHECKED_AT'
+    )
+
+    class Meta:
+        db_table = 'place_photo'
+
+    def __str__(self):
+        return f'{self.kakao_id} ({self.source})'
