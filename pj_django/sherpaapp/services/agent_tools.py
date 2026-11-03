@@ -150,5 +150,37 @@ def get_weather(place: str, start: str, end: str) -> dict:
     return {'place': place, 'days': days}
 
 
+# =========================================================
+# 쉬는 날
+# =========================================================
+
+@tool
+def check_open(place: str, date: str) -> dict:
+    """장소가 그 날짜에 문을 여는지(정기 휴무인지) 알려 준다. 한국관광공사 정보 기준.
+
+    사용자가 '○○ 월요일에 열어?', '그날 ○○ 가도 돼?'처럼 특정 장소의 영업 여부를 물을 때 부른다.
+    관광공사에 없는 장소는 unknown 으로 온다.
+
+    place: 장소 이름 (지역을 붙이면 더 정확함, 예: 부산 부산박물관)
+    date: 방문 날짜 YYYY-MM-DD
+    """
+    from .chat_service import kakao_first_place
+    from .tour_service import place_open
+
+    day = _parse_day(date)
+    if not place or not day:
+        return {'error': '장소와 날짜가 필요해요.'}
+
+    found = kakao_first_place(place)
+    if not found:
+        return {'error': "'%s'을(를) 찾지 못했어요." % place}
+
+    status = place_open(found['name'], day, found['lat'], found['lon'])
+    if status is None:
+        return {'place': found['name'], 'date': day.isoformat(), 'unknown': True}
+
+    return {'place': found['name'], 'date': day.isoformat(), **status}
+
+
 # AI에게 주는 도구 목록
-CHAT_TOOLS = [get_weather]
+CHAT_TOOLS = [get_weather, check_open]
