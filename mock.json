@@ -18,6 +18,7 @@
                         "photo": {"url": "https://example.com/cafe.jpg", "source": "kakao"},
                         "open": {"closed": false, "reason": null},
                         "indoor": true,
+                        "pick": {"concept": "카페", "hours": "10:30~21:30", "fee": null, "parking": "불가", "memo": "바다 전망", "rest": null},
                         "review": {"rating": 4.6, "count": 23},
                         "cost": {"amount": 8000, "cat": "food", "source": "ai"}}]},
   "transport": null,

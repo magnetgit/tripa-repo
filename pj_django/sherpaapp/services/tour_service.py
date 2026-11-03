@@ -194,6 +194,12 @@ def drop_closed(items, day):
 
     for item in items:
         status = place_open(item.get('name'), day, item.get('lat'), item.get('lon'), item.get('kakao_id')) if day else None
+
+        # 관광공사에 없으면 부산 장소 표의 휴무 요일로 본다 ('매주 월요일')
+        rest = (item.get('pick') or {}).get('rest')
+        if status is None and day and rest:
+            status = closed_on(rest, day)
+
         item['open'] = status
 
         if status and status['closed']:
