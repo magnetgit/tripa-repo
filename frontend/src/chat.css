@@ -1,0 +1,13 @@
+/* React 버전에만 필요한 작은 스타일. 나머지 모양은 Django 의 style.css (tc-*) 를 그대로 씀 */
+
+.tc-react-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    vertical-align: middle;
+    color: #2d6cdf;
+    background: #eaf1fd;
+}

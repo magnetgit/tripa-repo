@@ -12,7 +12,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261030">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261058">
 
     <style>
 
@@ -931,6 +931,342 @@
             }
         }
 
+
+        /* =========================================
+           간단한 리스트형 일정 (사진은 눌렀을 때만)
+           꾹 눌러 드래그하면 순서를 바꿀 수 있다
+        ========================================= */
+        .schedule-card.sp-card {
+            display: block;
+            min-height: 0;
+            padding: 0;
+            border: 1px solid #e3e9f2;
+            background: rgba(255, 255, 255, 0.92);
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: pan-y;
+            transition:
+                box-shadow 0.22s ease,
+                background-color 0.22s ease,
+                border-color 0.22s ease;
+        }
+
+        .timeline-item.sp-item {
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .sp-item .time-picker-trigger {
+            min-height: 40px;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .schedule-card.sp-card:hover {
+                transform: none;
+                border-color: #bfd3f5;
+                box-shadow: 0 6px 18px rgba(45, 108, 223, 0.12);
+            }
+        }
+
+        .schedule-card.sp-card.timeline-selected {
+            transform: none;
+            outline-width: 2px;
+        }
+
+        .sp-line {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 58px;
+            padding: 10px 14px 10px 8px;
+        }
+
+        .sp-grip {
+            flex: 0 0 auto;
+            display: grid;
+            place-items: center;
+            width: 22px;
+            height: 34px;
+            border-radius: 6px;
+            color: #b6c2d3;
+            cursor: grab;
+            letter-spacing: -2px;
+            font-size: 15px;
+            line-height: 1;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+
+        .sp-card:hover .sp-grip {
+            color: #64748b;
+            background: #f1f5f9;
+        }
+
+        .sp-num {
+            flex: 0 0 auto;
+            display: grid;
+            place-items: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .sp-main {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .sp-name {
+            display: block;
+            overflow: hidden;
+            color: #0f172a;
+            font-size: 15.5px;
+            font-weight: 700;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .sp-sub {
+            display: block;
+            margin-top: 2px;
+            overflow: hidden;
+            color: #64748b;
+            font-size: 12.5px;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .sp-chev {
+            flex: 0 0 auto;
+            color: #94a3b8;
+            font-size: 18px;
+            transition: transform 0.3s ease;
+        }
+
+        .sp-card.open .sp-chev {
+            transform: rotate(180deg);
+            color: #2563eb;
+        }
+
+        /* 눌렀을 때 부드럽게 열리는 상세 정보 */
+        .sp-detail {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.32s ease;
+        }
+
+        .sp-card.open .sp-detail {
+            grid-template-rows: 1fr;
+        }
+
+        .sp-detail-inner {
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .sp-detail-body {
+            display: flex;
+            gap: 16px;
+            margin: 0 14px 14px;
+            padding-top: 14px;
+            border-top: 1px dashed #dbe3ef;
+            opacity: 0;
+            transform: translateY(-6px);
+            transition: opacity 0.25s ease, transform 0.3s ease;
+        }
+
+        .sp-card.open .sp-detail-body {
+            opacity: 1;
+            transform: none;
+            transition-delay: 0.06s;
+        }
+
+        .sp-photo {
+            flex: 0 0 168px;
+            width: 168px;
+            height: 126px;
+            overflow: hidden;
+            border-radius: 10px;
+            background: #eef2f7;
+        }
+
+        .sp-photo img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .sp-photo .no-place-image {
+            font-size: 30px;
+        }
+
+        .sp-facts {
+            flex: 1 1 auto;
+            min-width: 0;
+            margin: 0;
+            font-size: 13.5px;
+            color: #475569;
+        }
+
+        .sp-facts > div {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 30px;
+        }
+
+        .sp-facts dt {
+            flex: 0 0 64px;
+            color: #94a3b8;
+            font-size: 12.5px;
+        }
+
+        .sp-facts dd {
+            margin: 0;
+            min-width: 0;
+            color: #1e293b;
+            overflow-wrap: anywhere;
+        }
+
+        .sp-card .schedule-delete {
+            position: static;
+            margin-top: 6px;
+            white-space: nowrap;
+        }
+
+        /* 일정 칸이 좁으면 사진을 위에 넓게, 정보는 아래로 */
+        .schedule-card.sp-card {
+            container-type: inline-size;
+        }
+
+        @container (max-width: 460px) {
+            .sp-detail-body {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .sp-photo {
+                width: 100%;
+                height: 160px;
+                flex-basis: auto;
+            }
+
+            .sp-facts dt {
+                flex-basis: 58px;
+            }
+        }
+
+        /* 드래그 중 */
+        .timeline-sorting .transport-segment {
+            max-height: 0 !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            opacity: 0;
+            overflow: hidden;
+        }
+
+        .transport-segment {
+            max-height: 400px;
+            transition:
+                max-height 0.28s ease,
+                margin 0.28s ease,
+                padding 0.28s ease,
+                opacity 0.2s ease;
+        }
+
+        .timeline-sorting .sp-item .timeline-time-cell {
+            opacity: 0.35;
+            transition: opacity 0.2s ease;
+        }
+
+        .timeline-sorting .sp-card {
+            cursor: grabbing;
+        }
+
+        .sp-item.sp-dragging {
+            position: relative;
+            z-index: 50;
+        }
+
+        .sp-item.sp-dragging .sp-card {
+            border-color: #93b4f0;
+            background: #ffffff;
+            box-shadow: 0 18px 40px rgba(30, 64, 175, 0.22);
+            transform: scale(1.02);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .sp-item.sp-dragging .sp-grip {
+            color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .timeline-saving .sp-item {
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+        }
+
+        /* 출발지·숙소(S/R) 카드도 사진 칸 없이 작게 */
+        .start-point-card,
+        .return-point-card {
+            min-height: 0;
+            align-items: center;
+            padding: 12px 16px;
+        }
+
+        .start-point-card .schedule-image,
+        .return-point-card .schedule-image {
+            flex: 0 0 44px;
+            width: 44px;
+            height: 44px;
+        }
+
+        .start-point-card .no-place-image,
+        .return-point-card .no-place-image {
+            font-size: 22px;
+        }
+
+        .start-point-card .schedule-info h3,
+        .return-point-card .schedule-info h3 {
+            margin-bottom: 2px;
+            font-size: 15.5px;
+        }
+
+        .start-point-card .schedule-info p,
+        .return-point-card .schedule-info p {
+            margin: 2px 0;
+            font-size: 13px;
+        }
+
+        @media (max-width: 768px) {
+            .sp-detail-body {
+                flex-direction: column;
+            }
+
+            .sp-photo {
+                width: 100%;
+                height: 170px;
+                flex-basis: auto;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .sp-detail,
+            .sp-detail-body,
+            .sp-chev,
+            .transport-segment,
+            .sp-item.sp-dragging .sp-card {
+                transition: none;
+            }
+        }
+
     </style>
 
 </head>
@@ -1024,6 +1360,14 @@
 
             </li>
 
+            <li>
+
+                <a href="{% url 'review_board' %}">
+                    {% include "_icon.html" with name="chat" %} 리뷰 게시판
+                </a>
+
+            </li>
+
 
         </ul>
 
@@ -1052,7 +1396,7 @@
 
     </aside>
 
-    <main class="detail-content">
+    <main class="detail-content trip-sky">
 
         <section class="travel-header">
 
@@ -4766,25 +5110,6 @@ function buildTransportSegmentHtml(
                 matchedRoute
             );
 
-        if (matchedRoute.short_distance_walk) {
-            transitDetailHtml += `
-                <span class="transport-detail-text">
-                    700m 이내의 가까운 구간이라 ODsay를 호출하지 않고 도보 예상으로 처리했습니다.
-                </span>
-            `;
-        } else if (
-            matchedRoute.estimated
-            && String(routeData?.transport || "")
-                .toLowerCase()
-                .includes("public")
-        ) {
-            transitDetailHtml += `
-                <span class="transport-detail-text">
-                    ODsay 기본 경로를 불러오지 못해 현재는 예상 이동시간으로 표시 중입니다.
-                </span>
-            `;
-        }
-
         const routeIndex =
             routes.indexOf(
                 matchedRoute
@@ -5171,7 +5496,21 @@ function renderSchedule(
         return;
     }
 
+    // 사용자가 줄을 끌고 있는 중이면 지금 다시 그리지 않고, 놓은 뒤에 그린다
+    if (spDrag.state === "dragging") {
+        spPendingRender = [data, routeData];
+        return;
+    }
+
+    if (spDrag.state === "pressing") {
+        clearTimeout(spDrag.timer);
+        spDrag.state = "idle";
+        spDrag.item = null;
+    }
+
     container.innerHTML = "";
+    container.classList.remove("timeline-sorting", "timeline-saving");
+    setupTimelineList(container);
 
     const places =
         Array.isArray(data.places)
@@ -5233,39 +5572,8 @@ function renderSchedule(
                 );
             }
 
-            let imageHtml;
-
-            if (
-                sp.place_image
-                && sp.place_image.trim() !== ""
-            ) {
-                imageHtml = `
-                    <div class="schedule-image">
-                        <img
-                            src="${sp.place_image}"
-                            alt="${sp.place_name || ""}"
-                            loading="lazy"
-                            onerror="
-                                this.style.display='none';
-                                this.nextElementSibling.style.display='flex';
-                            "
-                        >
-                        <div
-                            class="no-place-image"
-                            style="display:none;">
-                            ${tpIcon("pin")}
-                        </div>
-                    </div>
-                `;
-            } else {
-                imageHtml = `
-                    <div class="schedule-image">
-                        <div class="no-place-image">
-                            ${tpIcon("pin")}
-                        </div>
-                    </div>
-                `;
-            }
+            const placeName =
+                sp.place_name || "장소명 없음";
 
             const address =
                 sp.place_addr
@@ -5283,8 +5591,45 @@ function renderSchedule(
             const stayTime =
                 Number(sp.stay_time || 0);
 
+            const hasImage =
+                sp.place_image
+                && sp.place_image.trim() !== "";
+
+            // 사진은 목록에서 빼고, 줄을 눌러 펼쳤을 때만 불러온다 (data-src → src)
+            const photoHtml =
+                hasImage
+                    ? `
+                        <img
+                            data-src="${escapeHtml(sp.place_image)}"
+                            alt="${escapeHtml(placeName)}"
+                            onerror="
+                                this.style.display='none';
+                                this.nextElementSibling.style.display='flex';
+                            "
+                        >
+                        <div class="no-place-image" style="display:none;">
+                            ${tpIcon("pin")}
+                        </div>
+                    `
+                    : `
+                        <div class="no-place-image">
+                            ${tpIcon("pin")}
+                        </div>
+                    `;
+
+            const subText = [
+                category,
+                stayTime > 0 ? formatStayTime(stayTime) : "",
+                sp.start_time ? `${sp.start_time} 출발` : ""
+            ]
+                .filter(Boolean)
+                .join(" · ");
+
+            const isOpen =
+                String(openTimelineSpId) === String(sp.sp_id);
+
             const html = `
-                <div class="timeline-item">
+                <div class="timeline-item sp-item" data-sp-id="${sp.sp_id}">
 
                     <div class="timeline-time-cell">
                         <button
@@ -5297,58 +5642,84 @@ function renderSchedule(
                     </div>
 
                     <div
-                        class="schedule-card"
+                        class="schedule-card sp-card${isOpen ? " open" : ""}"
                         data-map-key="${sp.place_id}"
-                        onclick="focusTimelineTarget('${sp.place_id}', false)"
+                        data-sp-id="${sp.sp_id}"
                     >
-                        ${imageHtml}
-
-                        <div class="schedule-info">
-                            <h3>
-                                ${visitOrder}. ${sp.place_name || "장소명 없음"}
-                            </h3>
-
-                            <p class="schedule-address">
-                                ${address}
-                            </p>
-
-                            <div>
-                                <span class="schedule-category">
-                                    ${category}
-                                </span>
-                            </div>
-
-                            <div class="schedule-meta-row">
-                                <span>${tpIcon("clock")} 체류 시간 :</span>
-                                <button
-                                    type="button"
-                                    class="stay-picker-trigger"
-                                    onclick="
-                                        event.stopPropagation();
-                                        openStayTimePicker(
-                                            this,
-                                            ${sp.sp_id},
-                                            ${stayTime}
-                                        );
-                                    ">
-                                    ${formatStayTime(stayTime)}
-                                </button>
-                            </div>
-
-                            <p>
-                                출발 시간 : ${sp.start_time || "-"}
-                            </p>
+                        <div
+                            class="sp-line"
+                            role="button"
+                            tabindex="0"
+                            aria-expanded="${isOpen}"
+                            title="눌러서 자세히 보기 · 꾹 눌러 끌면 순서 변경"
+                        >
+                            <span class="sp-grip" aria-hidden="true">⋮⋮</span>
+                            <span class="sp-num">${visitOrder}</span>
+                            <span class="sp-main">
+                                <span class="sp-name">${escapeHtml(placeName)}</span>
+                                <span class="sp-sub">${escapeHtml(subText)}</span>
+                            </span>
+                            <span class="sp-chev" aria-hidden="true">⌄</span>
                         </div>
 
-                        <button
-                            type="button"
-                            class="schedule-delete"
-                            onclick="
-                                event.stopPropagation();
-                                deleteSchedulePlace(${sp.sp_id});
-                            ">
-                            삭제
-                        </button>
+                        <div class="sp-detail">
+                            <div class="sp-detail-inner">
+                                <div class="sp-detail-body">
+
+                                    <div class="sp-photo">
+                                        ${photoHtml}
+                                    </div>
+
+                                    <dl class="sp-facts">
+                                        <div>
+                                            <dt>주소</dt>
+                                            <dd>${escapeHtml(address)}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>분류</dt>
+                                            <dd><span class="schedule-category">${escapeHtml(category)}</span></dd>
+                                        </div>
+                                        <div>
+                                            <dt>체류 시간</dt>
+                                            <dd>
+                                                <button
+                                                    type="button"
+                                                    class="stay-picker-trigger"
+                                                    onclick="
+                                                        event.stopPropagation();
+                                                        openStayTimePicker(
+                                                            this,
+                                                            ${sp.sp_id},
+                                                            ${stayTime}
+                                                        );
+                                                    ">
+                                                    ${formatStayTime(stayTime)}
+                                                </button>
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt>방문</dt>
+                                            <dd>${formatVisitTime(sp.arrive_time)} 도착 · ${sp.start_time || "-"} 출발</dd>
+                                        </div>
+                                        <div>
+                                            <dt></dt>
+                                            <dd>
+                                                <button
+                                                    type="button"
+                                                    class="schedule-delete"
+                                                    onclick="
+                                                        event.stopPropagation();
+                                                        deleteSchedulePlace(${sp.sp_id});
+                                                    ">
+                                                    일정에서 삭제
+                                                </button>
+                                            </dd>
+                                        </div>
+                                    </dl>
+
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -5387,7 +5758,433 @@ function renderSchedule(
             false
         );
     }
+
+    // 다시 그린 뒤에도 펼쳐 둔 장소는 사진을 바로 보여준다
+    container
+        .querySelectorAll(".sp-card.open")
+        .forEach(loadSpPhoto);
 }
+
+
+/* =========================================================
+   리스트형 일정: 눌러서 펼치기 / 꾹 눌러 드래그로 순서 변경
+========================================================= */
+
+let openTimelineSpId = null;
+let spPendingRender = null;    // 드래그 중에 도착한 화면 갱신은 놓은 뒤에 그린다
+
+const SP_HOLD_MS = 260;        // 이만큼 꾹 누르면 드래그 시작
+const SP_MOVE_CANCEL = 8;      // 누르는 동안 이보다 많이 움직이면 (스크롤로 보고) 취소
+
+const spDrag = {
+    state: "idle",             // idle → pressing → dragging
+    timer: null,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    lastY: 0,
+    grabOffset: 0,
+    offsetY: 0,
+    item: null,
+    container: null,
+    scroller: null,
+    beforeOrder: "",
+    raf: 0,
+    justDragged: false
+};
+
+
+function loadSpPhoto(card) {
+    const img = card.querySelector(".sp-photo img[data-src]");
+
+    if (img && !img.getAttribute("src")) {
+        img.src = img.dataset.src;
+    }
+}
+
+
+function toggleSpCard(card) {
+    const willOpen = !card.classList.contains("open");
+
+    // 한 번에 하나만 펼친다
+    card
+        .closest("#timelineContainer")
+        .querySelectorAll(".sp-card.open")
+        .forEach(function (other) {
+            if (other !== card) {
+                other.classList.remove("open");
+                other.querySelector(".sp-line").setAttribute("aria-expanded", "false");
+            }
+        });
+
+    card.classList.toggle("open", willOpen);
+    card.querySelector(".sp-line").setAttribute("aria-expanded", String(willOpen));
+    openTimelineSpId = willOpen ? card.dataset.spId : null;
+
+    if (willOpen) {
+        loadSpPhoto(card);
+    }
+
+    focusTimelineTarget(card.dataset.mapKey, false);
+}
+
+
+function spOrder(container) {
+    return Array.from(container.querySelectorAll(".sp-item"))
+        .map(function (item) { return item.dataset.spId; })
+        .join(",");
+}
+
+
+function findScrollParent(el) {
+    let node = el.parentElement;
+
+    while (node && node !== document.body) {
+        const style = getComputedStyle(node);
+
+        if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) {
+            return node;
+        }
+        node = node.parentElement;
+    }
+    return null;
+}
+
+
+function setupTimelineList(container) {
+
+    if (container.dataset.spReady) {
+        return;
+    }
+    container.dataset.spReady = "1";
+
+    // 클릭(짧게 누르기) → 펼치기. 드래그 직후의 클릭은 무시한다.
+    container.addEventListener("click", function (e) {
+        const line = e.target.closest(".sp-line");
+
+        if (!line) {
+            return;
+        }
+
+        if (spDrag.justDragged) {
+            spDrag.justDragged = false;
+            return;
+        }
+
+        toggleSpCard(line.closest(".sp-card"));
+    });
+
+    container.addEventListener("keydown", function (e) {
+        const line = e.target.closest(".sp-line");
+
+        if (line && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            toggleSpCard(line.closest(".sp-card"));
+        }
+    });
+
+    container.addEventListener("pointerdown", function (e) {
+        const line = e.target.closest(".sp-line");
+
+        if (!line || spDrag.state !== "idle" || container.classList.contains("timeline-saving")) {
+            return;
+        }
+
+        if (e.pointerType === "mouse" && e.button !== 0) {
+            return;
+        }
+
+        spDrag.state = "pressing";
+        spDrag.pointerId = e.pointerId;
+        spDrag.startX = e.clientX;
+        spDrag.startY = e.clientY;
+        spDrag.lastY = e.clientY;
+        spDrag.item = line.closest(".sp-item");
+        spDrag.container = container;
+
+        clearTimeout(spDrag.timer);
+        spDrag.timer = setTimeout(startSpDrag, SP_HOLD_MS);
+    });
+
+    // 길게 누를 때 뜨는 메뉴(모바일)를 막는다
+    container.addEventListener("contextmenu", function (e) {
+        if (spDrag.state !== "idle" && e.target.closest(".sp-line")) {
+            e.preventDefault();
+        }
+    });
+}
+
+
+function startSpDrag() {
+    const item = spDrag.item;
+    const container = spDrag.container;
+
+    if (spDrag.state !== "pressing" || !item) {
+        return;
+    }
+
+    // 펼쳐 둔 카드는 접고 시작해야 줄 높이가 같아서 자연스럽다
+    const openCard = item.querySelector(".sp-card.open");
+    if (openCard) {
+        openCard.classList.remove("open");
+        openTimelineSpId = null;
+    }
+
+    const rect = item.getBoundingClientRect();
+
+    spDrag.state = "dragging";
+    spDrag.grabOffset = spDrag.startY - rect.top;
+    spDrag.offsetY = 0;
+    spDrag.beforeOrder = spOrder(container);
+    spDrag.scroller = findScrollParent(container);
+
+    container.classList.add("timeline-sorting");
+    item.classList.add("sp-dragging");
+
+    if (navigator.vibrate) {
+        try { navigator.vibrate(12); } catch (err) { /* 무시 */ }
+    }
+
+    spDrag.raf = requestAnimationFrame(spDragFrame);
+}
+
+
+// 끌고 있는 줄을 손가락/마우스 위치에 붙이고, 이웃과 자리를 바꾼다
+function spDragStep() {
+    const item = spDrag.item;
+
+    // 지금 transform을 뺀 "원래 자리"를 구해서, 레이아웃이 바뀌어도 튀지 않게 한다
+    const naturalTop = item.getBoundingClientRect().top - spDrag.offsetY;
+    spDrag.offsetY = (spDrag.lastY - spDrag.grabOffset) - naturalTop;
+    item.style.transform = `translateY(${spDrag.offsetY}px)`;
+
+    reorderSpAt(spDrag.lastY);
+}
+
+
+// 매 프레임: 이동 구간이 접히는 동안에도 줄이 손에 붙어 있게 하고, 가장자리면 자동 스크롤
+function spDragFrame() {
+
+    if (spDrag.state !== "dragging") {
+        return;
+    }
+
+    autoScrollSp();
+    spDragStep();
+
+    spDrag.raf = requestAnimationFrame(spDragFrame);
+}
+
+
+function autoScrollSp() {
+    const edge = 70;
+    const y = spDrag.lastY;
+    const box = spDrag.scroller
+        ? spDrag.scroller.getBoundingClientRect()
+        : { top: 0, bottom: window.innerHeight };
+
+    let speed = 0;
+
+    if (y < box.top + edge) {
+        speed = -Math.ceil((box.top + edge - y) / 6);
+    } else if (y > box.bottom - edge) {
+        speed = Math.ceil((y - (box.bottom - edge)) / 6);
+    }
+
+    if (!speed) {
+        return;
+    }
+
+    if (spDrag.scroller) {
+        spDrag.scroller.scrollTop += speed;
+    } else {
+        window.scrollBy(0, speed);
+    }
+}
+
+
+// 끌고 있는 줄의 가운데가 이웃 줄의 가운데를 넘으면 자리를 바꾸고, 이웃은 미끄러지듯 움직인다
+function reorderSpAt(pointerY) {
+    const item = spDrag.item;
+    const container = spDrag.container;
+    const items = Array.from(container.querySelectorAll(".sp-item"));
+    const others = items.filter(function (el) { return el !== item; });
+
+    // offsetTop은 transform(애니메이션 중 위치)을 빼고 계산되므로 흔들리지 않는다
+    const dragMid = item.offsetTop + spDrag.offsetY + item.offsetHeight / 2;
+
+    let target = null;
+
+    for (const el of others) {
+        if (dragMid < el.offsetTop + el.offsetHeight / 2) {
+            target = el;
+            break;
+        }
+    }
+
+    const currentNext = items[items.indexOf(item) + 1] || null;
+
+    if (target === currentNext || (target === null && items[items.length - 1] === item)) {
+        return;
+    }
+
+    // FLIP: 옮기기 전 위치를 기억 → DOM 이동 → 차이만큼 되돌렸다가 0으로 부드럽게
+    const before = new Map(others.map(function (el) {
+        return [el, el.getBoundingClientRect().top];
+    }));
+
+    if (target) {
+        container.insertBefore(item, target);
+    } else {
+        const last = others[others.length - 1];
+        last.after(item);
+    }
+
+    others.forEach(function (el) {
+        const dy = before.get(el) - el.getBoundingClientRect().top;
+
+        if (!dy) {
+            return;
+        }
+
+        el.style.transition = "none";
+        el.style.transform = `translateY(${dy}px)`;
+
+        requestAnimationFrame(function () {
+            el.style.transition = "transform 0.22s cubic-bezier(.2,.8,.2,1)";
+            el.style.transform = "";
+        });
+    });
+}
+
+
+function finishSpDrag() {
+    const item = spDrag.item;
+    const container = spDrag.container;
+
+    cancelAnimationFrame(spDrag.raf);
+    spDrag.state = "idle";
+    spDrag.justDragged = true;
+
+    // 놓은 자리로 부드럽게 내려앉기
+    item.style.transition = "transform 0.2s cubic-bezier(.2,.8,.2,1)";
+    item.style.transform = "";
+
+    const changed = spOrder(container) !== spDrag.beforeOrder;
+
+    setTimeout(function () {
+        item.classList.remove("sp-dragging");
+        item.style.transition = "";
+
+        container.querySelectorAll(".sp-item").forEach(function (el) {
+            el.style.transition = "";
+            el.style.transform = "";
+        });
+
+        const pending = spPendingRender;
+        spPendingRender = null;
+
+        if (changed) {
+            saveSpOrder(container);
+        } else if (pending) {
+            renderSchedule(pending[0], pending[1]);
+        } else {
+            container.classList.remove("timeline-sorting");
+        }
+    }, 200);
+
+    // 클릭 이벤트가 안 오는 경우(터치)도 있으니 잠깐 뒤에 풀어 준다
+    setTimeout(function () { spDrag.justDragged = false; }, 350);
+
+    spDrag.item = null;
+}
+
+
+function saveSpOrder(container) {
+    const body = new URLSearchParams();
+    body.append("sp_ids", spOrder(container));
+
+    container.classList.add("timeline-saving");
+
+    fetch("/schedule_place_reorder/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: body.toString()
+    })
+        .then(function (response) {
+            return response.json().catch(function () {
+                return { success: false };
+            });
+        })
+        .then(function (data) {
+            if (!data.success) {
+                alert(data.message || "순서를 저장하지 못했습니다.");
+            }
+        })
+        .catch(function (error) {
+            console.error("순서 저장 오류:", error);
+            alert("순서를 저장하는 중 오류가 발생했습니다.");
+        })
+        .finally(function () {
+            // 새 순서로 방문시간·이동경로·지도를 다시 그린다 (실패하면 원래 순서로 돌아감)
+            loadDay(currentDay);
+        });
+}
+
+
+document.addEventListener("pointermove", function (e) {
+
+    if (spDrag.state === "idle" || e.pointerId !== spDrag.pointerId) {
+        return;
+    }
+
+    spDrag.lastY = e.clientY;
+
+    if (spDrag.state === "dragging") {
+        spDragStep();
+        return;
+    }
+
+    if (spDrag.state === "pressing") {
+        const moved = Math.hypot(e.clientX - spDrag.startX, e.clientY - spDrag.startY);
+
+        if (moved > SP_MOVE_CANCEL) {
+            clearTimeout(spDrag.timer);
+            spDrag.state = "idle";
+            spDrag.item = null;
+        }
+    }
+});
+
+
+function endSpPointer(e) {
+
+    if (e.pointerId !== spDrag.pointerId) {
+        return;
+    }
+
+    clearTimeout(spDrag.timer);
+
+    if (spDrag.state === "dragging") {
+        finishSpDrag();
+    } else {
+        spDrag.state = "idle";
+        spDrag.item = null;
+    }
+}
+
+document.addEventListener("pointerup", endSpPointer);
+document.addEventListener("pointercancel", endSpPointer);
+
+// 터치로 끄는 동안에는 화면이 스크롤되지 않게 막는다
+document.addEventListener("touchmove", function (e) {
+    if (spDrag.state === "dragging") {
+        e.preventDefault();
+    }
+}, { passive: false });
 
 
 /* =========================================================

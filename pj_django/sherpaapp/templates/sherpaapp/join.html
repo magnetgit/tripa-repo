@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=7">
 </head>
 
 <body class="auth-page--join auth-ticket">
@@ -71,20 +71,32 @@
     <form name="f" action="{% url 'join_ok' %}" method="post" onsubmit="return check();" novalidate>
         {% csrf_token %}
 
-        <!-- 이메일 + 중복확인 -->
+        <!-- 아이디 + 중복확인 (로그인할 때 쓰는 값) -->
         <div class="field">
-            <label for="email">이메일(아이디)</label>
+            <label for="user_id">아이디</label>
             <div class="field-row">
                 <div class="field-box">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>
+                        <circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
                     </svg>
-                    <input id="email" name="email" type="text" placeholder="example@tripa.com"
-                           autocomplete="email" autofocus oninput="emailChanged()">
+                    <input id="user_id" name="user_id" type="text" placeholder="로그인에 쓸 아이디"
+                           maxlength="50" autocomplete="username" autofocus oninput="idChanged()">
                 </div>
-                <button type="button" class="btn-side" onclick="checkEmailAjax()">중복확인</button>
+                <button type="button" class="btn-side" onclick="checkIdAjax()">중복확인</button>
             </div>
-            <span id="email-msg" class="field-msg" aria-live="polite"></span>
+            <span id="id-msg" class="field-msg" aria-live="polite"></span>
+        </div>
+
+        <!-- 이메일 (아이디·비밀번호 찾기에 쓰는 회원 고유 이메일) -->
+        <div class="field">
+            <label for="email">이메일</label>
+            <div class="field-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>
+                </svg>
+                <input id="email" name="email" type="email" placeholder="example@tripa.com" maxlength="100" autocomplete="email">
+            </div>
+            <span class="field-msg">아이디·비밀번호를 찾을 때 이 이메일로 확인해요.</span>
         </div>
 
         <!-- 비밀번호 + 확인 -->
@@ -135,6 +147,76 @@
             </div>
         </div>
 
+        <!-- 프로필 캐릭터 (선택): 안 고르면 서버에서 랜덤으로 정함 -->
+        <fieldset class="opt-box avatar-box">
+            <legend>프로필 캐릭터 <em>(선택)</em></legend>
+            <p class="opt-desc">내 정보에 보일 캐릭터를 골라 주세요. 고르지 않으면 랜덤으로 정해져요.</p>
+
+            <div class="avatar-grid" role="radiogroup" aria-label="프로필 캐릭터">
+                <label class="avatar-opt" title="랜덤">
+                    <input type="radio" name="profile_img" value="" data-label="랜덤" checked>
+                    <span class="avatar-face avatar-face--random" aria-hidden="true">?</span>
+                    <span class="avatar-name">랜덤</span>
+                </label>
+                {% for key, label in avatars %}
+                <label class="avatar-opt" title="{{ label }}">
+                    <input type="radio" name="profile_img" value="{{ key }}" data-label="{{ label }}">
+                    <img class="avatar-face" src="{% static 'sherpaapp/avatars/'|add:key|add:'.svg' %}" alt="" width="48" height="48" loading="lazy">
+                    <span class="avatar-name">{{ label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <span id="avatar-msg" class="field-msg" aria-live="polite">가입하면 랜덤 캐릭터가 정해져요.</span>
+        </fieldset>
+
+        <!-- 맞춤 추천 정보 (선택): 회의 결정 8 — 비워도 가입 가능, 넣으면 [선택] 동의 필요 -->
+        <fieldset class="opt-box">
+            <legend>맞춤 추천 정보 <em>(선택)</em></legend>
+            <p class="opt-desc">성별·나이대를 알려주시면 비슷한 여행자들이 좋아한 장소를 먼저 추천해 드려요. 입력하지 않아도 가입할 수 있어요.</p>
+
+            <div class="field">
+                <span class="opt-label" id="genderLabel">성별</span>
+                <div class="chip-group" role="radiogroup" aria-labelledby="genderLabel">
+                    <label class="chip"><input type="radio" name="gender" value="" checked><span>선택 안 함</span></label>
+                    <label class="chip"><input type="radio" name="gender" value="M"><span>남성</span></label>
+                    <label class="chip"><input type="radio" name="gender" value="F"><span>여성</span></label>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="opt-label" for="age_group">나이대</label>
+                <select id="age_group" name="age_group" class="opt-select">
+                    <option value="">선택 안 함</option>
+                    <option value="10">10대</option>
+                    <option value="20">20대</option>
+                    <option value="30">30대</option>
+                    <option value="40">40대</option>
+                    <option value="50">50대</option>
+                    <option value="60">60대 이상</option>
+                </select>
+            </div>
+
+            <label class="agree">
+                <input type="checkbox" name="agree_profile" value="1" id="agreeProfile">
+                <span><b>[선택]</b> 성별·나이대를 맞춤 장소 추천에 사용하는 데 동의합니다.</span>
+            </label>
+            <details class="agree-detail">
+                <summary>자세히 보기</summary>
+                <ul>
+                    <li>수집 항목: 성별, 나이대 (생년월일은 받지 않아요)</li>
+                    <li>이용 목적: 맞춤 장소 추천</li>
+                    <li>보관 기간: 회원 탈퇴 시까지 (내 정보에서 언제든 바꾸거나 지울 수 있어요)</li>
+                    <li>동의하지 않아도 회원가입과 모든 기본 기능을 그대로 쓸 수 있어요.</li>
+                </ul>
+            </details>
+        </fieldset>
+
+        <!-- 만 14세 미만은 보호자 동의가 따로 필요해서 가입 전에 확인만 함 (서버로 보내지 않음) -->
+        <label class="agree agree--required">
+            <input type="checkbox" id="agreeAge">
+            <span><b>[필수]</b> 만 14세 이상입니다.</span>
+        </label>
+
         <p class="form-error" id="formError" role="alert"></p>
 
         <button type="submit" class="btn-submit">회원가입</button>
@@ -148,9 +230,9 @@
 </main>
 
 <script>
-    // 이메일 중복확인 여부 (확인한 뒤 이메일을 바꾸면 다시 확인해야 함)
-    let emailChecked = false;
-    let checkedEmail = "";
+    // 아이디 중복확인 여부 (확인한 뒤 아이디를 바꾸면 다시 확인해야 함)
+    let idChecked = false;
+    let checkedId = "";
 
     function setMsg(id, text, ok) {
         const el = document.getElementById(id);
@@ -166,38 +248,38 @@
         return false;
     }
 
-    function emailChanged() {
-        emailChecked = false;
-        checkedEmail = "";
-        setMsg("email-msg", "");
+    function idChanged() {
+        idChecked = false;
+        checkedId = "";
+        setMsg("id-msg", "");
     }
 
-    // 이메일 중복확인
-    function checkEmailAjax() {
-        const input = document.getElementById("email");
-        const emailValue = input.value.trim();
+    // 아이디 중복확인 (주소 이름은 예전 그대로 check_email, 보내는 값은 user_id)
+    function checkIdAjax() {
+        const input = document.getElementById("user_id");
+        const idValue = input.value.trim();
 
-        if (!emailValue) {
-            setMsg("email-msg", "이메일을 먼저 입력해 주세요.", false);
+        if (!idValue) {
+            setMsg("id-msg", "아이디를 먼저 입력해 주세요.", false);
             input.focus();
             return;
         }
 
-        fetch("{% url 'check_email' %}?email=" + encodeURIComponent(emailValue))
+        fetch("{% url 'check_email' %}?user_id=" + encodeURIComponent(idValue))
             .then(function (response) { return response.json(); })
             .then(function (data) {
                 if (data.is_exists) {
-                    setMsg("email-msg", "✕ 이미 사용 중인 이메일입니다.", false);
-                    emailChecked = false;
+                    setMsg("id-msg", "✕ 이미 사용 중인 아이디입니다.", false);
+                    idChecked = false;
                 } else {
-                    setMsg("email-msg", "✓ 사용 가능한 이메일입니다.", true);
-                    emailChecked = true;
-                    checkedEmail = emailValue;
+                    setMsg("id-msg", "✓ 사용 가능한 아이디입니다.", true);
+                    idChecked = true;
+                    checkedId = idValue;
                 }
             })
             .catch(function (error) {
                 console.error("Error:", error);
-                setMsg("email-msg", "중복확인 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.", false);
+                setMsg("id-msg", "중복확인 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.", false);
             });
     }
 
@@ -218,10 +300,13 @@
     // 회원가입 버튼: 하나라도 빠지면 막고 안내
     function check() {
         const f = document.f;
+        const userId = f.user_id.value.trim();
         const email = f.email.value.trim();
 
+        if (!userId) return showError(f.user_id, "아이디를 입력해 주세요.");
+        if (!idChecked || checkedId !== userId) return showError(f.user_id, "아이디 중복확인을 해주세요.");
         if (!email) return showError(f.email, "이메일을 입력해 주세요.");
-        if (!emailChecked || checkedEmail !== email) return showError(f.email, "이메일 중복확인을 해주세요.");
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError(f.email, "이메일 형식이 올바르지 않아요. (예: example@tripa.com)");
         if (!f.pwd.value) return showError(f.pwd, "비밀번호를 입력해 주세요.");
         if (f.pwd.value !== document.getElementById("pwd_confirm").value) {
             return showError(document.getElementById("pwd_confirm"), "비밀번호가 일치하지 않습니다.");
@@ -229,9 +314,30 @@
         if (!f.name.value.trim()) return showError(f.name, "이름을 입력해 주세요.");
         if (!f.nickname.value.trim()) return showError(f.nickname, "닉네임을 입력해 주세요.");
 
+        // 성별·나이대를 골랐다면 [선택] 동의가 있어야 저장할 수 있음
+        const agree = document.getElementById("agreeProfile");
+        const pickedGender = (f.querySelector('input[name="gender"]:checked') || {}).value || "";
+        const pickedAge = document.getElementById("age_group").value;
+        if ((pickedGender || pickedAge) && !agree.checked) {
+            return showError(agree, "성별·나이대를 저장하려면 [선택] 동의에 체크해 주세요. 원하지 않으면 '선택 안 함'으로 두면 돼요.");
+        }
+
+        const agreeAge = document.getElementById("agreeAge");
+        if (!agreeAge.checked) return showError(agreeAge, "만 14세 이상만 가입할 수 있어요.");
+
+        f.user_id.value = userId;
         f.email.value = email;
         return true;
     }
+
+    // 프로필 캐릭터를 고르면 아래 안내 문구를 바꿈
+    document.querySelectorAll('input[name="profile_img"]').forEach(function (radio) {
+        radio.addEventListener("change", function () {
+            setMsg("avatar-msg", radio.value
+                ? "'" + radio.dataset.label + "'(으)로 할게요."
+                : "가입하면 랜덤 캐릭터가 정해져요.");
+        });
+    });
 
     // 입력을 다시 시작하면 아래 안내 문구 지우기
     document.f.addEventListener("input", function () {

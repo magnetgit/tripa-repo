@@ -8,7 +8,7 @@ def login_member(request):
 
     if login_user:
         try:
-            member = Member.objects.get(email=login_user)
+            member = Member.objects.get(user_id=login_user)
         except Member.DoesNotExist:
             member = None
 

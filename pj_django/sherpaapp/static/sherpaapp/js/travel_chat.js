@@ -21,7 +21,8 @@
     sprite: app.dataset.sprite,
     csrf: tokenInput ? tokenInput.value : '',
     prefill: (app.dataset.prefill || '').trim(),
-    budget: app.dataset.budget || ''
+    budget: app.dataset.budget || '',
+    odsayKey: app.dataset.odsayKey || ''
   };
 
   // 대화 보관 칸을 회원마다 따로 둔다 (같은 탭에서 다른 계정으로 로그인해도 섞이지 않게)
@@ -31,12 +32,11 @@
   var MAX_PINS = 12;
   var WEEK = ['일', '월', '화', '수', '목', '금', '토'];
   var TRANSPORT = { car: '자동차', walk: '도보', public_transport: '대중교통', bike: '자전거' };
-  var BUDGET = { value: '가성비', premium: '비싸도 괜찮음' };
   var WELCOME = '안녕하세요! 어디로, 언제쯤 떠나고 싶으세요? 편하게 말씀해 주세요. 예를 들면 "제주도 2박 3일, 맛집 위주로 가고 싶어요" 처럼요.';
   var EXAMPLES = [
     '제주 2박 3일 맛집 여행',
     '부산 당일치기',
-    '강릉 1박 2일 가성비로',
+    '강릉 1박 2일 바다 위주로',
     '서울 3박 4일 커플 여행'
   ];
 
@@ -449,10 +449,9 @@
 
     setRow('transport', document.createTextNode(TRANSPORT[d.transport] || ''), !!TRANSPORT[d.transport], changed.indexOf('이동수단') > -1);
 
-    var budgetParts = [];
-    if (BUDGET[d.budget_style]) budgetParts.push(BUDGET[d.budget_style]);
-    if (d.budget_total) budgetParts.push('총 ' + won(d.budget_total));
-    setRow('budget', document.createTextNode(budgetParts.join(' · ')), budgetParts.length > 0, changed.indexOf('예산') > -1);
+    // 예산은 총예산만 보여줌 (가성비/비싸도 괜찮음 성향은 회의에서 없앰)
+    var budgetText = d.budget_total ? '총 ' + won(d.budget_total) : '';
+    setRow('budget', document.createTextNode(budgetText), !!budgetText, changed.indexOf('예산') > -1);
 
     var sp = d.start_place;
     var startNode = make('span');
@@ -911,6 +910,127 @@
 
   var map = null;
   var overlays = [];
+  var routeDrawToken = 0;   // 지도를 다시 그리면 이전 경로 불러오기 결과는 버림
+
+  /* ---------- 대중교통 실제 경로 (ODsay) ----------
+   * - 대중교통일 때만, 지금 보는 날짜의 구간만 부른다.
+   * - 받은 구간은 브라우저(localStorage)에 저장해서 같은 구간은 다시 부르지 않는다. (무료 호출 한도 절약)
+   * - 700m 이내는 걷는 거리라 부르지 않는다. (ODsay도 이 거리에서는 오류를 냄)
+   * - 버스·지하철이 지나는 정류장 좌표를 이어 선을 그린다. (추가 호출이 드는 노선 그래픽은 쓰지 않음)
+   */
+  var ROUTE_STORE = 'tripa_odsay_route_v1';
+  var ROUTE_WALK_METERS = 700;
+  var ROUTE_COLOR = { bus: '#2f9e5b', subway: '#2d6cdf', train: '#7b4bc4', walk: '#8a94a6' };
+  var routeMemo = loadRouteMemo();
+  var routePending = {};    // 같은 구간을 동시에 두 번 부르지 않게
+
+  function loadRouteMemo() {
+    try { return JSON.parse(localStorage.getItem(ROUTE_STORE) || '{}') || {}; } catch (e) { return {}; }
+  }
+
+  function saveRouteMemo() {
+    try {
+      var keys = Object.keys(routeMemo);
+      if (keys.length > 200) keys.slice(0, keys.length - 200).forEach(function (k) { delete routeMemo[k]; });
+      localStorage.setItem(ROUTE_STORE, JSON.stringify(routeMemo));
+    } catch (e) { /* 저장이 안 돼도 동작에는 문제 없음 */ }
+  }
+
+  function routeKey(a, b) {
+    return [a.lat, a.lon, b.lat, b.lon].map(function (n) { return Number(n).toFixed(4); }).join(',');
+  }
+
+  function meters(a, b) {
+    var R = 6371000, rad = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function isTransitPlan() {
+    var t = (state.plan && state.plan.transport) || '';
+    return state.draft.transport === 'public_transport' || t.indexOf('대중교통') > -1;
+  }
+
+  // ODsay 응답 → [{mode, points:[[lat,lon],...]}]  (도보 구간은 앞뒤 대중교통 구간을 이어 줌)
+  function parseTransit(data, a, b) {
+    var path = data && data.result && data.result.path && data.result.path[0];
+    if (!path || !Array.isArray(path.subPath)) return null;
+
+    var segs = [];
+    var last = [Number(a.lat), Number(a.lon)];
+    path.subPath.forEach(function (sec) {
+      var type = Number(sec.trafficType);
+      if (type !== 1 && type !== 2 && type !== 4) return;      // 3 = 도보
+      var pts = [];
+      if (sec.startY != null && sec.startX != null) pts.push([Number(sec.startY), Number(sec.startX)]);
+      var stations = sec.passStopList && Array.isArray(sec.passStopList.stations) ? sec.passStopList.stations : [];
+      stations.forEach(function (s) { if (s.y != null && s.x != null) pts.push([Number(s.y), Number(s.x)]); });
+      if (sec.endY != null && sec.endX != null) pts.push([Number(sec.endY), Number(sec.endX)]);
+      if (pts.length < 2) return;
+      segs.push({ mode: 'walk', points: [last, pts[0]] });
+      segs.push({ mode: type === 1 ? 'subway' : (type === 2 ? 'bus' : 'train'), points: pts });
+      last = pts[pts.length - 1];
+    });
+    if (!segs.length) return null;
+    segs.push({ mode: 'walk', points: [last, [Number(b.lat), Number(b.lon)]] });
+    return segs;
+  }
+
+  function fetchTransit(a, b) {
+    var key = routeKey(a, b);
+    if (routeMemo[key]) return Promise.resolve(routeMemo[key]);
+    if (meters(a, b) <= ROUTE_WALK_METERS) {
+      return Promise.resolve([{ mode: 'walk', points: [[a.lat, a.lon], [b.lat, b.lon]] }]);
+    }
+    if (!cfg.odsayKey) return Promise.resolve(null);
+    if (routePending[key]) return routePending[key];
+
+    var url = 'https://api.odsay.com/v1/api/searchPubTransPathT' +
+      '?SX=' + a.lon + '&SY=' + a.lat + '&EX=' + b.lon + '&EY=' + b.lat +
+      '&apiKey=' + encodeURIComponent(cfg.odsayKey);
+
+    routePending[key] = fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var segs = parseTransit(data, a, b);
+        if (segs) { routeMemo[key] = segs; saveRouteMemo(); }
+        return segs;                          // 실패(한도 초과 등)면 null → 직선 점선으로 대신 그림
+      })
+      .catch(function () { return null; })
+      .then(function (segs) { delete routePending[key]; return segs; });
+
+    return routePending[key];
+  }
+
+  function drawLine(points, color, dashed) {
+    if (!kakao.maps.Polyline) return;
+    var line = new kakao.maps.Polyline({
+      path: points.map(function (p) { return new kakao.maps.LatLng(p[0], p[1]); }),
+      strokeWeight: dashed ? 3 : 5,
+      strokeColor: color,
+      strokeOpacity: dashed ? 0.8 : 0.85,
+      strokeStyle: dashed ? 'shortdash' : 'solid'
+    });
+    line.setMap(map);
+    overlays.push(line);
+    return line;
+  }
+
+  // 구간마다 경로를 받아 오는 대로 직선 자리표시를 지우고 실제 경로를 그림
+  function drawTransitDay(stops) {
+    var token = ++routeDrawToken;
+    stops.slice(1).forEach(function (b, i) {
+      var a = stops[i];
+      var temp = drawLine([[a.lat, a.lon], [b.lat, b.lon]], '#9fb3d9', true);
+      fetchTransit(a, b).then(function (segs) {
+        if (token !== routeDrawToken || !segs) return;   // 그사이 지도가 바뀌었거나 실패 → 자리표시 유지
+        if (temp) temp.setMap(null);
+        segs.forEach(function (s) { drawLine(s.points, ROUTE_COLOR[s.mode] || ROUTE_COLOR.walk, s.mode === 'walk'); });
+      });
+    });
+  }
 
   function initMap() {
     if (map || !el.mapBox) return;
@@ -942,6 +1062,7 @@
 
   function updateMap() {
     if (!map) return;
+    routeDrawToken++;
     overlays.forEach(function (o) { o.setMap(null); });
     overlays = [];
 
@@ -961,17 +1082,23 @@
     if (day) {
       // 일정 미리보기가 있으면 선택한 날의 방문 순서대로 번호를 붙여 보여준다
       var path = [];
+      var stops = [];
       var first = dayStartPoint(day);
       if (first) {
         add('start', '출발 · ' + day.start_name, first.lat, first.lon);
         path.push(new kakao.maps.LatLng(first.lat, first.lon));
+        stops.push({ lat: Number(first.lat), lon: Number(first.lon) });
       }
       dayItems(day).forEach(function (it, i) {
         if (it.lat == null || it.lon == null) return;
         add(it.is_stay ? 'stay' : 'stop', (i + 1) + '. ' + it.name, it.lat, it.lon);
         path.push(new kakao.maps.LatLng(it.lat, it.lon));
+        stops.push({ lat: Number(it.lat), lon: Number(it.lon) });
       });
-      if (path.length > 1 && kakao.maps.Polyline) {
+      if (stops.length > 1 && isTransitPlan()) {
+        // 대중교통: ODsay 실제 경로 (버스·지하철 정류장을 따라)
+        drawTransitDay(stops);
+      } else if (path.length > 1 && kakao.maps.Polyline) {
         var line = new kakao.maps.Polyline({
           path: path, strokeWeight: 4, strokeColor: '#2d6cdf', strokeOpacity: 0.75, strokeStyle: 'solid'
         });
@@ -1228,7 +1355,6 @@
     var restored = allowRestore && load();
 
     if (!restored) {
-      if (BUDGET[cfg.budget]) state.draft.budget_style = cfg.budget;
       state.messages.push({ role: 'assistant', content: WELCOME, local: true });
     }
 

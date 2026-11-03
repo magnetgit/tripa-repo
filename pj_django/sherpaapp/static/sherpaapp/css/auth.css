@@ -939,3 +939,219 @@ body {
     .find-bag--big   { width: 46px; height: 54px; }
     .find-bag--small { width: 36px; height: 42px; }
 }
+
+
+/* =========================================
+   회원가입: 맞춤 추천 정보 (선택) — 성별·나이대·동의
+========================================= */
+
+.opt-box {
+    margin: 6px 0 14px;
+    padding: 14px 16px 12px;
+    border: 2px dashed #e1d8c7;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.opt-box legend {
+    padding: 0 6px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #3d4659;
+}
+
+.opt-box legend em {
+    font-style: normal;
+    font-weight: 600;
+    color: #8a8478;
+}
+
+.opt-desc {
+    margin: 0 0 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #6b7891;
+}
+
+.opt-box .field { margin-bottom: 12px; }
+
+.opt-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #8a8478;
+}
+
+/* 성별: 동그란 칩 버튼 */
+.chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.chip span {
+    display: inline-block;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #4a5568;
+    border: 1.5px solid #dcd3c3;
+    border-radius: 999px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.chip input:checked + span {
+    color: #ffffff;
+    border-color: #2d6cdf;
+    background: #2d6cdf;
+}
+
+.chip input:focus-visible + span {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+}
+
+/* 프로필 캐릭터 고르기 (동그란 얼굴 버튼) */
+.avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.avatar-opt {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.avatar-opt input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.avatar-face {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 2.5px solid transparent;
+    border-radius: 50%;
+    background: #ffffff;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.avatar-face--random {
+    font-size: 20px;
+    font-weight: 800;
+    color: #6b7891;
+    border: 2px dashed #cfc6b4;
+}
+
+.avatar-opt:hover .avatar-face { transform: translateY(-2px); }
+
+.avatar-opt input:checked + .avatar-face {
+    border-color: #2d6cdf;
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.18);
+    transform: scale(1.06);
+}
+
+.avatar-opt input:focus-visible + .avatar-face {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+}
+
+/* 이름은 화면엔 숨기고(마우스를 올리면 title로 보임) 읽어주기 프로그램에만 */
+.avatar-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* 나이대 선택 */
+.opt-select {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: #1f2d4a;
+    border: 1.5px solid #dcd3c3;
+    border-radius: 10px;
+    background: #ffffff;
+    outline: none;
+}
+
+.opt-select:focus {
+    border-color: #2d6cdf;
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.15);
+}
+
+/* 동의 체크 */
+.agree {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #3d4659;
+    cursor: pointer;
+}
+
+.agree input {
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
+    margin-top: 1px;
+    accent-color: #2d6cdf;
+}
+
+.agree b { color: #2d6cdf; }
+.agree--required { margin: 0 0 12px; }
+.agree--required b { color: #e5484d; }
+
+.agree-detail {
+    margin: 6px 0 0 25px;
+    font-size: 12px;
+    color: #6b7891;
+}
+
+.agree-detail summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: #2d6cdf;
+}
+
+.agree-detail ul {
+    margin: 6px 0 0;
+    padding-left: 16px;
+    line-height: 1.6;
+}
+
+/* 손글씨 입력칸 규칙(.auth-ticket .field label / input)이 칩·체크에 번지지 않게 */
+.auth-ticket .field .chip {
+    display: inline-block;
+    margin: 0;
+    font-size: inherit;
+    letter-spacing: 0;
+    color: inherit;
+}
+
+.auth-ticket .field .chip input {
+    width: auto;
+    padding: 0;
+    border: 0;
+}

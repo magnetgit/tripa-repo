@@ -5945,3 +5945,427 @@ button.preview-day {
 
 /* 티켓 위·아래 조각 사이 틈이 비치지 않게 1px 겹침 */
 .tl-ticket__stub { margin-top: -1px; }
+
+
+/* =========================================
+   AI와 여행 만들기 배경: 홈과 같은 하늘·구름·산·빌딩·비행기
+   (기존 여행 만들기 대화 모드 + React /chat/ 공용, main.trip-sky)
+========================================= */
+
+.trip-sky {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #cfe2f4 0%, #e1edf9 32%, #eef4fb 62%, #f3f6fb 100%);
+}
+
+/* 구름: 위쪽에서 천천히 흘러감 */
+.trip-sky::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 180px;
+    background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221400%22%20height%3D%22180%22%20viewBox%3D%220%200%201400%20180%22%3E%3Cg%20fill%3D%22%23ffffff%22%3E%3Cg%20opacity%3D%220.95%22%3E%3Cellipse%20cx%3D%22106%22%20cy%3D%2279%22%20rx%3D%2233%22%20ry%3D%2220%22%2F%3E%3Cellipse%20cx%3D%22139%22%20cy%3D%2255%22%20rx%3D%2245%22%20ry%3D%2228%22%2F%3E%3Cellipse%20cx%3D%22181%22%20cy%3D%2264%22%20rx%3D%2239%22%20ry%3D%2224%22%2F%3E%3Cellipse%20cx%3D%22214%22%20cy%3D%2282%22%20rx%3D%2230%22%20ry%3D%2219%22%2F%3E%3Cellipse%20cx%3D%22160%22%20cy%3D%2285%22%20rx%3D%2257%22%20ry%3D%2235%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220.8%22%3E%3Cellipse%20cx%3D%22522%22%20cy%3D%2246%22%20rx%3D%2223%22%20ry%3D%2214%22%2F%3E%3Cellipse%20cx%3D%22545%22%20cy%3D%2230%22%20rx%3D%2232%22%20ry%3D%2220%22%2F%3E%3Cellipse%20cx%3D%22575%22%20cy%3D%2236%22%20rx%3D%2227%22%20ry%3D%2217%22%2F%3E%3Cellipse%20cx%3D%22598%22%20cy%3D%2248%22%20rx%3D%2221%22%20ry%3D%2213%22%2F%3E%3Cellipse%20cx%3D%22560%22%20cy%3D%2250%22%20rx%3D%2240%22%20ry%3D%2225%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220.9%22%3E%3Cellipse%20cx%3D%22837%22%20cy%3D%22106%22%20rx%3D%2238%22%20ry%3D%2224%22%2F%3E%3Cellipse%20cx%3D%22876%22%20cy%3D%2278%22%20rx%3D%2252%22%20ry%3D%2233%22%2F%3E%3Cellipse%20cx%3D%22924%22%20cy%3D%2288%22%20rx%3D%2246%22%20ry%3D%2228%22%2F%3E%3Cellipse%20cx%3D%22963%22%20cy%3D%22109%22%20rx%3D%2235%22%20ry%3D%2222%22%2F%3E%3Cellipse%20cx%3D%22900%22%20cy%3D%22112%22%20rx%3D%2266%22%20ry%3D%2241%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220.75%22%3E%3Cellipse%20cx%3D%221207%22%20cy%3D%2262%22%20rx%3D%2226%22%20ry%3D%2216%22%2F%3E%3Cellipse%20cx%3D%221233%22%20cy%3D%2243%22%20rx%3D%2236%22%20ry%3D%2222%22%2F%3E%3Cellipse%20cx%3D%221267%22%20cy%3D%2250%22%20rx%3D%2231%22%20ry%3D%2219%22%2F%3E%3Cellipse%20cx%3D%221293%22%20cy%3D%2265%22%20rx%3D%2224%22%20ry%3D%2215%22%2F%3E%3Cellipse%20cx%3D%221250%22%20cy%3D%2267%22%20rx%3D%2246%22%20ry%3D%2228%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E") 0 0 / 1400px 180px repeat-x;
+    opacity: 0.9;
+    pointer-events: none;
+    animation: trip-cloud 140s linear infinite;
+}
+
+@keyframes trip-cloud {
+    from { background-position: 0 0; }
+    to   { background-position: 1400px 0; }
+}
+
+/* 아래쪽: 멀리 보이는 산과 빌딩 */
+.trip-sky::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 240px;
+    background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%221600%22%20height%3D%22240%22%20viewBox%3D%220%200%201600%20240%22%20preserveAspectRatio%3D%22xMidYMax%20slice%22%3E%3Cpath%20fill%3D%22%23cfdeee%22%20d%3D%22M0%20240%20V150%20L90%20118%20L170%20140%20L280%2086%20L380%20130%20L470%20108%20L560%20138%20L690%2070%20L800%20128%20L900%20104%20L1010%20140%20L1120%2080%20L1230%20126%20L1330%20100%20L1440%20138%20L1530%20110%20L1600%20128%20V240%20Z%22%2F%3E%3Cpath%20fill%3D%22%23c0d3e8%22%20d%3D%22M0%20240%20V190%20L120%20160%20L210%20180%20L330%20146%20L450%20178%20L560%20166%20L660%20186%20L780%20150%20L900%20182%20L1020%20162%20L1140%20188%20L1260%20156%20L1380%20182%20L1500%20166%20L1600%20178%20V240%20Z%22%2F%3E%3Cg%20fill%3D%22%23d3dfec%22%3E%3Crect%20x%3D%220%22%20y%3D%22181%22%20width%3D%2264%22%20height%3D%2259%22%2F%3E%3Crect%20x%3D%2270%22%20y%3D%22186%22%20width%3D%2246%22%20height%3D%2254%22%2F%3E%3Crect%20x%3D%22130%22%20y%3D%22167%22%20width%3D%2246%22%20height%3D%2273%22%2F%3E%3Crect%20x%3D%22190%22%20y%3D%22158%22%20width%3D%2246%22%20height%3D%2282%22%2F%3E%3Crect%20x%3D%22236%22%20y%3D%22185%22%20width%3D%2246%22%20height%3D%2255%22%2F%3E%3Crect%20x%3D%22288%22%20y%3D%22186%22%20width%3D%2272%22%20height%3D%2254%22%2F%3E%3Crect%20x%3D%22360%22%20y%3D%22155%22%20width%3D%2246%22%20height%3D%2285%22%2F%3E%3Crect%20x%3D%22412%22%20y%3D%22138%22%20width%3D%2246%22%20height%3D%22102%22%2F%3E%3Crect%20x%3D%22472%22%20y%3D%22176%22%20width%3D%2246%22%20height%3D%2264%22%2F%3E%3Crect%20x%3D%22532%22%20y%3D%22187%22%20width%3D%2284%22%20height%3D%2253%22%2F%3E%3Crect%20x%3D%22630%22%20y%3D%22165%22%20width%3D%2284%22%20height%3D%2275%22%2F%3E%3Crect%20x%3D%22714%22%20y%3D%22188%22%20width%3D%2258%22%20height%3D%2252%22%2F%3E%3Crect%20x%3D%22786%22%20y%3D%22172%22%20width%3D%2258%22%20height%3D%2268%22%2F%3E%3Crect%20x%3D%22850%22%20y%3D%22156%22%20width%3D%2258%22%20height%3D%2284%22%2F%3E%3Crect%20x%3D%22908%22%20y%3D%22171%22%20width%3D%2284%22%20height%3D%2269%22%2F%3E%3Crect%20x%3D%221006%22%20y%3D%22184%22%20width%3D%2258%22%20height%3D%2256%22%2F%3E%3Crect%20x%3D%221078%22%20y%3D%22150%22%20width%3D%2284%22%20height%3D%2290%22%2F%3E%3Crect%20x%3D%221162%22%20y%3D%22184%22%20width%3D%2264%22%20height%3D%2256%22%2F%3E%3Crect%20x%3D%221240%22%20y%3D%22154%22%20width%3D%2246%22%20height%3D%2286%22%2F%3E%3Crect%20x%3D%221286%22%20y%3D%22177%22%20width%3D%2284%22%20height%3D%2263%22%2F%3E%3Crect%20x%3D%221376%22%20y%3D%22163%22%20width%3D%2284%22%20height%3D%2277%22%2F%3E%3Crect%20x%3D%221466%22%20y%3D%22153%22%20width%3D%2272%22%20height%3D%2287%22%2F%3E%3Crect%20x%3D%221544%22%20y%3D%22171%22%20width%3D%2264%22%20height%3D%2269%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%23bccde0%22%3E%3Crect%20x%3D%2210%22%20y%3D%22161%22%20width%3D%2252%22%20height%3D%2279%22%2F%3E%3Crect%20x%3D%2272%22%20y%3D%22161%22%20width%3D%2260%22%20height%3D%2279%22%2F%3E%3Crect%20x%3D%22262%22%20y%3D%22188%22%20width%3D%2290%22%20height%3D%2252%22%2F%3E%3Crect%20x%3D%22356%22%20y%3D%22166%22%20width%3D%2290%22%20height%3D%2274%22%2F%3E%3Crect%20x%3D%22456%22%20y%3D%22182%22%20width%3D%2290%22%20height%3D%2258%22%2F%3E%3Crect%20x%3D%22564%22%20y%3D%22161%22%20width%3D%2240%22%20height%3D%2279%22%2F%3E%3Crect%20x%3D%22608%22%20y%3D%22153%22%20width%3D%2252%22%20height%3D%2287%22%2F%3E%3Crect%20x%3D%22694%22%20y%3D%22166%22%20width%3D%2270%22%20height%3D%2274%22%2F%3E%3Crect%20x%3D%22768%22%20y%3D%22196%22%20width%3D%2240%22%20height%3D%2244%22%2F%3E%3Crect%20x%3D%22818%22%20y%3D%22196%22%20width%3D%2260%22%20height%3D%2244%22%2F%3E%3Crect%20x%3D%22972%22%20y%3D%22157%22%20width%3D%2252%22%20height%3D%2283%22%2F%3E%3Crect%20x%3D%221028%22%20y%3D%22205%22%20width%3D%2290%22%20height%3D%2235%22%2F%3E%3Crect%20x%3D%221122%22%20y%3D%22173%22%20width%3D%2240%22%20height%3D%2267%22%2F%3E%3Crect%20x%3D%221180%22%20y%3D%22154%22%20width%3D%2290%22%20height%3D%2286%22%2F%3E%3Crect%20x%3D%221280%22%20y%3D%22180%22%20width%3D%2290%22%20height%3D%2260%22%2F%3E%3Crect%20x%3D%221380%22%20y%3D%22153%22%20width%3D%2252%22%20height%3D%2287%22%2F%3E%3Crect%20x%3D%221586%22%20y%3D%22188%22%20width%3D%2270%22%20height%3D%2252%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%23e6eef7%22%20opacity%3D%220.9%22%3E%3Crect%20x%3D%2218%22%20y%3D%22171%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%22171%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2242%22%20y%3D%22171%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2218%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2242%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2218%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2242%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2218%22%20y%3D%22213%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2242%22%20y%3D%22213%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%22227%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2242%22%20y%3D%22227%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2280%22%20y%3D%22171%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22171%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22116%22%20y%3D%22171%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2280%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2292%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2280%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2292%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22116%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22213%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2280%22%20y%3D%22227%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%2292%22%20y%3D%22227%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22104%22%20y%3D%22227%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22116%22%20y%3D%22227%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22294%22%20y%3D%22198%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22306%22%20y%3D%22198%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22318%22%20y%3D%22198%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22282%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22294%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22306%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22318%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22330%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22270%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22282%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22294%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22306%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22318%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22330%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22376%22%20y%3D%22176%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22412%22%20y%3D%22176%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22424%22%20y%3D%22176%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22364%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22376%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22388%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22400%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22412%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22364%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22376%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22388%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22400%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22412%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22424%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22376%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22388%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22400%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22412%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22424%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22464%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22476%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22500%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22512%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22524%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22488%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22500%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22512%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22524%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22476%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22488%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22524%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22572%22%20y%3D%22171%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22572%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22584%22%20y%3D%22185%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22572%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22584%22%20y%3D%22199%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22572%22%20y%3D%22213%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22584%22%20y%3D%22213%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22628%22%20y%3D%22163%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22640%22%20y%3D%22163%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22616%22%20y%3D%22191%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22628%22%20y%3D%22191%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22640%22%20y%3D%22191%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22616%22%20y%3D%22205%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22616%22%20y%3D%22219%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22640%22%20y%3D%22219%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22702%22%20y%3D%22176%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22714%22%20y%3D%22176%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22738%22%20y%3D%22176%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22750%22%20y%3D%22176%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22714%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22726%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22750%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22714%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22726%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22738%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22714%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22738%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22750%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22776%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22788%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22776%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22788%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22826%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22838%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22862%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22826%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22850%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22980%22%20y%3D%22167%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22992%22%20y%3D%22167%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221004%22%20y%3D%22167%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22992%22%20y%3D%22181%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221004%22%20y%3D%22181%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22980%22%20y%3D%22195%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221004%22%20y%3D%22195%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22992%22%20y%3D%22209%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221004%22%20y%3D%22209%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22980%22%20y%3D%22223%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%22992%22%20y%3D%22223%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221004%22%20y%3D%22223%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221036%22%20y%3D%22215%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221048%22%20y%3D%22215%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221060%22%20y%3D%22215%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221072%22%20y%3D%22215%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221084%22%20y%3D%22215%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221096%22%20y%3D%22215%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221036%22%20y%3D%22229%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221048%22%20y%3D%22229%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221084%22%20y%3D%22229%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221096%22%20y%3D%22229%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221130%22%20y%3D%22183%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221130%22%20y%3D%22197%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221142%22%20y%3D%22197%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221142%22%20y%3D%22211%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221130%22%20y%3D%22225%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221142%22%20y%3D%22225%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221200%22%20y%3D%22164%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221236%22%20y%3D%22164%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221248%22%20y%3D%22164%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221212%22%20y%3D%22178%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221224%22%20y%3D%22178%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221236%22%20y%3D%22178%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221248%22%20y%3D%22178%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221188%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221200%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221212%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221248%22%20y%3D%22192%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221200%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221212%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221248%22%20y%3D%22206%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221200%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221212%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221248%22%20y%3D%22220%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221288%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221300%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221324%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221336%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221348%22%20y%3D%22190%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221288%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221300%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221312%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221324%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221336%22%20y%3D%22204%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221312%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221324%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221336%22%20y%3D%22218%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221412%22%20y%3D%22163%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221388%22%20y%3D%22177%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221412%22%20y%3D%22177%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221400%22%20y%3D%22191%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221412%22%20y%3D%22191%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221388%22%20y%3D%22205%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221400%22%20y%3D%22205%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221412%22%20y%3D%22205%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221400%22%20y%3D%22219%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221594%22%20y%3D%22198%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221642%22%20y%3D%22198%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221594%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221618%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221630%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221642%22%20y%3D%22212%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221594%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221606%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3Crect%20x%3D%221618%22%20y%3D%22226%22%20width%3D%225%22%20height%3D%226%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") center bottom / cover no-repeat;
+    pointer-events: none;
+}
+
+.trip-sky > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* 제목 위로 비행기가 지나감 */
+.trip-sky .page-title,
+.trip-sky .travel-header,
+.trip-sky .budget-header,
+.trip-sky .travel-list-header {
+    position: relative;
+}
+
+.trip-sky .page-title::after,
+.trip-sky .travel-header::after,
+.trip-sky .budget-header::after,
+.trip-sky .travel-list-header::after {
+    content: "";
+    position: absolute;
+    top: -27px;
+    left: 0;
+    width: 64px;
+    height: 26px;
+    background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22120%22%20height%3D%2248%22%20viewBox%3D%220%200%20120%2048%22%3E%3Cg%20fill%3D%22%23ffffff%22%3E%3Cpath%20d%3D%22M58%2021%20L49%2011%20L56%2011%20L73%2021%20Z%22%20fill%3D%22%239edaf2%22%2F%3E%3Cpath%20d%3D%22M15%2021%20L6%204%20L18%204%20L33%2020%20Z%22%20fill%3D%22%2335b6e6%22%2F%3E%3Cpath%20d%3D%22M8%2026%20C8%2022%2014%2020%2022%2020%20L96%2020%20C106%2020%20116%2023%20118%2026%20C116%2029%20106%2031%2096%2031%20L22%2031%20C14%2031%208%2029%208%2026%20Z%22%20stroke%3D%22%23cfe0ee%22%2F%3E%3Crect%20x%3D%2222%22%20y%3D%2227%22%20width%3D%2274%22%20height%3D%222%22%20fill%3D%22%2335b6e6%22%2F%3E%3Cpath%20d%3D%22M50%2027%20L38%2044%20L48%2044%20L72%2028%20Z%22%20fill%3D%22%2335b6e6%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") center / contain no-repeat;
+    filter: drop-shadow(0 6px 6px rgba(40, 70, 120, 0.2));
+    pointer-events: none;
+    animation: trip-plane 30s linear infinite;
+    animation-delay: -6s;
+}
+
+@keyframes trip-plane {
+    from { transform: translate(-140px, 8px) rotate(-4deg); opacity: 0; }
+    4%   { opacity: 1; }
+    96%  { opacity: 1; }
+    to   { transform: translate(calc(100vw - 120px), -6px) rotate(-4deg); opacity: 0; }
+}
+
+/* 3칸 패널: 반투명 유리판 → 뒤 풍경이 은은하게 비침 */
+.trip-sky .tc-panel {
+    background: rgba(255, 255, 255, 0.86);
+    border-color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 18px 40px rgba(40, 70, 120, 0.12), 0 2px 6px rgba(40, 70, 120, 0.06);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1);
+            backdrop-filter: blur(10px) saturate(1.1);
+}
+
+.trip-sky .tc-panel__head {
+    background: linear-gradient(180deg, rgba(240, 246, 255, 0.9) 0%, rgba(255, 255, 255, 0.6) 100%);
+}
+
+.trip-sky .page-title h1 {
+    color: #1f2d4a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .trip-sky::before,
+    .trip-sky .page-title::after,
+    .trip-sky .travel-header::after,
+    .trip-sky .budget-header::after,
+    .trip-sky .travel-list-header::after {
+        animation: none;
+    }
+
+    .trip-sky .page-title::after,
+    .trip-sky .travel-header::after,
+    .trip-sky .budget-header::after,
+    .trip-sky .travel-list-header::after {
+        transform: translate(60vw, 0) rotate(-5deg);
+    }
+}
+
+@media (max-width: 859px) {
+    .trip-sky::after { height: 140px; }
+    .trip-sky .page-title::after,
+    .trip-sky .travel-header::after,
+    .trip-sky .budget-header::after,
+    .trip-sky .travel-list-header::after { display: none; }
+}
+
+
+/* 일정 관리·비용 관리의 흰 상자들도 반투명 유리판으로 */
+.trip-sky .travel-header,
+.trip-sky .budget-header,
+.trip-sky .bg-card,
+.trip-sky .bg-toolbar,
+.trip-sky .sc-empty {
+    background: rgba(255, 255, 255, 0.86);
+    border-color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 18px 40px rgba(40, 70, 120, 0.10), 0 2px 6px rgba(40, 70, 120, 0.05);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1);
+            backdrop-filter: blur(10px) saturate(1.1);
+}
+
+
+/* =========================================
+   홈: 내 여행 일정 카드 목록 (최근 4개)
+========================================= */
+
+.trip-cards__list {
+    display: grid;
+    gap: 10px;
+    margin: 4px 0 14px;
+}
+
+.trip-card {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 1px solid #e6edf8;
+    border-radius: 14px;
+    background: #f8fbff;
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.trip-card:hover,
+.trip-card:focus-visible {
+    transform: translateY(-2px);
+    border-color: #c9daf5;
+    box-shadow: 0 10px 22px rgba(45, 108, 223, 0.12);
+    outline: none;
+}
+
+/* 왼쪽 날짜 칸: 탑승권 꼬리표처럼 */
+.trip-card__date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 58px;
+    border-radius: 12px;
+    background: #2d6cdf;
+    color: #ffffff;
+}
+
+.trip-card__date strong {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.trip-card__date span {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.trip-card--past .trip-card__date { background: #9aa8bd; }
+.trip-card--now .trip-card__date  { background: #1f9d55; }
+
+.trip-card__body { min-width: 0; }
+
+.trip-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.trip-card__title {
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 800;
+    color: #1f2d4a;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.trip-card__dday {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #2d6cdf;
+    background: #e8f0fd;
+}
+
+.trip-card--now .trip-card__dday  { color: #1f9d55; background: #e3f5ea; }
+.trip-card--past .trip-card__dday { color: #7b88a1; background: #eef1f6; }
+
+.trip-card__meta {
+    margin: 3px 0 7px;
+    overflow: hidden;
+    font-size: 12px;
+    color: #7b88a1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.trip-card__meta .tp-icon {
+    width: 13px;
+    height: 13px;
+    vertical-align: -2px;
+    color: #2d6cdf;
+}
+
+.trip-card__stops {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.trip-card__stop,
+.trip-card__more {
+    max-width: 130px;
+    padding: 3px 8px;
+    overflow: hidden;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #3d4659;
+    background: #ffffff;
+    border: 1px solid #e3e9f3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.trip-card__more {
+    color: #2d6cdf;
+    border-color: #cfe0fa;
+}
+
+.trip-card__empty {
+    font-size: 12px;
+    color: #9aa6b8;
+}
+
+
+/* =========================================
+   홈: 여행 리뷰 추천 카드 (틀만, 데이터는 나중에 review_picks)
+========================================= */
+
+/* 넓은 화면: 소개 | 내 여행 일정 | 리뷰 추천 세 칸 */
+@media (min-width: 1281px) {
+    .hero--reviews {
+        max-width: 1560px;
+        grid-template-columns: 1.3fr 1fr 1fr;
+        gap: 40px;
+    }
+}
+
+/* 중간 화면: 리뷰 카드는 아래 줄 가운데 */
+@media (min-width: 901px) and (max-width: 1280px) {
+    .hero--reviews .hero-reviews {
+        grid-column: 1 / -1;
+    }
+}
+
+.review-board__desc {
+    margin: -8px 0 14px;
+    font-size: 12.5px;
+    color: #7b88a1;
+}
+
+.review-board__list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.review-pick {
+    position: relative;
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 14px;
+    border: 1px solid #e6edf8;
+    border-radius: 14px;
+    background: #f8fbff;
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+a.review-pick:hover,
+a.review-pick:focus-visible {
+    transform: translateY(-2px);
+    border-color: #c9dafa;
+    box-shadow: 0 8px 20px rgba(45, 108, 223, 0.1);
+}
+
+.review-pick__rank {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #2d6cdf;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.review-board__list li:nth-child(n+4) .review-pick__rank { background: #9aa8bd; }
+
+.review-pick__body { min-width: 0; }
+
+.review-pick__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.review-pick__head strong {
+    font-size: 15px;
+    color: #1f2d4a;
+}
+
+.review-pick__rating {
+    font-size: 12px;
+    font-weight: 800;
+    color: #e08a00;
+}
+
+.review-pick__meta {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: #7b88a1;
+}
+
+.review-pick__quote {
+    margin: 6px 0 0;
+    font-size: 12.5px;
+    color: #4a5568;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 예시 줄: 실제 데이터가 아님을 표시 */
+.review-pick--sample { opacity: 0.85; }
+
+.review-pick__sample {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #eef1f6;
+    color: #7b88a1;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.review-board .preview-open:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+/* 넓은 화면: 내 여행 일정·리뷰 추천 카드 높이를 같게, 아래 버튼은 맨 아래에 맞춤 */
+@media (min-width: 1281px) {
+    .hero--reviews .hero-preview {
+        align-self: stretch;
+    }
+
+    .hero--reviews .preview-window {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .hero--reviews .preview-window--empty .preview-empty {
+        flex: 1;
+    }
+
+    .hero--reviews .preview-open {
+        margin-top: auto;
+    }
+
+    .hero--reviews .review-board__list {
+        margin-bottom: 18px;
+    }
+}

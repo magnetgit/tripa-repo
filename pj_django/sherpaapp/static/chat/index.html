@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TRIPA - 여행 만들기 (React 개발)</title>
+    <!-- 개발 서버(5173)에서도 Django 의 style.css 를 그대로 씀 (proxy 로 8000 에서 받아 옴) -->
+    <link rel="stylesheet" href="/static/sherpaapp/css/style.css" />
+    <script type="module" crossorigin src="/static/chat/chat.js"></script>
+    <link rel="stylesheet" crossorigin href="/static/chat/chat.css">
+  </head>
+  <body>
+    <div class="detail-container">
+      <main class="detail-content" style="margin-left: 0; width: 100%">
+        <!-- 개발 중에는 Django 템플릿이 아니라 data- 속성이 없음 → config.js 의 기본 주소를 씀.
+             지도는 카카오 키가 필요해서 개발 서버에서는 안 뜸 (Django 의 /chat/ 에서 확인) -->
+        <div class="tc-app" id="root"></div>
+      </main>
+    </div>
+  </body>
+</html>
