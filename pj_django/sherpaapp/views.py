@@ -5891,6 +5891,18 @@ def review_list(request):
     })
 
 def review_summary(request):
+    kakao_ids = request.GET.get('kakao_ids', '')
+    id_list = [k.strip() for k in kakao_ids.split(',') if k.strip()][:50]
+    
+    if not id_list:
+        return JsonResponse(
+            {'success': False, 'message': 'kakao_ids가 필요합니다.'}, status=400
+        )
+    stats = Review.objects.filter(kakao_id__in=id_list).values('kakao_id').annotate(rating=Avg('rating'), count=Count('rv_id'))
+    result = {}
+    for s in stats:
+        result[s['kakao_id']] = {'rating': round(s['rating'], 1), 'count': s['count']}
     return JsonResponse({
         'success': True,
+        'reviews': result
     })
