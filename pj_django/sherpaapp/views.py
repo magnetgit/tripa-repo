@@ -3433,6 +3433,7 @@ def schedule_place_add(request):
     place_lat = request.POST.get('place_lat') or None
     place_lon = request.POST.get('place_lon') or None
     place_image = request.POST.get('place_image') or None
+    place_kakao_id = request.POST.get('place_kakao_id') or None
 
     # schedule_id가 있으면 기존 일정을 사용한다.
     if schedule_id:
@@ -3488,6 +3489,7 @@ def schedule_place_add(request):
                 p_lat=place_lat,
                 p_lon=place_lon,
                 p_image=place_image,
+                p_kakao_id=place_kakao_id,
             )
 
     # 이미지가 비어 있으면 API를 통해 자동 보완하고 DB에 저장한다.
@@ -5534,6 +5536,7 @@ def _chat_add_pins(travel, pins, with_images=False):
 
                 addr = (pin.get('addr') or '').strip()
                 kind = (pin.get('kind') or '').strip()
+                kakao_id = str(pin.get('kakao_id') or '').strip() or None
 
                 schedule = (
                     Schedule.objects.filter(travel=travel, s_day=day_date).order_by('s_id').first()
@@ -5548,6 +5551,7 @@ def _chat_add_pins(travel, pins, with_images=False):
                         p_name=name,
                         p_addr=addr,
                         p_kind=kind,
+                        p_kakao_id=kakao_id,
                         p_lat=pin.get('lat'),
                         p_lon=pin.get('lon'),
                     )
