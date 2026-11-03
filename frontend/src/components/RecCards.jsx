@@ -1,9 +1,50 @@
 // AI가 찾아 준 장소 추천 카드 (말풍선 아래)
+import { useState } from 'react';
 import Icon from './Icon.jsx';
 import { dayToIso, tripDays } from '../lib/util.js';
 
 const KIND_ICON = { 카페: 'cup', 음식: 'utensils', 숙박: 'bed', 쇼핑: 'bag', 관광: 'landmark' };
 const KAKAO_LINK = /^https?:\/\/(place\.)?map\.kakao\.com\//;
+
+// 카드 왼쪽: 사진(photo.url)이 있으면 사진, 없거나 못 불러오면 종류 아이콘(기본 이미지)
+function CardPhoto({ item, sprite }) {
+  const [broken, setBroken] = useState(false);
+  const photo = item.photo;
+
+  if (!photo || !photo.url || broken) {
+    return (
+      <div className="tc-card__icon">
+        <Icon name={KIND_ICON[item.kind] || 'pin'} sprite={sprite} />
+      </div>
+    );
+  }
+
+  return (
+    <figure className="tc-card__photo">
+      <img
+        src={photo.url}
+        alt={`${item.name} 사진`}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+      />
+      {/* 관광공사 사진은 출처 표시가 이용 조건 */}
+      {photo.source === 'tour' && <figcaption>사진: 한국관광공사</figcaption>}
+    </figure>
+  );
+}
+
+// 평점(review)·예상 비용(cost)은 값이 올 때만 (mock.json 키)
+function cardExtra(item) {
+  const parts = [];
+  if (item.review && item.review.count) {
+    parts.push(`★ ${Number(item.review.rating).toFixed(1)} · 리뷰 ${item.review.count}개`);
+  }
+  if (item.cost && item.cost.amount) {
+    parts.push(`예상 ${Number(item.cost.amount).toLocaleString('ko-KR')}원`);
+  }
+  return parts.join(' · ');
+}
 
 function hasPin(draft, item, day) {
   return (draft.pins || []).some((p) => p.day === day && p.name === item.name);
@@ -50,9 +91,7 @@ export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay }) {
 
         return (
           <div className="tc-card" key={`${item.name}-${item.addr || ''}`}>
-            <div className="tc-card__icon">
-              <Icon name={KIND_ICON[item.kind] || 'pin'} sprite={sprite} />
-            </div>
+            <CardPhoto item={item} sprite={sprite} />
 
             <div className="tc-card__body">
               <div className="tc-card__head">
@@ -75,6 +114,8 @@ export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay }) {
                   )}
                 </p>
               )}
+
+              {cardExtra(item) && <p className="tc-card__extra">{cardExtra(item)}</p>}
 
               <div className="tc-card__actions">
                 {!days.length && (

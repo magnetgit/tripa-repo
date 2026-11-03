@@ -185,6 +185,12 @@ urlpatterns = [
     ),
 
     path(
+        'travel_reschedule/<int:travel_id>/',
+        views.travel_reschedule,
+        name='travel_reschedule'
+    ),
+
+    path(
         'travel_delete/<int:travel_id>/',
         views.travel_delete,
         name='travel_delete'
@@ -316,5 +322,17 @@ urlpatterns = [
         'review/',
         views.review_board,
         name='review_board'
+    ),
+
+    path(
+        'review/write/',
+        views.review_write,
+        name='review_write'
+    ),
+
+    path(
+        'review/<int:rv_id>/helpful/',
+        views.review_helpful,
+        name='review_helpful'
     ),
 ]

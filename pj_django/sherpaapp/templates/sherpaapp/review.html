@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRIPA - 리뷰 게시판</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261058">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=3">
     </head>
 <body>
 <div class="detail-container">        <!-- 전체 틀: 왼쪽 메뉴 + 오른쪽 본문 -->
@@ -33,14 +34,124 @@
         {% endif %}
     </aside>
 
-    <main class="detail-content">     <!-- 오른쪽 본문 -->
-        <div class="page-title">
-            <h1>아이콘 + 리뷰 게시판</h1>
-            <p>한 줄 설명</p>
+    <main class="detail-content rv-page trip-sky">     <!-- 오른쪽 본문 -->
+        <div class="page-title rv-title">
+            <div>
+                <h1>{% include "_icon.html" with name="chat" %} 리뷰 게시판</h1>
+                <p>회원들이 직접 다녀온 곳의 솔직한 후기예요. 도움이 된 리뷰는 추천해 주세요.</p>
+            </div>
+            <a href="{% url 'review_write' %}" class="btn btn-primary rv-write-btn">
+                {% include "_icon.html" with name="edit" %} 글쓰기
+            </a>
         </div>
-        <!-- 여기에 리뷰 목록 카드 -->
+
+        {% if message %}<p class="rv-flash" role="status">{{ message }}</p>{% endif %}
+        {% csrf_token %}
+
+        <div class="rv-layout">
+
+            <!-- 전체 리뷰 목록 (최신순) -->
+            <section class="rv-list" aria-labelledby="rvListTitle">
+                <h2 id="rvListTitle" class="rv-section-title">전체 리뷰 <em>{{ review_total }}개</em></h2>
+
+                {% for r in page %}
+                <article class="rv-card">
+                    <header class="rv-card__head">
+                        <img class="rv-avatar" src="{% static 'sherpaapp/avatars/'|add:r.member.avatar_key|add:'.svg' %}" alt="" width="40" height="40">
+                        <div class="rv-who">
+                            <strong>{{ r.member.nickname }}</strong>
+                            <span>{{ r.created_at|date:"Y.m.d" }}</span>
+                        </div>
+                        <span class="rv-stars" aria-label="별점 {{ r.rating }}점">{% for i in "12345" %}{% if forloop.counter <= r.rating %}★{% else %}☆{% endif %}{% endfor %}</span>
+                    </header>
+
+                    <p class="rv-place">
+                        {% include "_icon.html" with name="pin" %} <b>{{ r.place_name }}</b>
+                        {% if r.place %}<span class="rv-region">{{ r.place.travel.t_place }}</span>{% endif %}
+                    </p>
+
+                    <p class="rv-content">{{ r.content }}</p>
+
+                    {% if r.tags %}
+                    <div class="rv-tags">{% for t in r.tags %}<span>#{{ t }}</span>{% endfor %}</div>
+                    {% endif %}
+
+                    <footer class="rv-card__foot">
+                        {% if r.member_id == member.m_id %}
+                            <span class="rv-mine">내 리뷰 · 추천 {{ r.helpful_count }}</span>
+                        {% else %}
+                            <button type="button" class="rv-helpful{% if r.is_helped %} is-on{% endif %}"
+                                    data-url="{% url 'review_helpful' rv_id=r.rv_id %}"
+                                    aria-pressed="{% if r.is_helped %}true{% else %}false{% endif %}">
+                                👍 추천 <b>{{ r.helpful_count }}</b>
+                            </button>
+                        {% endif %}
+                    </footer>
+                </article>
+                {% empty %}
+                <div class="rv-empty">
+                    <strong>아직 올라온 리뷰가 없어요</strong>
+                    <p>다녀온 여행지의 첫 리뷰를 남겨 보세요.</p>
+                    <a href="{% url 'review_write' %}" class="btn btn-primary">{% include "_icon.html" with name="edit" %} 첫 리뷰 쓰기</a>
+                </div>
+                {% endfor %}
+
+                {% if page.has_other_pages %}
+                <nav class="rv-pages" aria-label="리뷰 페이지">
+                    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">‹ 이전</a>{% endif %}
+                    <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
+                    {% if page.has_next %}<a href="?page={{ page.next_page_number }}">다음 ›</a>{% endif %}
+                </nav>
+                {% endif %}
+            </section>
+
+            <!-- 추천 많은 리뷰 -->
+            <aside class="rv-best" aria-labelledby="rvBestTitle">
+                <h2 id="rvBestTitle" class="rv-section-title">추천 많은 리뷰</h2>
+                {% if best_reviews %}
+                <ol class="rv-best__list">
+                    {% for r in best_reviews %}
+                    <li>
+                        <span class="rv-best__rank">{{ forloop.counter }}</span>
+                        <div class="rv-best__body">
+                            <strong>{{ r.place_name }}</strong>
+                            <span class="rv-best__meta">{% if r.place %}{{ r.place.travel.t_place }} · {% endif %}<em>★ {{ r.rating }}</em> · 👍 {{ r.helpful_count }}</span>
+                            <p>"{{ r.content }}"</p>
+                            <span class="rv-best__who">{{ r.member.nickname }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <p class="rv-best__empty">아직 추천받은 리뷰가 없어요.<br>마음에 드는 리뷰에 👍를 눌러 주세요.</p>
+                {% endif %}
+            </aside>
+
+        </div>
     </main>
 
 </div>
+
+<script>
+    // 추천 버튼: 누르면 추천, 다시 누르면 취소 (새로고침 없이 숫자만 바뀜)
+    (function () {
+        var token = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        document.querySelectorAll('.rv-helpful').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                fetch(btn.dataset.url, { method: 'POST', headers: { 'X-CSRFToken': token } })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        if (!data.success) { alert(data.message || '추천하지 못했어요.'); return; }
+                        btn.classList.toggle('is-on', data.helped);
+                        btn.setAttribute('aria-pressed', data.helped ? 'true' : 'false');
+                        btn.querySelector('b').textContent = data.count;
+                    })
+                    .catch(function () { alert('추천하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); })
+                    .finally(function () { btn.disabled = false; });
+            });
+        });
+    })();
+</script>
 </body>
 </html>
