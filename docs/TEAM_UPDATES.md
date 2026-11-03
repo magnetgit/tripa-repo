@@ -40,8 +40,37 @@
 - [ ] **장소 사진 테이블(카카오 ID당 1장) + 사진 찾기(관광공사 → 엄격한 카카오 검색 → 없으면 없음) + 장소 정보 API** ← 🟧에서 옮김
 
 ### 함께 정할 것
-- [ ] 세 기능이 같이 쓰는 채팅 추천 카드 응답 키(`mock.json`)
-- [ ] 🟩 사진 응답 키를 먼저 정해 공유 (🟧 리뷰·🟦 예산 화면에서도 씀)
+- [x] 세 기능이 같이 쓰는 채팅 추천 카드 응답 키(`mock.json`) → PR #27로 확정 (11/03, 3명 동의)
+- [x] 🟩 사진 응답 키를 먼저 정해 공유 → `photo: {url, source}` 또는 `null` (PR #27)
+
+## 2026-11-03 · `mock.json`에 추천 카드·사진 키 추가 — 🟩 서지윤 · ⚠️ 세 사람 합의 필요
+역할 분담 문서의 🟩 요청 2개(추천 카드 응답 키, 사진 응답 키)예요. **추가만** 했고 기존 키·최상위 키(`reply` `facts` `hint` `plan` `places` `transport` `budget`)는 그대로예요. 지금 `/api/chat/`은 `mock.json`을 그대로 돌려줘서 이 모양으로 화면을 먼저 만들 수 있어요.
+
+### 1) `places` = 채팅 추천 카드 묶음 (`null` → 예시 채움)
+- 묶음: `title` `anchor`(기준 장소) `day` `time` `items[]` — 실제 `/travel_chat/`의 `recommendation`과 같은 이름
+- 카드 기존 키(이미 실제 채팅에서 나옴): `name` `kakao_id` `kind` `addr` `lat` `lon` `phone` `url` `distance`
+- 카드 새 키:
+
+| 키 | 모양 | 담당 | 뜻 |
+|---|---|---|---|
+| `photo` | `{"url", "source"}` 또는 `null` | 🟩 | 사진 1장. `source`: `tour`(관광공사) / `kakao` |
+| `open` | `{"closed": bool, "reason"}` | 🟩 | 방문 날 휴무 여부. `reason`은 `excluded`와 같은 값(`weekly_off` 등) |
+| `indoor` | `true` / `false` / `null` | 🟩 | 실내 장소인지 (비 올 때 대체용) |
+| `review` | `{"rating", "count"}` 또는 `null` | 🟧 | 평점·리뷰 수 |
+| `cost` | `{"amount", "cat", "source"}` 또는 `null` | 🟦 | 예상 비용. `stops`의 `cost`와 같은 모양 |
+
+### 2) 사진은 어디서나 `photo` 한 키
+- `plan.days[].stops[]`에도 `photo` 추가 (같은 모양). 리뷰·예산 화면에서 장소 사진도 이 키를 씀
+- 사진이 없으면 키를 빼지 않고 `"photo": null` → 화면은 기본 이미지
+
+### 3) 날씨·휴무 결과는 기존 키 그대로
+- 날씨 `plan.days[].weather`, 빠진 장소 `plan.days[].excluded`, 안내 `reply.notes`
+
+### 확인할 것
+- [ ] 🟦 🟧 키 이름·모양 동의 (바꾸고 싶으면 PR 댓글로)
+- [ ] 🟦 추천 카드·일정 장소에 `photo` 표시, 없으면 기본 이미지 / `review` `cost`는 값이 있을 때만 표시
+- [ ] 🟧 `review` 값 채우기 (리뷰 추천) · 🟦 `cost` 값 채우기 (예산 AI)
+- [ ] 🟩 실제 채팅 응답에 `photo` `open` `indoor` 채우기
 
 ## 2026-11-03 · 로컬 LLM 시험 결과 공유 — 🟩 서지윤
 코드·설정 변경 없음 → 🟦🟧 pull만 하면 됨. 회의 자료예요.
