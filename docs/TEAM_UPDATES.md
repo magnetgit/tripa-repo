@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-11-03 · 장소별 리뷰 목록 API `review_list`, 마이그레이션 0009·0010 — 🟧 이수한
+
+> ⚠️ **DB가 바뀌어요.** pull 뒤에 `python manage.py migrate`로 **0009**(리뷰 중복 기준 변경)와 **0010**(🟩 `0009_placephoto`와 잇는 병합, DB 작업 없음)을 적용하세요.
+
+### 1) 리뷰 중복 기준 변경 (0009)
+- 같은 회원이 같은 장소에 리뷰를 두 번 못 쓰게 막는 기준을 **(회원, place) → (회원, kakao_id)**로 바꿨어요. place가 비어 있으면 MariaDB가 중복을 못 막았어요.
+
+### 2) 새 주소 `GET /review_list/?kakao_id=…&sort=helpful` (추가만)
+- 로그인 없이도 볼 수 있어요. `sort`가 `helpful`이면 추천 많은 순, 아니면 최신순
+- 응답: `{success, kakao_id, avg, count, reviews: [{rv_id, member_name, rating, content, tags, created_at, helpful_count, is_mine, is_helpful}]}`
+- 리뷰가 없으면 `avg: 0, count: 0` → 🟦 화면에서는 `count`가 0이면 별점을 숨겨 주세요
+- 실패: `kakao_id` 없음 400 (`{success: false, message}`)
+
+### 3) 리뷰 쓰기·추천은 🟦 PR #29 것을 씀
+- back에 만들던 같은 이름의 `review_write`·`review_helpful` 함수와 주소(`review_write/`, `review_helpful/`)는 지웠어요. 기존 이름 그대로 🟦 것(`review/write/`, `review/<rv_id>/helpful/`)만 남아요.
+
+### 남은 일
+- [ ] 🟧 `review_summary` (여러 장소 평균을 한 번에) → 채팅 추천 카드 `review: {rating, count}` 채우기 (지금은 빈 응답)
+
 ## 2026-11-03 · ✅ 결정: 기능별 역할 분담 — 🟧 이수한 (팀 3명 동의)
 
 코드·DB·주소 변경 없음. 10/30 제안(아래 항목)에 셋이 동의했고, 일 두 개를 옮겨서 확정했어요.
