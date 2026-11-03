@@ -224,13 +224,16 @@ def get_photo(kakao_id, name, addr=None, lat=None, lon=None):
     return lookup_photo(kakao_id, name, addr, lat, lon)
 
 
-def attach_photos(items):
+def attach_photos(items, max_new=None):
     """추천 카드 목록(dict)에 photo 키를 붙인다. 카드에 kakao_id·name·addr·lat·lon이 있어야 함.
 
     저장된 사진은 한 번에 읽고, 없는 것만 새로 찾는다.
+    max_new: 새로 찾는 장소 수 상한 (일정 미리보기처럼 장소가 많을 때 응답이 늦어지지 않게).
+             넘는 장소는 이번에는 photo=None, 다음에 다시 찾는다.
     """
     ids = [str(item.get('kakao_id')) for item in items if item.get('kakao_id')]
     saved = {row.kakao_id: row for row in PlacePhoto.objects.filter(kakao_id__in=ids)}
+    new_count = 0
 
     for item in items:
         kakao_id = str(item.get('kakao_id') or '')
@@ -240,10 +243,19 @@ def attach_photos(items):
             item['photo'] = None
         elif row and _is_fresh(row):
             item['photo'] = _to_photo(row)
+        elif max_new is not None and new_count >= max_new:
+            item['photo'] = None
         else:
+            new_count += 1
             item['photo'] = lookup_photo(
                 kakao_id, item.get('name'), item.get('addr'),
                 item.get('lat'), item.get('lon'),
             )
 
     return items
+
+
+def place_photo_url(place):
+    """일정의 장소(Place)에 쓸 사진 주소. 카카오 ID가 없거나 사진을 못 찾으면 ''."""
+    photo = get_photo(place.p_kakao_id, place.p_name, place.p_addr, place.p_lat, place.p_lon)
+    return photo['url'] if photo else ''

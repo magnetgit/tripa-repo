@@ -853,6 +853,11 @@ def get_or_create_place(
 
                 'p_kind':
                     category_name,
+
+                # 사진·리뷰 별점을 붙일 때 씀
+                'p_kakao_id':
+                    str(candidate.get('kakao_id') or '')
+                    or None,
             }
         )
     )
@@ -897,6 +902,23 @@ def get_or_create_place(
     ):
 
         place_obj.p_lon = lon
+
+        changed = True
+
+
+    if (
+        not place_obj.p_kakao_id
+        and
+        candidate.get(
+            'kakao_id'
+        )
+    ):
+
+        place_obj.p_kakao_id = str(
+            candidate.get(
+                'kakao_id'
+            )
+        )
 
         changed = True
 

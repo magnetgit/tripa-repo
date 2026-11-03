@@ -10,6 +10,29 @@
 
 ---
 
+## 2026-11-03 · 일정 장소에도 사진 (`stops[].photo`), 자동 일정에 카카오 ID 저장 — 🟩 서지윤
+DB 변경 없음. 응답 키 **추가만** (일정 미리보기 장소에 `photo`·`kakao_id`) → 🟦 화면에서 쓰면 됨. 🟧 파일(`views.py`, `schedule_service.py`)을 조금 고쳤으니 확인 부탁
+
+### 바뀐 것
+- **자동 일정이 장소의 카카오 ID를 저장** (`schedule_service.get_or_create_place` → `p_kakao_id`). 검색 결과에 이미 `kakao_id`가 있었는데 저장만 안 하고 있었음. 이미 있는 장소도 비어 있으면 채움
+- **채팅 일정 미리보기** (`POST /travel_chat_preview/`)의 `days[].items[]`에 추가
+  - `photo`: `{"url", "source": "tour" | "kakao"}` 또는 `null` — 추천 카드의 `photo`와 같은 모양, 같은 사진 표(`place_photo`)
+  - `kakao_id`: 카카오 장소 ID 또는 `null` (리뷰 별점 `review_summary`에 쓸 수 있음)
+  - 새로 찾는 사진은 한 번에 8곳까지 (나머지는 `null`, 다음 미리보기 때 찾음). 한 번 찾은 사진은 저장돼서 바로 나옴
+- **일정 DAY 화면·채팅 '적용하기'의 장소 이미지(`p_image`)**: 카카오 ID가 있으면 추천 카드와 같은 방식(관광공사 → 이름 확인한 카카오 이미지)으로 찾음. 카카오 ID가 없는 장소는 전과 같음. 이미 저장된 `p_image`는 그대로
+
+### 🟦 요청
+- [ ] 일정 미리보기 타임라인의 장소에 `photo.url` 표시 (`null`이면 기본 이미지)
+
+### 🟧 확인
+- [ ] `schedule_service.get_or_create_place`, `views.py`의 DAY 화면 이미지·`_chat_add_pins` 이미지·`travel_chat_preview` 부분 확인
+
+### 시험
+- 부산 1박2일 자동 일정 9곳: 9곳 모두 `kakao_id` 저장, 사진 9곳(관광공사 6 · 카카오 3), 2.3초 / 두 번째는 저장된 사진이라 0초
+- `manage.py check` 문제 없음
+
+---
+
 ## 2026-11-03 · 일정에 담은 장소에 카카오 ID 저장 (`p_kakao_id`) — 🟧 이수한
 DB 변경 없음(칸은 이미 있었음). 받는 값 **추가만** → 🟦 보내 주면 됨, 🟩 영향 없음
 
