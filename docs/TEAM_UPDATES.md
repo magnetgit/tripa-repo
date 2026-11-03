@@ -50,6 +50,19 @@ DB 변경 없음. 응답 키 **추가만** (추천 카드 `indoor`, `mock.json`�
 - 실내·야외 판단 22개 맞음 (카카오 실제 분류 60여 종을 보고 정함)
 - 실제 GPT (부산 11/05 비 예보): 날짜 정할 때 비 안내 → '관광지 추천' → 쇼핑몰 먼저 → '응 실내로 추천해줘' → 박물관·미술관 5곳
 - 날씨 예보는 같은 곳·같은 날짜를 1시간 동안 저장 (추천할 때마다 다시 묻지 않게)
+## 2026-11-03 · 여러 장소 리뷰 요약 API `review_summary` — 🟧 이수한
+DB 변경 없음. 새 주소의 응답만 채움 → 🟦 추천 카드에서 쓰면 됨, 🟩 영향 없음
+
+- 주소: `GET /review_summary/?kakao_ids=123,456,789` (쉼표로 여러 개, 공백·빈 값은 무시, 한 번에 최대 50개)
+- 응답: `{"success": true, "reviews": {"123": {"rating": 4.5, "count": 2}, ...}}`
+  - `rating`은 소수 첫째 자리까지 평균, `count`는 리뷰 수
+  - **리뷰가 없는 장소는 `reviews`에 아예 없음** → 카드에서 `reviews[kakao_id]`가 없으면 별점 숨김
+- `kakao_ids`가 없거나 비면 400 `{"success": false, "message": "kakao_ids가 필요합니다."}`
+
+### 🟦 요청
+- [ ] 채팅 추천 카드를 그릴 때 카드들의 `kakao_id`를 모아 한 번만 불러서 `review: {rating, count}` 자리에 넣기
+
+---
 
 ## 2026-11-03 · 쉬는 날(휴무) 확인: 추천 카드에서 빼기 + AI 도구 `check_open`, 날짜 안정화 — 🟩 서지윤
 DB 변경 없음. 응답 키 **추가만** (추천 카드 `open`) → 🟦 화면에서 쓰면 됨, 🟧 영향 없음
@@ -130,7 +143,7 @@ DB 변경 없음. 응답 키 **추가만** (`/travel_chat/` 응답에 `weather`)
 - back에 만들던 같은 이름의 `review_write`·`review_helpful` 함수와 주소(`review_write/`, `review_helpful/`)는 지웠어요. 기존 이름 그대로 🟦 것(`review/write/`, `review/<rv_id>/helpful/`)만 남아요.
 
 ### 남은 일
-- [ ] 🟧 `review_summary` (여러 장소 평균을 한 번에) → 채팅 추천 카드 `review: {rating, count}` 채우기 (지금은 빈 응답)
+- [x] 🟧 `review_summary` (여러 장소 평균을 한 번에) — 11/03 완료, 맨 위 항목 참고 → 채팅 추천 카드 `review: {rating, count}` 채우기 (지금은 빈 응답)
 
 ## 2026-11-03 · ✅ 결정: 기능별 역할 분담 — 🟧 이수한 (팀 3명 동의)
 
