@@ -19,7 +19,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.template import loader
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-from .models import Member
+from .models import Member, Review, ReviewHelpful
 from .models import AVATAR_CHOICES, AVATAR_KEYS
 from .models import Travel
 from .models import Place
@@ -36,7 +36,6 @@ from .services.schedule_service import (
 from .services import chat_service
 from .services.route_service import get_kakao_route, get_travel_time
 from .models import TravelCategory
-from .models import Review, ReviewHelpful
 from .models import TravelDayPlan
 
 # ==============================================
@@ -5852,29 +5851,44 @@ def travel_chat_preview(request):
 
 def review_list(request):
     kakao_id = request.GET.get('kakao_id')
+    sort = request.GET.get('sort')
     if not kakao_id:
-        return _chat_error('kakao_id가 필요합니다.', 400)
-    Review.objects.filter(place__p_kakao_id=kakao_id).select_related('member').annotate(helfpul_count=Count('helpfuls'))
-    if sort == 'helfpul':
-        reviews = reviews.order_by('-helfpul_count', '-created_at')
-    elif sort == 'recent':
+        return JsonResponse(
+            {'success': False, 'message': 'kakao_id가 필요합니다.'}, status=400
+            )
+    reviews = Review.objects.filter(kakao_id=kakao_id).select_related('member').annotate(helpful_count=Count('helpfuls'))
+    if sort == 'helpful':
+        reviews = reviews.order_by('-helpful_count', '-created_at')
+    else:
         reviews = reviews.order_by('-created_at')
+    stats = reviews.aggregate(avg_rating=Avg('rating'), count=Count('rv_id'))
+    me = None
+    my_ids = set()
+    login_user = request.session.get('login_ok_user')
+    if login_user:
+        me = Member.objects.filter(user_id=login_user).first()
+        if me:
+            my_ids = set(ReviewHelpful.objects.filter(member=me, review__kakao_id=kakao_id).values_list('review_id', flat=True))
+    result = []
+    for r in reviews:
+        result.append({
+            'rv_id': r.rv_id,
+            'member_name': r.member.nickname,
+            'rating': r.rating,
+            'content': r.content,
+            'tags': r.tags or [],
+            'created_at': r.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'helpful_count': r.helpful_count,
+            'is_mine': bool(me and r.member_id == me.m_id),
+            'is_helpful': bool(r.rv_id in my_ids),
+        })
     return JsonResponse({
         'success': True,
+        'kakao_id': kakao_id,
+        'avg': round(stats['avg_rating'] or 0, 1),
+        'count': stats['count'],
+        'reviews': result
     })
-
-
-def review_write(request):
-    return JsonResponse({
-        'success': True,
-    })
-
-
-def review_helpful(request):
-    return JsonResponse({
-        'success': True,
-    })
-
 
 def review_summary(request):
     return JsonResponse({

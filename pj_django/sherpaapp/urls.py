@@ -232,18 +232,6 @@ urlpatterns = [
     ),
 
     path(
-        'review_write/',
-        views.review_write,
-        name='review_write'
-    ),
-
-    path(
-        'review_helpful/',
-        views.review_helpful,
-        name='review_helpful'
-    ),
-
-    path(
         'review_summary/',
         views.review_summary,
         name='review_summary'
