@@ -1,0 +1,603 @@
+/* =========================================
+   리뷰 게시판 · 리뷰 쓰기 (review.html, review_write.html)
+========================================= */
+
+.rv-title {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.rv-write-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 11px 20px;
+    white-space: nowrap;
+}
+
+.rv-flash {
+    margin: -10px 0 20px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #e3f5ea;
+    color: #1f7a44;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+/* 왼쪽 목록 + 오른쪽 추천 */
+.rv-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 24px;
+    align-items: start;
+}
+
+.rv-section-title {
+    margin: 0 0 12px;
+    font-size: 17px;
+    font-weight: 800;
+    color: #1f2d4a;
+}
+
+.rv-section-title em {
+    font-style: normal;
+    font-weight: 600;
+    font-size: 13px;
+    color: #7b88a1;
+}
+
+/* 리뷰 카드 */
+.rv-list {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.rv-card {
+    padding: 16px 18px;
+    border: 1px solid #e6edf8;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(45, 108, 223, 0.06);
+}
+
+.rv-card__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rv-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.rv-who {
+    display: grid;
+    min-width: 0;
+}
+
+.rv-who strong {
+    font-size: 14px;
+    color: #1f2d4a;
+}
+
+.rv-who span {
+    font-size: 12px;
+    color: #9aa8bd;
+}
+
+.rv-stars {
+    margin-left: auto;
+    font-size: 16px;
+    letter-spacing: 1px;
+    color: #f2a51a;
+    white-space: nowrap;
+}
+
+.rv-place {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 12px 0 6px;
+    font-size: 14px;
+    color: #1f2d4a;
+}
+
+.rv-place .tp-icon {
+    width: 14px;
+    height: 14px;
+    color: #2d6cdf;
+}
+
+.rv-region {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #eef3ff;
+    color: #2d6cdf;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.rv-content {
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: #374151;
+    overflow-wrap: anywhere;
+}
+
+.rv-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.rv-tags span {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #f3f5f9;
+    color: #5b6b85;
+    font-size: 12px;
+}
+
+.rv-card__foot {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.rv-helpful {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1.5px solid #dbe4f3;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #4a5568;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.rv-helpful:hover { border-color: #2d6cdf; }
+
+.rv-helpful.is-on {
+    border-color: #2d6cdf;
+    background: #2d6cdf;
+    color: #ffffff;
+}
+
+.rv-helpful:disabled { opacity: 0.6; cursor: default; }
+
+.rv-mine {
+    font-size: 12.5px;
+    color: #9aa8bd;
+}
+
+.rv-pages {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-top: 6px;
+    font-size: 14px;
+    color: #7b88a1;
+}
+
+.rv-pages a {
+    color: #2d6cdf;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+/* 비어 있을 때 */
+.rv-empty {
+    padding: 40px 20px;
+    border: 2px dashed #dbe4f3;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.7);
+    text-align: center;
+}
+
+.rv-empty strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 16px;
+    color: #1f2d4a;
+}
+
+.rv-empty p {
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #7b88a1;
+}
+
+.rv-empty .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 오른쪽: 추천 많은 리뷰 */
+.rv-best {
+    position: sticky;
+    top: 24px;
+    padding: 18px;
+    border: 1px solid #e6edf8;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(45, 108, 223, 0.06);
+}
+
+.rv-best__list {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.rv-best__list li {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed #e6edf8;
+}
+
+.rv-best__list li:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.rv-best__rank {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #2d6cdf;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.rv-best__list li:nth-child(n+4) .rv-best__rank { background: #9aa8bd; }
+
+.rv-best__body { min-width: 0; }
+
+.rv-best__body strong {
+    display: block;
+    font-size: 14px;
+    color: #1f2d4a;
+}
+
+.rv-best__meta {
+    font-size: 12px;
+    color: #7b88a1;
+}
+
+.rv-best__meta em {
+    font-style: normal;
+    font-weight: 700;
+    color: #e08a00;
+}
+
+.rv-best__body p {
+    margin: 4px 0 2px;
+    font-size: 13px;
+    color: #4a5568;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rv-best__who {
+    font-size: 11.5px;
+    color: #9aa8bd;
+}
+
+.rv-best__empty {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #7b88a1;
+}
+
+/* ---------- 리뷰 쓰기 ---------- */
+.rv-form {
+    max-width: 640px;
+    padding: 24px;
+    border: 1px solid #e6edf8;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(45, 108, 223, 0.06);
+}
+
+.rv-field { margin-bottom: 20px; }
+
+.rv-field > label,
+.rv-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #1f2d4a;
+}
+
+.rv-field em {
+    font-style: normal;
+    font-weight: 500;
+    font-size: 12px;
+    color: #9aa8bd;
+}
+
+.rv-field select,
+.rv-field textarea {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid #dbe4f3;
+    border-radius: 12px;
+    background: #ffffff;
+    font: inherit;
+    font-size: 14px;
+    color: #1f2d4a;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.rv-field textarea { resize: vertical; line-height: 1.6; }
+
+.rv-field select:focus,
+.rv-field textarea:focus {
+    border-color: #2d6cdf;
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.12);
+}
+
+/* 별점: 오른쪽부터 그려서 '고른 별과 그 왼쪽'이 다 칠해지게 */
+.rv-rating {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    gap: 4px;
+}
+
+.rv-rating input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.rv-rating label {
+    font-size: 32px;
+    line-height: 1;
+    color: #d8dee9;
+    cursor: pointer;
+    transition: color 0.12s, transform 0.12s;
+}
+
+.rv-rating label:hover,
+.rv-rating label:hover ~ label,
+.rv-rating input:checked ~ label {
+    color: #f2a51a;
+}
+
+.rv-rating label:hover { transform: scale(1.1); }
+
+.rv-rating input:focus-visible + label {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.rv-tag-pick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.rv-tag-pick input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.rv-tag-pick span {
+    display: inline-block;
+    padding: 7px 13px;
+    border: 1.5px solid #dbe4f3;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #4a5568;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.rv-tag-pick input:checked + span {
+    border-color: #2d6cdf;
+    background: #2d6cdf;
+    color: #ffffff;
+}
+
+.rv-tag-pick input:focus-visible + span {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+}
+
+.rv-error {
+    min-height: 20px;
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #e5484d;
+}
+
+.rv-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* 좁은 화면: 추천 칸을 목록 위로 */
+@media (max-width: 1100px) {
+    .rv-layout { grid-template-columns: 1fr; }
+    .rv-best { position: static; order: -1; }
+}
+
+@media (max-width: 560px) {
+    .rv-form { padding: 18px; }
+    .rv-actions .btn { flex: 1; text-align: center; }
+}
+
+/* 하늘 배경(trip-sky) 위: 흰 상자를 반투명 유리판으로 → 뒤 풍경이 은은하게 비침 */
+.trip-sky .rv-card,
+.trip-sky .rv-best,
+.trip-sky .rv-form,
+.trip-sky .rv-empty {
+    background: rgba(255, 255, 255, 0.86);
+    border-color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 18px 40px rgba(40, 70, 120, 0.10), 0 2px 6px rgba(40, 70, 120, 0.05);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1);
+            backdrop-filter: blur(10px) saturate(1.1);
+}
+
+.trip-sky .rv-empty {
+    border: 2px dashed rgba(45, 108, 223, 0.25);
+}
+
+.trip-sky .rv-flash {
+    background: rgba(227, 245, 234, 0.92);
+}
+
+/* 맨 아래 산·빌딩 그림에 마지막 카드가 가려지지 않게 */
+.trip-sky.rv-page {
+    padding-bottom: 200px;
+}
+
+@media (max-width: 859px) {
+    .trip-sky.rv-page { padding-bottom: 120px; }
+}
+
+/* 리뷰 쓰기 1단계: 여행 카드 */
+.rv-trips {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.rv-trip {
+    display: grid;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 1.5px solid #dbe4f3;
+    border-radius: 14px;
+    background: #ffffff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+.rv-trip:hover { border-color: #9dbcf2; }
+
+.rv-trip strong {
+    font-size: 15px;
+    color: #1f2d4a;
+}
+
+.rv-trip span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12.5px;
+    color: #7b88a1;
+}
+
+.rv-trip span .tp-icon { width: 12px; height: 12px; }
+
+.rv-trip em {
+    font-style: normal;
+    font-size: 12px;
+    font-weight: 700;
+    color: #2d6cdf;
+}
+
+.rv-trip.is-on {
+    border-color: #2d6cdf;
+    background: #f1f6ff;
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.14);
+}
+
+.rv-trip:focus-visible {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+}
+
+/* 리뷰 쓰기 2단계: 고른 여행의 장소 */
+.rv-place-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 8px;
+}
+
+.rv-place-list[hidden],
+#placeStep[hidden] { display: none; }
+
+.rv-place-opt { cursor: pointer; }
+
+.rv-place-opt input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.rv-place-opt span {
+    display: grid;
+    gap: 2px;
+    height: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #dbe4f3;
+    border-radius: 12px;
+    background: #ffffff;
+    box-sizing: border-box;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.rv-place-opt b {
+    font-size: 14px;
+    color: #1f2d4a;
+}
+
+.rv-place-opt em {
+    font-style: normal;
+    font-size: 12px;
+    color: #9aa8bd;
+}
+
+.rv-place-opt:hover span { border-color: #9dbcf2; }
+
+.rv-place-opt input:checked + span {
+    border-color: #2d6cdf;
+    background: #2d6cdf;
+}
+
+.rv-place-opt input:checked + span b,
+.rv-place-opt input:checked + span em { color: #ffffff; }
+
+.rv-place-opt input:focus-visible + span {
+    outline: 2px solid #2d6cdf;
+    outline-offset: 2px;
+}

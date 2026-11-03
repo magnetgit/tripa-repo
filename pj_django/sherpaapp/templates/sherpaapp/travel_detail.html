@@ -561,6 +561,84 @@
             font-size: 20px;
         }
 
+        /* 여행 수정 팝업 */
+        .place-modal-content.trip-edit {
+            width: min(480px, calc(100vw - 40px));
+        }
+
+        .trip-edit__field {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .trip-edit__field span {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1f2d4a;
+        }
+
+        .trip-edit__field input {
+            width: 100%;
+            height: 44px;
+            padding: 0 12px;
+            border: 1.5px solid #dbe4f3;
+            border-radius: 10px;
+            font: inherit;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .trip-edit__field input:focus {
+            outline: none;
+            border-color: #2d6cdf;
+            box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.12);
+        }
+
+        .trip-edit__row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .trip-edit__summary {
+            margin: 0 0 6px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #2d6cdf;
+        }
+
+        .trip-edit__hint {
+            margin: 0 0 10px;
+            font-size: 12.5px;
+            line-height: 1.5;
+            color: #7b88a1;
+        }
+
+        .trip-edit__error {
+            min-height: 18px;
+            margin: 0 0 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #e5484d;
+        }
+
+        .trip-edit__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .trip-edit-open {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        @media (max-width: 480px) {
+            .trip-edit__row { grid-template-columns: 1fr; }
+        }
+
         .place-modal-header button {
             width: 36px;
             height: 36px;
@@ -1427,9 +1505,11 @@
                 </div>
 
 
-                <button class="btn btn-primary">
-                    저장
+                {% if member and member.m_id == travel.member_id %}
+                <button type="button" class="btn btn-primary trip-edit-open" onclick="openTripEdit()">
+                    {% include "_icon.html" with name="edit" %} 여행 수정
                 </button>
+                {% endif %}
 
 
             </div>
@@ -1581,6 +1661,63 @@
     </div>
 
 </div>
+
+
+<!-- =========================================================
+     여행 수정 팝업 (이름·지역·날짜)
+========================================================= -->
+{% if member and member.m_id == travel.member_id %}
+<div id="tripEditModal"
+     class="place-modal"
+     style="display:none;">
+
+    <div class="place-modal-overlay"
+         onclick="closeTripEdit()">
+    </div>
+
+    <div class="place-modal-content trip-edit">
+
+        <div class="place-modal-header">
+            <h2>{% include "_icon.html" with name="edit" %} 여행 수정</h2>
+            <button type="button" onclick="closeTripEdit()" aria-label="닫기">×</button>
+        </div>
+
+        <form id="tripEditForm" onsubmit="return saveTripEdit(event);" novalidate>
+            <label class="trip-edit__field">
+                <span>여행 이름</span>
+                <input type="text" name="t_title" maxlength="100" value="{{ travel.t_title }}">
+            </label>
+
+            <label class="trip-edit__field">
+                <span>여행 지역</span>
+                <input type="text" name="t_place" maxlength="100" value="{{ travel.t_place }}">
+            </label>
+
+            <div class="trip-edit__row">
+                <label class="trip-edit__field">
+                    <span>시작하는 날</span>
+                    <input type="date" name="t_start" value="{{ travel.t_start|date:'Y-m-d' }}">
+                </label>
+                <label class="trip-edit__field">
+                    <span>끝나는 날</span>
+                    <input type="date" name="t_end" value="{{ travel.t_end|date:'Y-m-d' }}">
+                </label>
+            </div>
+
+            <p class="trip-edit__summary" id="tripEditSummary" aria-live="polite"></p>
+            <p class="trip-edit__hint">날짜를 옮기면 DAY별 일정도 함께 옮겨져요. 기간을 줄이면 뒤쪽 DAY의 일정이 지워져요.</p>
+            <p class="trip-edit__error" id="tripEditError" role="alert"></p>
+
+            <div class="trip-edit__actions">
+                <button type="button" class="btn btn-secondary" onclick="closeTripEdit()">취소</button>
+                <button type="submit" class="btn btn-primary" id="tripEditSave">저장</button>
+            </div>
+        </form>
+
+    </div>
+
+</div>
+{% endif %}
 
 
 <!-- =========================================================
@@ -1760,6 +1897,106 @@ function getCookie(name) {
 
     return cookieValue;
 }
+
+
+/* =========================================================
+   여행 수정 팝업 (이름·지역·날짜) → /travel_reschedule/<id>/
+========================================================= */
+
+function tripEditDays() {
+    const form = document.getElementById("tripEditForm");
+    const start = new Date(form.t_start.value);
+    const end = new Date(form.t_end.value);
+    if (isNaN(start) || isNaN(end)) return null;
+    return Math.round((end - start) / 86400000) + 1;
+}
+
+function updateTripEditSummary() {
+    const days = tripEditDays();
+    const box = document.getElementById("tripEditSummary");
+    if (days === null) { box.textContent = ""; return; }
+    if (days < 1) { box.textContent = "끝나는 날이 시작하는 날보다 빨라요."; return; }
+    box.textContent = days === 1 ? "당일치기 (DAY 1)" : (days - 1) + "박 " + days + "일 (DAY 1 ~ DAY " + days + ")";
+}
+
+function openTripEdit() {
+    const modal = document.getElementById("tripEditModal");
+    if (!modal) return;
+    document.getElementById("tripEditError").textContent = "";
+    updateTripEditSummary();
+    modal.style.display = "flex";
+    document.getElementById("tripEditForm").t_title.focus();
+}
+
+function closeTripEdit() {
+    const modal = document.getElementById("tripEditModal");
+    if (modal) modal.style.display = "none";
+}
+
+function saveTripEdit(event, confirmed) {
+    if (event) event.preventDefault();
+
+    const form = document.getElementById("tripEditForm");
+    const error = document.getElementById("tripEditError");
+    const button = document.getElementById("tripEditSave");
+    const days = tripEditDays();
+
+    if (!form.t_title.value.trim()) { error.textContent = "여행 이름을 적어 주세요."; return false; }
+    if (!form.t_place.value.trim()) { error.textContent = "여행 지역을 적어 주세요."; return false; }
+    if (days === null) { error.textContent = "날짜를 골라 주세요."; return false; }
+    if (days < 1) { error.textContent = "끝나는 날이 시작하는 날보다 빠를 수 없어요."; return false; }
+
+    const body = new URLSearchParams(new FormData(form));
+    if (confirmed) body.set("confirm", "1");
+
+    button.disabled = true;
+    error.textContent = "";
+
+    fetch("{% url 'travel_reschedule' travel_id=travel.t_id %}", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": getCookie("csrftoken")
+                || (document.querySelector("[name=csrfmiddlewaretoken]") || {}).value || ""
+        },
+        body: body
+    })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.success) {
+                location.reload();
+                return;
+            }
+            // 기간이 줄어 지워지는 일정이 있으면 한 번 더 물어봄
+            if (data.needs_confirm) {
+                if (confirm(data.message)) {
+                    saveTripEdit(null, true);
+                }
+                return;
+            }
+            error.textContent = data.message || "저장하지 못했어요.";
+        })
+        .catch(function () {
+            error.textContent = "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
+        })
+        .finally(function () {
+            button.disabled = false;
+        });
+
+    return false;
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("tripEditForm");
+    if (!form) return;
+    form.t_start.addEventListener("change", updateTripEditSummary);
+    form.t_end.addEventListener("change", updateTripEditSummary);
+    form.addEventListener("input", function () {
+        document.getElementById("tripEditError").textContent = "";
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeTripEdit();
+    });
+});
 
 
 /* =========================================================
