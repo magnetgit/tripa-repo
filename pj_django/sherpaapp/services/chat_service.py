@@ -26,6 +26,7 @@ from django.conf import settings
 from langchain_openai import ChatOpenAI
 
 from .place_service import concept_plan, is_junk_kind, kakao_documents
+from .photo_service import attach_photos
 
 logger = logging.getLogger(__name__)
 
@@ -830,6 +831,9 @@ def search_recommendations(rec, draft, size=4):
             item['distance'] = _distance_text(_distance_m(anchor, coord))
 
         items.append(item)
+
+    # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
+    attach_photos(items)
 
     return anchor_name, items
 

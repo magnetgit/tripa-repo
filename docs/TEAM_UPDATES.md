@@ -10,6 +10,37 @@
 
 ---
 
+## 2026-11-03 · 장소 사진 테이블·사진 찾기, 채팅 추천 카드에 `photo` — 🟩 서지윤
+
+> ⚠️ **DB가 바뀌어요.** pull 뒤에 `python manage.py migrate`로 **0009**(`place_photo` 테이블 새로 만듦)를 적용하세요. 기존 테이블은 그대로예요.
+
+### 1) 새 테이블 `place_photo` (카카오 장소 ID당 한 장)
+- `kakao_id`(겹치지 않음) · `url` · `source`(`tour` 관광공사 / `kakao` 카카오 / `none` 사진 없음) · `checked_at`
+- '사진 없음'도 저장해서 같은 장소를 계속 찾지 않음. 30일 지나면 다시 찾음
+
+### 2) 사진 찾기 `services/photo_service.py` (새 파일)
+- 순서: 저장된 사진 → **관광공사 TourAPI**(이름이 맞고 **300m 안**일 때만) → **카카오 이미지 검색**('이름 + 시·구'로 좁혀서) → 없음
+- 함수: `get_photo(kakao_id, name, addr, lat, lon)` 장소 하나 · `attach_photos(items)` 카드 목록에 `photo` 붙이기
+- 돌려주는 모양은 `mock.json`과 같음: `{"url", "source"}` 또는 `None`
+- 키 `TOUR_API_KEY`·`KAKAO_REST_API_KEY`가 없거나 API가 실패해도 오류 없이 `photo: None`
+
+### 3) 채팅 추천 카드에 `photo` 추가 (기존 키 변경 없음, 추가만)
+- `chat_service.search_recommendations`가 카드마다 `photo`를 붙임 → `/travel_chat/` 응답 `recommendation.items[].photo`
+- 처음 보는 장소는 카드 검색이 약 2~3초 늘어남, 한 번 찾으면 저장돼서 다음엔 0.5초
+- 시험(부산 12곳): 관광공사 2 · 카카오 8 · 없음 2. 서울 좌표로 '해운대해수욕장'을 찾으면 관광공사 사진을 안 씀(다른 지역 거르기 확인)
+
+### 🟦 요청
+- [ ] 추천 카드에 `photo.url` 표시, `photo`가 `null`이면 기본 이미지
+- [ ] `source`가 `tour`이면 사진 아래 작게 **"사진: 한국관광공사"** (관광공사 사진은 출처 표시 조건)
+
+### 🟧 참고
+- 기존 `place.p_image`(일정 장소 사진, 카카오 이미지 검색)는 그대로 둠. 나중에 `get_photo`로 바꾸면 일정·리뷰 화면 사진도 같은 기준이 됨
+- [ ] 🟧 서버 반영 때 `migrate` 0009
+
+### 🟩 남은 일
+- [ ] 카카오 이미지 결과는 장소 이름으로 확인할 수 없어서 가끔 다른 사진일 수 있음 → 이상한 사진이 보이면 알려 주세요
+- [ ] 일정 `stops`에도 `photo` 붙이기
+
 ## 2026-11-03 · `mock.json`에 추천 카드·사진 키 추가 — 🟩 서지윤 · ⚠️ 세 사람 합의 필요
 역할 분담 문서의 🟩 요청 2개(추천 카드 응답 키, 사진 응답 키)예요. **추가만** 했고 기존 키·최상위 키(`reply` `facts` `hint` `plan` `places` `transport` `budget`)는 그대로예요. 지금 `/api/chat/`은 `mock.json`을 그대로 돌려줘서 이 모양으로 화면을 먼저 만들 수 있어요.
 
