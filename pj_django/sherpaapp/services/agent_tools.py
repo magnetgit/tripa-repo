@@ -13,6 +13,7 @@ import logging
 from datetime import date, timedelta
 
 import requests
+from django.core.cache import cache
 from langchain_core.tools import tool
 
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 WEATHER_URL = 'https://api.open-meteo.com/v1/forecast'
 WEATHER_DAYS = 16      # 무료 예보는 오늘부터 16일까지
 TIMEOUT = 6
+WEATHER_CACHE_SECONDS = 60 * 60   # 같은 곳·같은 날짜 예보는 1시간 동안 다시 묻지 않음
 
 
 # =========================================================
@@ -59,6 +61,11 @@ def forecast(lat, lon, start, end):
     if start > end:
         return []
 
+    cache_key = 'weather:%.2f:%.2f:%s:%s' % (float(lat), float(lon), start, end)
+    saved = cache.get(cache_key)
+    if saved is not None:
+        return saved
+
     response = requests.get(WEATHER_URL, params={
         'latitude': lat,
         'longitude': lon,
@@ -88,6 +95,7 @@ def forecast(lat, lon, start, end):
             'rain_pct': pick('precipitation_probability_max'),         # 비 올 확률(%), 비의 양이 아님
         })
 
+    cache.set(cache_key, days, WEATHER_CACHE_SECONDS)
     return days
 
 
@@ -115,12 +123,21 @@ def trip_weather(place, start, end, center=None):
         return None
 
 
-def rainy_note(days):
-    """비·눈 오는 날이 있으면 안내 한 줄, 없으면 None."""
+def rainy_note(days, start=None):
+    """비·눈 오는 날이 있으면 안내 한 줄, 없으면 None.
+
+    start(여행 출발일)를 주면 '2일차 실내 추천'처럼 바로 따라 말할 수 있는 예를 붙인다.
+    """
     bad = [d for d in days or [] if d.get('kind') in ('rain', 'snow')]
     if not bad:
         return None
     when = ', '.join('%s(%s)' % (d['date'][5:].replace('-', '/'), d['label']) for d in bad)
+
+    first, trip_start = _parse_day(bad[0]['date']), _parse_day(start)
+    if first and trip_start and first >= trip_start:
+        return "%s 예보가 있어요. 실내 장소가 필요하면 '%d일차 실내 추천'처럼 말해 주세요." % (
+            when, (first - trip_start).days + 1)
+
     return '%s 예보가 있어요. 실내 장소도 함께 추천해 드릴까요?' % when
 
 
