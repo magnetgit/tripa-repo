@@ -4389,6 +4389,32 @@ button.preview-day {
 }
 .tc-card__icon .tp-icon { width: 22px; height: 22px; }
 
+/* 추천 카드 사진 (photo.url). 없으면 위의 아이콘 칸이 기본 이미지 */
+.tc-card__photo {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 76px;
+    margin: 0;
+}
+.tc-card__photo img {
+    display: block;
+    width: 76px;
+    height: 76px;
+    object-fit: cover;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #e8f1ff, #dbf2ff);
+}
+.tc-card__photo figcaption {
+    font-size: 10px;
+    line-height: 1.2;
+    color: #8a97ad;
+    text-align: center;
+    word-break: keep-all;
+}
+.tc-card__extra { margin: 0; font-size: 12px; font-weight: 700; color: #e08a00; }
+
 .tc-card__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .tc-card__head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .tc-card__head strong { font-size: 14px; color: #1f2d4a; word-break: keep-all; overflow-wrap: anywhere; }
@@ -6368,4 +6394,32 @@ a.review-pick:focus-visible {
     .hero--reviews .review-board__list {
         margin-bottom: 18px;
     }
+}
+
+/* 홈 리뷰 추천: 리뷰가 아직 없을 때 */
+.review-board__empty {
+    padding: 28px 16px;
+    border: 2px dashed #dbe4f3;
+    border-radius: 14px;
+    text-align: center;
+}
+
+.review-board__empty strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: #1f2d4a;
+}
+
+.review-board__empty p {
+    margin: 0 0 10px;
+    font-size: 12.5px;
+    color: #7b88a1;
+}
+
+.review-board__empty a {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2d6cdf;
+    text-decoration: none;
 }
