@@ -699,6 +699,127 @@ def _guess_recommend(text):
     return {'query': query, 'near': near, 'day': day, 'time': when, 'exclude': exclude}
 
 
+# =========================================================
+# 숙소 추천
+# =========================================================
+
+_STAY_ASK_WORDS = ('숙소', '숙박', '호텔', '게스트하우스', '게하', '펜션', '리조트', '모텔', '호스텔',
+                   '잘 곳', '잘곳', '잘 데', '묵을', '잠잘')
+_STAY_REQUEST_WORDS = ('추천', '찾아', '알려', '골라', '어디가 좋', '어디 좋')
+_STAY_TYPES = ('게스트하우스', '호스텔', '펜션', '리조트', '모텔', '호텔')   # 사용자가 종류를 말하면 그 종류만
+_CHEAP_WORDS = ('저렴', '싼', '싸게', '가성비', '저가', '알뜰')
+_PREMIUM_WORDS = ('고급', '럭셔리', '특급', '5성', '오성', '비싸도', '오션뷰')
+_STAY_NEAR_RE = re.compile(r'([가-힣A-Za-z0-9]+)\s*(?:근처|주변|부근|인근|쪽)')
+
+# 숙소 종류별로 몇 개씩 찾을지 (카카오 분류 AD5 = 숙박)
+STAY_PLANS = {
+    'cheap': (('게스트하우스', 2), ('호스텔', 1), ('모텔', 1)),
+    'premium': (('호텔', 2), ('리조트', 2)),
+    'group': (('펜션', 2), ('리조트', 1), ('호텔', 1)),   # 4명 이상
+    None: (('호텔', 3), ('게스트하우스', 1)),
+}
+STAY_JUNK_NAMES = ('영업', '지사', '법인', '사무소', '예약센터', '본사', '분양')
+STAY_LABELS = {'cheap': '저렴한 숙소', 'premium': '고급 숙소', 'group': '여럿이 묵을 숙소', None: '숙소'}
+
+
+def _object_particle(word):
+    """'숙소' → '를', '호텔' → '을' (마지막 글자 받침)."""
+    last = (word or ' ')[-1]
+    if '가' <= last <= '힣':
+        return '을' if (ord(last) - 0xAC00) % 28 else '를'
+    return '을(를)'
+
+
+def open_nights(draft):
+    """숙소가 아직 없는 밤의 일차 목록. 2박 3일에 첫날 숙소만 있으면 [2]."""
+    start, end = _parse_date(draft.get('start')), _parse_date(draft.get('end'))
+
+    if not start or not end:
+        return []
+
+    booked = {s.get('date') for s in draft.get('stays') or []}
+    return [i + 1 for i in range((end - start).days)
+            if (start + timedelta(days=i)).isoformat() not in booked]
+
+
+def _stay_pin(draft, day):
+    """그날 밤 숙소를 찾을 기준 장소: 그날 담아 둔 마지막 장소, 없으면 다음 날 첫 장소."""
+    pins = draft.get('pins') or []
+    today = [p for p in pins if p.get('day') == day]
+    tomorrow = [p for p in pins if p.get('day') == day + 1]
+
+    if today:
+        return today[-1]
+    return tomorrow[0] if tomorrow else None
+
+
+def stay_recommend(messages, rec, draft):
+    """숙소를 추천해 달라는 말이면 숙소 추천 조건을, 아니면 None.
+
+    - '숙소 추천해줘', '해운대 쪽 저렴한 호텔 찾아줘'
+    - 숙소를 묻는 질문에 '아직 안 정했어, 추천해줘'라고 답한 경우
+    """
+    text = messages[-1]['content'] if messages else ''
+    last_ai = next((m['content'] for m in reversed(messages[:-1]) if m['role'] == 'assistant'), '')
+    rec_query = (rec or {}).get('query') or ''
+
+    if not any(w in text for w in _STAY_REQUEST_WORDS):
+        return None
+
+    mentions = any(w in text or w in rec_query for w in _STAY_ASK_WORDS)
+    # 숙소 질문에 '추천해줘'라고만 답했을 때 (다른 장소 종류를 말했으면 그 추천)
+    answered = '숙소' in last_ai and not any(k in text for k in _RECO_KEYWORDS if k != '숙소')
+
+    if not mentions and not answered:
+        return None
+
+    # 며칠째 밤인지: 말했으면 그 날, 아니면 숙소가 빈 첫 밤
+    nights = open_nights(draft)
+    day = guess_trip_day(text)
+    start, end = _parse_date(draft.get('start')), _parse_date(draft.get('end'))
+    if day and start and end and day > (end - start).days:
+        day = None   # 마지막 날 밤은 숙소가 필요 없음
+    day = day or (nights[0] if nights else None)
+
+    # 어디 근처: 말한 동네 → 그날 담아 둔 장소 → 지역 중심
+    m = _STAY_NEAR_RE.search(text)
+    near = _clean_text(m.group(1), 30) if m and m.group(1) not in ('그', '이', '저', '어느') else (rec or {}).get('near')
+    anchor = None
+
+    if not near and day:
+        pin = _stay_pin(draft, day)
+        if pin:
+            near, anchor = pin['name'], (pin['lat'], pin['lon'])
+
+    # 종류: 사용자가 말한 종류 → 가격 말 → 인원
+    kind = next((t for t in _STAY_TYPES if t in text), None)
+    if any(w in text for w in _CHEAP_WORDS):
+        tier = 'cheap'
+    elif any(w in text for w in _PREMIUM_WORDS):
+        tier = 'premium'
+    elif (draft.get('people') or 0) >= 4:
+        tier = 'group'
+    else:
+        tier = None
+
+    if kind == '호텔' and tier == 'premium':
+        kind = None   # '고급 호텔' → 호텔·리조트 고급 계획
+
+    plan = [(kind, 4)] if kind else STAY_PLANS[tier]
+
+    return {
+        'query': kind or STAY_LABELS[tier],
+        'near': near,
+        'day': day,
+        'time': None,
+        'exclude': (rec or {}).get('exclude') or [],
+        'plan': [(q, 'AD5', None, n) for q, n in plan],
+        'anchor': anchor,
+        'stay': True,
+        'by_distance': tier != 'premium',
+    }
+
+
 def _distance_m(a, b):
     """두 좌표 사이 거리(미터)."""
     la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
@@ -717,6 +838,9 @@ def _distance_text(meters):
 def _pick_anchor(rec, draft):
     """거리 계산의 기준점. (좌표, '무엇 기준인지' 이름)"""
     place = draft.get('place')
+
+    if rec.get('anchor'):
+        return rec['anchor'], rec.get('near')
 
     if rec.get('near'):
         found = kakao_first_place(_with_region(rec['near'], place))
@@ -817,12 +941,12 @@ def search_recommendations(rec, draft, size=4):
     if anchor:
         extra.update({'y': anchor[0], 'x': anchor[1], 'radius': 20000})
 
-    if near_found:
+    if near_found and rec.get('by_distance', True):
         extra['sort'] = 'distance'
 
     # 넓은 뜻의 말(랜드마크 등)은 글자 그대로 검색하지 않고 실제 관광명소를 찾는다
     concept = _concept_of(rec['query'])
-    plan = concept_plan(concept, size) if concept else None
+    plan = rec.get('plan') or (concept_plan(concept, size) if concept else None)
 
     if not plan:
         plan = [(rec['query'], KIND_GROUPS.get((rec['query'] or '').strip(), ''), None, size)]
@@ -859,6 +983,9 @@ def search_recommendations(rec, draft, size=4):
                 continue
 
             if exclude and _is_excluded(exclude, name, kind):
+                continue
+
+            if rec.get('stay') and any(w in name for w in STAY_JUNK_NAMES):
                 continue
 
             ident = (name, doc.get('address_name'))
@@ -1066,7 +1193,9 @@ def build_system_prompt(draft, category_names, today):
         "6. budget_style은 쓰지 않으므로 항상 null로 둡니다. 가성비·프리미엄·비싸도 괜찮음 같은 예산 성향은 묻지 마세요. "
         "예산을 물을 때는 '총예산이 얼마인지'만 묻고, 금액을 말하면 budget_total에 전체 여행 총예산을 원 단위 정수로 적습니다.\n"
         "7. 숙소는 사용자가 알려준 것만 stays에 넣습니다. 숙소는 잠자는 밤마다 하나이고, 마지막 날은 집으로 돌아가므로 마지막 날에는 숙소를 넣지 않습니다(1박 2일이면 첫날 밤 숙소 하나만). date는 YYYY-MM-DD, query는 숙소 이름 또는 동네, "
-        "arrival_time/departure_time은 HH:MM(모르면 null)입니다. 날짜가 정해진 뒤에만 넣을 수 있습니다.\n"
+        "arrival_time/departure_time은 HH:MM(모르면 null)입니다. 날짜가 정해진 뒤에만 넣을 수 있습니다. "
+        "사용자가 숙소를 추천해 달라고 하면 동네를 되묻지 말고 recommend의 query를 '숙소'로 채우세요(동네를 말했으면 near). "
+        "추천받은 숙소는 사용자가 카드에서 직접 넣으니 stays에 지어 넣지 마세요.\n"
         "7-1. 도구: get_weather(place, start, end)로 날씨 예보를 볼 수 있습니다. "
         "여행 지역과 날짜가 정해진 뒤, 사용자가 날씨를 묻거나 이번 대화에서 날짜가 처음 정해졌을 때 한 번 부르세요. "
         "rain_pct는 비 올 확률(%%)이지 비의 양이 아닙니다. kind가 비(rain)나 눈(snow)인 날이 있으면 reply에 그 날짜를 짧게 알리고 실내 장소를 권하세요. 맑으면 한 줄로만 말하세요. "
@@ -1777,6 +1906,13 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         rec = _guess_recommend(messages[-1]['content'])
         guessed = bool(rec)
 
+    # 숙소 추천은 서버가 조건을 정한다 (빈 밤·담아 둔 장소 근처·가격대)
+    stay_rec = stay_recommend(messages, rec, dict(new_draft, stays=prev.get('stays') or []))
+    if stay_rec:
+        rec, guessed = stay_rec, False
+        # 카드를 보기도 전에 AI가 숙소를 골라 넣는 경우가 있었음 → 숙소는 사용자가 카드에서 넣는다
+        new_draft['stays'] = prev.get('stays') or []
+
     if rec and not rec.get('day'):
         # AI가 며칠째인지 빠뜨리면 사용자 말에서 읽는다 ('셋째 날 박물관 추천')
         rec['day'] = guess_trip_day(messages[-1]['content'])
@@ -1815,7 +1951,13 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
                     'items': items,
                 }
 
-                if guessed:
+                if rec.get('stay'):
+                    # AI가 지역을 다시 묻는 등 엉뚱한 답을 할 수 있어서 서버가 직접 안내한다
+                    where = "'%s' 근처" % anchor_name if rec.get('near') else new_draft['place']
+                    night = '%d일차 밤 ' % rec['day'] if rec.get('day') else ''
+                    reply = '%s에서 %s%s%s 찾아봤어요. 마음에 드는 곳을 숙소로 넣어 보세요.' % (
+                        where, night, rec['query'], _object_particle(rec['query']))
+                elif guessed:
                     # AI의 답변은 추천과 상관없는 안내문일 수 있어서 서버가 직접 안내한다
                     reply = "'%s' 조건으로 찾아봤어요. 마음에 드는 곳을 일정에 넣어 보세요." % recommendation['title']
             elif not closed:
