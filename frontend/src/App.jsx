@@ -171,7 +171,7 @@ export default function App({ cfg }) {
     const pins = prev.draft.pins || [];
     if (prev.busy || pins.some((p) => p.day === day && p.name === item.name)) return {};
     if (pins.length >= MAX_PINS) return { notes: [`담을 수 있는 장소는 최대 ${MAX_PINS}곳이에요.`] };
-    const pin = { day, name: item.name, addr: item.addr, kind: item.kind, lat: item.lat, lon: item.lon, phone: item.phone, url: item.url, time: time || null };
+    const pin = { day, name: item.name, addr: item.addr, kind: item.kind, lat: item.lat, lon: item.lon, phone: item.phone, url: item.url, time: time || null, kakao_id: item.kakao_id || null };
     return { draft: { ...prev.draft, pins: [...pins, pin] }, notes: [], changed: ['추가한 장소'], changeTick: prev.changeTick + 1 };
   }), [update]);
 
@@ -237,6 +237,7 @@ export default function App({ cfg }) {
         place_addr: p.addr || '', place_kind: p.kind || '', place_lat: p.lat, place_lon: p.lon,
       };
       if (p.time) fields.arrive_time = p.time;
+      if (p.kakao_id) fields.place_kakao_id = p.kakao_id;
       const ok = await addPlaceToSchedule(cfg, fields);
       if (!ok) failed.push(p.name);
     }

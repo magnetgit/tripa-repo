@@ -35,9 +35,13 @@ from .services.schedule_service import (
 )
 from .services.review_service import summarize_review
 from .services import chat_service
+from .services import festival_service
+
+logger = logging.getLogger(__name__)
 from .services.route_service import get_kakao_route, get_travel_time
 from .models import TravelCategory
 from .models import TravelDayPlan
+from .models import TravelBudget
 
 # ==============================================
 # 카카오 이미지 검색 공통 함수
@@ -109,6 +113,7 @@ def _search_kakao_places(query, size=5):
 
         places.append({
             'name': place_name,
+            'kakao_id': item.get('id'),
             'address': item.get('road_address_name') or item.get('address_name'),
             'category': item.get('category_name'),
             'phone': item.get('phone'),
@@ -1187,6 +1192,32 @@ def travel_update(
 #   잘리는 날에 장소·비용이 있으면 confirm=1 없이는 지우지 않고 무엇이 지워지는지 돌려줌
 # ==============================================
 
+# ==============================================
+# 여행 기간 축제·행사 (여행 상세 왼쪽 목록, JSON)
+# ==============================================
+
+def travel_festivals(request, travel_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    places = Place.objects.filter(travel=travel).only('p_lat', 'p_lon')
+    try:
+        festivals = festival_service.festivals_for_travel(travel, places)
+    except Exception:
+        # 축제 목록은 덤이라, 실패해도 화면은 그대로 쓰게 빈 목록
+        logger.exception('축제 목록 실패 travel=%s', travel_id)
+        festivals = []
+
+    return JsonResponse({'success': True, 'festivals': festivals})
+
+
 TRAVEL_MAX_DAYS = 30
 
 
@@ -1511,7 +1542,9 @@ BUDGET_CATEGORIES = [
     ('관광지', 'sight', '#2d6cdf', 'landmark',
      ('관광', '입장', '체험', '티켓', '문화', '역사', '공원', '박물관', '미술관')),
     ('식비', 'food', '#f0a03c', 'utensils',
-     ('음식', '식당', '카페', '맛집', '점심', '저녁', '아침', '커피', '간식')),
+     ('음식', '식당', '맛집', '점심', '저녁', '아침', '간식')),
+    ('카페', 'cafe', '#a9744f', 'cup',
+     ('카페', '커피', '디저트', '베이커리', '빵', '음료')),
     ('교통', 'move', '#7a8cf0', 'bus',
      ('이동', '버스', '택시', '지하철', '기차', 'KTX', '렌트', '주유', '주차', '항공', '톨게이트')),
     ('숙박', 'stay', '#2fb59b', 'bed',
@@ -1522,7 +1555,7 @@ BUDGET_CATEGORIES = [
 ]
 
 # 키워드로 찾을 때의 우선순위 (넓게 걸리는 '관광지'는 마지막)
-_BUDGET_KEYWORD_ORDER = ('stay', 'move', 'food', 'shop', 'sight')
+_BUDGET_KEYWORD_ORDER = ('stay', 'move', 'cafe', 'food', 'shop', 'sight')
 
 
 def _budget_category(pay):
@@ -1613,6 +1646,51 @@ def _budget_overview(travel, pays, total_budget, used_money):
         'total_marker': _pct(total_budget, whole) if is_over else None,
         'top_category': categories[0] if categories else None,
         'pay_count': len(ordered),
+    }
+
+
+def _budget_chart(travel, pays, total_budget):
+    """비용 관리 아래 '지출 차트'에 쓸 숫자 묶음 (화면에서 json_script로 읽음)."""
+    by_key = {}
+    for cat in BUDGET_CATEGORIES:
+        by_key[cat[1]] = {'name': cat[0], 'key': cat[1], 'color': cat[2], 'used': 0, 'budget': 0}
+
+    # 분류별 예산 (travel_budget 표, 아직 없으면 0)
+    for row in TravelBudget.objects.filter(travel=travel):
+        if row.category in by_key:
+            by_key[row.category]['budget'] = row.amount or 0
+
+    # 날짜 칸: 여행 첫날~마지막 날 (지출이 없는 날도 0으로)
+    days = []
+    if travel.t_start and travel.t_end and travel.t_end >= travel.t_start:
+        count = min((travel.t_end - travel.t_start).days + 1, 60)
+        days = [travel.t_start + timedelta(days=i) for i in range(count)]
+    day_used = {d: 0 for d in days}
+
+    for pay in pays:
+        amount = pay.pay_pay or 0
+        by_key[_budget_category(pay)[1]]['used'] += amount
+        day = pay.schedule.s_day if pay.schedule_id and pay.schedule else None
+        if day is not None:
+            day_used[day] = day_used.get(day, 0) + amount
+
+    ordered_days = sorted(day_used)
+    start = travel.t_start or (ordered_days[0] if ordered_days else None)
+    daily = []
+    for d in ordered_days:
+        no = (d - start).days + 1 if start else None
+        label = '%s일차 %d/%d' % (no, d.month, d.day) if no and no > 0 else '%d/%d' % (d.month, d.day)
+        daily.append({'label': label, 'amount': day_used[d]})
+
+    cats = [c for c in by_key.values() if c['used'] > 0 or c['budget'] > 0]
+    cats.sort(key=lambda c: (-c['used'], -c['budget']))
+
+    return {
+        'categories': cats,
+        'daily': daily,
+        # 하루 예산 = 총 예산 ÷ 여행 일수 (점선)
+        'daily_budget': round(total_budget / len(days)) if total_budget > 0 and days else 0,
+        'has_cat_budget': any(c['budget'] > 0 for c in cats),
     }
 
 
@@ -1828,7 +1906,15 @@ def budget(
                 pays,
                 total_budget,
                 used_money
-            )
+            ),
+
+            # 아래쪽 지출 차트
+            'chart_data':
+                _budget_chart(
+                    travel,
+                    pays,
+                    total_budget
+                )
         }
     )
 
