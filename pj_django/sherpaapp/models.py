@@ -857,6 +857,7 @@ class PlacePhoto(models.Model):
         return f'{self.kakao_id} ({self.source})'
 
 
+# 장소별 리뷰 AI 요약 저장 (카카오 ID당 한 줄). review_count가 바뀌면 다시 요약
 class ReviewSummary(models.Model):
 
     rs_id = models.AutoField(
