@@ -6,7 +6,7 @@
     <title>TRIPA - 리뷰 게시판</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=5">
     </head>
 <body>
 <div class="detail-container">        <!-- 전체 틀: 왼쪽 메뉴 + 오른쪽 본문 -->
@@ -38,16 +38,124 @@
         <div class="page-title rv-title">
             <div>
                 <h1>{% include "_icon.html" with name="chat" %} 리뷰 게시판</h1>
+                {% if tab == 'places' %}
                 <p>회원들이 직접 다녀온 곳의 솔직한 후기예요. 도움이 된 리뷰는 추천해 주세요.</p>
+                {% else %}
+                <p>회원들이 직접 짠 여행 루트예요. 둘러보고 별점과 댓글을 남겨 주세요.</p>
+                {% endif %}
             </div>
+            {% if tab == 'places' %}
             <a href="{% url 'review_write' %}" class="btn btn-primary rv-write-btn">
                 {% include "_icon.html" with name="edit" %} 글쓰기
             </a>
+            {% else %}
+            <div class="rt-share">
+                <button type="button" class="btn btn-primary rv-write-btn" id="rtShareBtn"
+                        aria-expanded="false" aria-controls="rtShareMenu">
+                    {% include "_icon.html" with name="plus" %} 내 여행 공유하기
+                </button>
+                <div class="rt-share__menu" id="rtShareMenu" hidden>
+                    <p class="rt-share__hint">공유할 여행을 고르면 여행 상세에서 소개를 쓰고 올릴 수 있어요.</p>
+                    {% for t in my_travels %}
+                    <a href="{% url 'travel_detail' t.t_id %}?share=1" class="rt-share__item">
+                        <strong>{{ t.t_title }}</strong>
+                        <span>{{ t.t_place }} · {{ t.t_start|date:"Y.m.d" }}</span>
+                        {% if t.is_shared %}<em>공유 중</em>{% endif %}
+                    </a>
+                    {% empty %}
+                    <p class="rt-share__hint">아직 만든 여행이 없어요. <a href="{% url 'travel_create' %}">여행 만들기</a></p>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
+
+        <!-- 탭: 여행 루트(기본) / 장소 리뷰 -->
+        <nav class="rv-tabs" aria-label="게시판 종류">
+            <a href="{% url 'review_board' %}" class="rv-tab{% if tab != 'places' %} is-on{% endif %}"{% if tab != 'places' %} aria-current="page"{% endif %}>
+                {% include "_icon.html" with name="route" %} 여행 루트
+            </a>
+            <a href="{% url 'review_board' %}?tab=places" class="rv-tab{% if tab == 'places' %} is-on{% endif %}"{% if tab == 'places' %} aria-current="page"{% endif %}>
+                {% include "_icon.html" with name="pin" %} 장소 리뷰
+            </a>
+        </nav>
 
         {% if message %}<p class="rv-flash" role="status">{{ message }}</p>{% endif %}
         {% csrf_token %}
 
+        {% if tab != 'places' %}
+        <!-- =========================
+             여행 루트 탭
+        ========================= -->
+        <section class="rt-board" aria-labelledby="rtTitle">
+            <div class="rt-bar">
+                <h2 id="rtTitle" class="rv-section-title">공유된 여행 루트 <em>{{ route_total }}개</em></h2>
+                <form class="rt-search" method="get" role="search">
+                    <input type="search" name="q" value="{{ q }}" placeholder="지역·제목 검색 (예: 부산)" aria-label="지역이나 제목으로 검색">
+                    <input type="hidden" name="sort" value="{{ sort }}">
+                    <button type="submit" aria-label="검색">{% include "_icon.html" with name="search" %}</button>
+                </form>
+                <div class="rt-sort" role="group" aria-label="정렬">
+                    <a href="?sort=new{% if q %}&q={{ q|urlencode }}{% endif %}" class="{% if sort == 'new' %}is-on{% endif %}">최신순</a>
+                    <a href="?sort=best{% if q %}&q={{ q|urlencode }}{% endif %}" class="{% if sort == 'best' %}is-on{% endif %}">별점순</a>
+                    <a href="?sort=talk{% if q %}&q={{ q|urlencode }}{% endif %}" class="{% if sort == 'talk' %}is-on{% endif %}">댓글순</a>
+                </div>
+            </div>
+
+            {% if route_cards %}
+            <div class="rt-grid">
+                {% for c in route_cards %}
+                <a class="rt-card" href="{% url 'route_detail' c.route.sr_id %}">
+                    <div class="rt-card__cover{% if not c.cover %} is-empty{% endif %}">
+                        {% if c.cover %}<img src="{{ c.cover }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove(); this.parentNode && this.parentNode.classList.add('is-empty');">{% endif %}
+                        <span class="rt-card__region">{% include "_icon.html" with name="pin" %} {{ c.travel.t_place }}</span>
+                        {% if c.length %}<span class="rt-card__len">{{ c.length }}</span>{% endif %}
+                    </div>
+                    <div class="rt-card__body">
+                        <h3>{{ c.travel.t_title }}</h3>
+                        {% if c.route.intro %}<p class="rt-card__intro">{{ c.route.intro }}</p>{% endif %}
+                        <ol class="rt-card__route" aria-label="장소 순서">
+                            {% for name in c.preview %}<li>{{ name }}</li>{% endfor %}
+                            {% if c.more %}<li class="is-more">+{{ c.more }}곳</li>{% endif %}
+                        </ol>
+                        <div class="rt-card__foot">
+                            <span class="rt-card__who">
+                                <img src="{% static 'sherpaapp/avatars/'|add:c.route.member.avatar_key|add:'.svg' %}" alt="" width="24" height="24">
+                                {{ c.route.member.nickname }}
+                            </span>
+                            <span class="rt-card__stats">
+                                <b class="rt-star">★ {% if c.avg %}{{ c.avg }}{% else %}-{% endif %}</b>
+                                <span>💬 {{ c.route.comment_count }}</span>
+                                <span>{{ c.place_count }}곳</span>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+
+            {% if route_page.has_other_pages %}
+            <nav class="rv-pages" aria-label="루트 페이지">
+                {% if route_page.has_previous %}<a href="?sort={{ sort }}&q={{ q|urlencode }}&page={{ route_page.previous_page_number }}">‹ 이전</a>{% endif %}
+                <span>{{ route_page.number }} / {{ route_page.paginator.num_pages }}</span>
+                {% if route_page.has_next %}<a href="?sort={{ sort }}&q={{ q|urlencode }}&page={{ route_page.next_page_number }}">다음 ›</a>{% endif %}
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="rv-empty">
+                {% if q %}
+                <strong>'{{ q }}' 루트가 없어요</strong>
+                <p>다른 지역 이름으로 찾아보세요.</p>
+                <a href="{% url 'review_board' %}" class="btn btn-secondary">전체 보기</a>
+                {% else %}
+                <strong>아직 공유된 여행 루트가 없어요</strong>
+                <p>내 여행을 첫 번째로 공유해 보세요. 다른 회원이 보고 별점과 댓글을 남길 수 있어요.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </section>
+
+        {% else %}
         <div class="rv-layout">
 
             <!-- 전체 리뷰 목록 (최신순) -->
@@ -98,9 +206,9 @@
 
                 {% if page.has_other_pages %}
                 <nav class="rv-pages" aria-label="리뷰 페이지">
-                    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">‹ 이전</a>{% endif %}
+                    {% if page.has_previous %}<a href="?tab=places&page={{ page.previous_page_number }}">‹ 이전</a>{% endif %}
                     <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
-                    {% if page.has_next %}<a href="?page={{ page.next_page_number }}">다음 ›</a>{% endif %}
+                    {% if page.has_next %}<a href="?tab=places&page={{ page.next_page_number }}">다음 ›</a>{% endif %}
                 </nav>
                 {% endif %}
             </section>
@@ -128,11 +236,27 @@
             </aside>
 
         </div>
+        {% endif %}
     </main>
 
 </div>
 
 <script>
+    // '내 여행 공유하기': 내 여행 목록 펼치기
+    (function () {
+        var btn = document.getElementById('rtShareBtn');
+        var menu = document.getElementById('rtShareMenu');
+        if (!btn || !menu) return;
+        function close() { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.hidden = !menu.hidden;
+            btn.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+        });
+        document.addEventListener('click', function (e) { if (!menu.contains(e.target)) close(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    })();
+
     // 추천 버튼: 누르면 추천, 다시 누르면 취소 (새로고침 없이 숫자만 바뀜)
     (function () {
         var token = document.querySelector('[name=csrfmiddlewaretoken]').value;

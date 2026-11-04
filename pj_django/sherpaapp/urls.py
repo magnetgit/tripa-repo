@@ -191,6 +191,36 @@ urlpatterns = [
     ),
 
     path(
+        'route/<int:sr_id>/',
+        views.route_detail,
+        name='route_detail'
+    ),
+
+    path(
+        'route/<int:sr_id>/rate/',
+        views.route_rate,
+        name='route_rate'
+    ),
+
+    path(
+        'route/<int:sr_id>/comment/',
+        views.route_comment,
+        name='route_comment'
+    ),
+
+    path(
+        'route/comment/<int:rc_id>/delete/',
+        views.route_comment_delete,
+        name='route_comment_delete'
+    ),
+
+    path(
+        'route_share/<int:travel_id>/',
+        views.route_share,
+        name='route_share'
+    ),
+
+    path(
         'travel_festivals/<int:travel_id>/',
         views.travel_festivals,
         name='travel_festivals'

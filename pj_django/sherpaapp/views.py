@@ -12,8 +12,8 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Sum
-from django.http import HttpResponse, JsonResponse
+from django.db.models import Avg, Count, Exists, F, OuterRef, Prefetch, Q, Sum
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template import loader
@@ -42,6 +42,7 @@ from .services.route_service import get_kakao_route, get_travel_time
 from .models import TravelCategory
 from .models import TravelDayPlan
 from .models import TravelBudget
+from .models import SharedRoute, RouteRating, RouteComment
 
 # ==============================================
 # 카카오 이미지 검색 공통 함수
@@ -560,6 +561,14 @@ def review_board(request):
     if not member:
         return redirect('login')
 
+    # 기본은 '여행 루트' 탭, ?tab=places 면 예전 '장소 리뷰'
+    if request.GET.get('tab') != 'places':
+        return render(request, 'sherpaapp/review.html', {
+            'member': member,
+            'message': request.session.pop('review_message', ''),
+            **_review_board_routes(request, member),
+        })
+
     reviews = _reviews_with_counts(member).order_by('-created_at', '-rv_id')
     page = Paginator(reviews, REVIEW_PAGE_SIZE).get_page(request.GET.get('page'))
 
@@ -575,7 +584,288 @@ def review_board(request):
         'best_reviews': best_reviews,
         'review_total': page.paginator.count,
         'message': request.session.pop('review_message', ''),
+        'tab': 'places',
     })
+
+
+# ==============================================
+# 여행 루트 공유 (리뷰 게시판 '여행 루트' 탭)
+# ==============================================
+
+ROUTE_PAGE_SIZE = 12
+ROUTE_INTRO_MAX = 200
+ROUTE_COMMENT_MAX = 300
+
+
+def _trip_length_text(travel):
+    if not travel.t_start or not travel.t_end:
+        return ''
+    days = (travel.t_end - travel.t_start).days + 1
+    return '당일치기' if days <= 1 else '%d박 %d일' % (days - 1, days)
+
+
+def _routes_with_stats():
+    return (
+        SharedRoute.objects
+        .select_related('travel', 'member')
+        .annotate(
+            avg_rating=Avg('ratings__rating'),
+            rating_count=Count('ratings', distinct=True),
+            comment_count=Count('comments', distinct=True),
+        )
+    )
+
+
+def _route_cards(routes):
+    """게시판 카드에 쓸 값: 기간 글자, 장소 수, 앞쪽 장소 이름 몇 개, 표지 사진"""
+    travel_ids = [r.travel_id for r in routes]
+    by_travel = {}
+    rows = (
+        SchedulePlace.objects
+        .filter(schedule__travel_id__in=travel_ids)
+        .select_related('place', 'schedule')
+        .order_by('schedule__s_day', 'visit_order', 'sp_id')
+    )
+    for sp in rows:
+        by_travel.setdefault(sp.schedule.travel_id, []).append(sp.place)
+
+    cards = []
+    for r in routes:
+        places = by_travel.get(r.travel_id, [])
+        cover = next((p.p_image for p in places if p.p_image and str(p.p_image).startswith('http')), '')
+        cards.append({
+            'route': r,
+            'travel': r.travel,
+            'length': _trip_length_text(r.travel),
+            'place_count': len(places),
+            'preview': [p.p_name for p in places[:4]],
+            'more': max(len(places) - 4, 0),
+            'cover': cover,
+            'avg': ('%.1f' % r.avg_rating) if r.avg_rating else '',
+        })
+    return cards
+
+
+def _review_board_routes(request, member):
+    sort = request.GET.get('sort') or 'new'
+    q = (request.GET.get('q') or '').strip()
+
+    routes = _routes_with_stats()
+    if q:
+        routes = routes.filter(Q(travel__t_place__icontains=q) | Q(travel__t_title__icontains=q))
+    if sort == 'best':
+        routes = routes.order_by(F('avg_rating').desc(nulls_last=True), '-rating_count', '-created_at')
+    elif sort == 'talk':
+        routes = routes.order_by('-comment_count', '-created_at')
+    else:
+        sort = 'new'
+        routes = routes.order_by('-created_at', '-sr_id')
+
+    page = Paginator(routes, ROUTE_PAGE_SIZE).get_page(request.GET.get('page'))
+    return {
+        'tab': 'routes',
+        'sort': sort,
+        'q': q,
+        'route_page': page,
+        'route_cards': _route_cards(list(page.object_list)),
+        'route_total': page.paginator.count,
+        # '내 여행 공유하기' 목록 (공유 중인지 표시)
+        'my_travels': (
+            Travel.objects.filter(member=member)
+            .annotate(is_shared=Exists(SharedRoute.objects.filter(travel=OuterRef('pk'))))
+            .order_by('-t_start', '-t_id')[:20]
+        ),
+    }
+
+
+def _route_days(travel):
+    """루트 상세: 날짜별 장소(방문·출발 시간, 머무는 시간, 이동 시간) + 그날 숙소"""
+    stays = {dp.plan_date: dp for dp in TravelDayPlan.objects.filter(travel=travel)}
+    days = []
+    schedules = Schedule.objects.filter(travel=travel).order_by('s_day')
+    for index, schedule in enumerate(schedules, start=1):
+        items = []
+        sps = (
+            SchedulePlace.objects.filter(schedule=schedule)
+            .select_related('place')
+            .order_by('visit_order', 'sp_id')
+        )
+        for sp in sps:
+            p = sp.place
+            items.append({
+                'name': p.p_name,
+                'kind': p.p_kind or '',
+                'addr': p.p_addr or '',
+                'image': p.p_image if p.p_image and str(p.p_image).startswith('http') else '',
+                'arrive': sp.arrive_time.strftime('%H:%M') if sp.arrive_time else '',
+                'leave': sp.start_time.strftime('%H:%M') if sp.start_time else '',
+                'stay': sp.stay_time_display if sp.stay_time else '',
+                'move': sp.travel_time or 0,
+                'lat': float(p.p_lat) if p.p_lat is not None else None,
+                'lon': float(p.p_lon) if p.p_lon is not None else None,
+            })
+        stay = stays.get(schedule.s_day)
+        days.append({
+            'no': index,
+            'date': schedule.s_day,
+            'weekday': '월화수목금토일'[schedule.s_day.weekday()],
+            'items': items,
+            'stay': stay.accommodation_name if stay and stay.accommodation_name else '',
+        })
+    return days
+
+
+# 홈 '여행 루트 추천' 카드: 별점 높고 반응 많은 공유 루트 몇 개
+def build_route_picks(limit=3):
+    routes = list(
+        _routes_with_stats()
+        .order_by(F('avg_rating').desc(nulls_last=True), '-rating_count', '-comment_count', '-created_at')[:limit]
+    )
+    picks = []
+    for c in _route_cards(routes):
+        r = c['route']
+        picks.append({
+            'title': c['travel'].t_title,
+            'region': c['travel'].t_place,
+            'length': c['length'],
+            'rating': c['avg'],
+            'rating_count': r.rating_count,
+            'comment_count': r.comment_count,
+            'owner': r.member.nickname,
+            'route': ' → '.join(c['preview']) + (' 외 %d곳' % c['more'] if c['more'] else ''),
+            'url': reverse('route_detail', args=[r.sr_id]),
+        })
+    return picks
+
+
+# 여행 루트 상세 (게시판 카드를 누르면): DAY별 루트 + 지도 + 별점 + 댓글
+def route_detail(request, sr_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    route = get_object_or_404(_routes_with_stats(), sr_id=sr_id)
+    travel = route.travel
+    days = _route_days(travel)
+    mine = RouteRating.objects.filter(route=route, member=member).first()
+
+    map_days = [
+        {'no': d['no'], 'points': [
+            {'name': it['name'], 'lat': it['lat'], 'lon': it['lon']}
+            for it in d['items'] if it['lat'] is not None and it['lon'] is not None
+        ]}
+        for d in days
+    ]
+
+    return render(request, 'sherpaapp/route_detail.html', {
+        'member': member,
+        'route': route,
+        'travel': travel,
+        'length': _trip_length_text(travel),
+        'days': days,
+        'place_count': sum(len(d['items']) for d in days),
+        'map_days': map_days,
+        'avg': ('%.1f' % route.avg_rating) if route.avg_rating else '',
+        'my_rating': mine.rating if mine else 0,
+        'is_owner': route.member_id == member.m_id,
+        'comments': route.comments.select_related('member').order_by('created_at'),
+        'comment_max': ROUTE_COMMENT_MAX,
+        'message': request.session.pop('route_message', ''),
+        'KAKAO_MAP_API_KEY': settings.KAKAO_MAP_API_KEY,
+    })
+
+
+# 내 여행을 게시판에 공유 / 소개 수정 / 공유 취소 (여행 상세의 '게시판에 공유' 창, JSON)
+@require_POST
+def route_share(request, travel_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '내 여행만 공유할 수 있어요.'}, status=403)
+
+    if request.POST.get('action') == 'unshare':
+        SharedRoute.objects.filter(travel=travel).delete()
+        return JsonResponse({'success': True, 'shared': False})
+
+    intro = (request.POST.get('intro') or '').strip()
+    if len(intro) > ROUTE_INTRO_MAX:
+        return JsonResponse({'success': False, 'message': '소개는 %d자까지 쓸 수 있어요.' % ROUTE_INTRO_MAX}, status=400)
+    if not SchedulePlace.objects.filter(schedule__travel=travel).exists():
+        return JsonResponse({'success': False, 'message': '일정에 장소를 하나 이상 넣어야 공유할 수 있어요.'}, status=400)
+
+    route, _ = SharedRoute.objects.update_or_create(
+        travel=travel, defaults={'member': member, 'intro': intro}
+    )
+    return JsonResponse({
+        'success': True, 'shared': True, 'sr_id': route.sr_id,
+        'url': reverse('route_detail', args=[route.sr_id]),
+    })
+
+
+# 별점 주기/바꾸기 (한 사람 1개, 내 루트에는 못 줌, JSON)
+@require_POST
+def route_rate(request, sr_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    route = SharedRoute.objects.filter(sr_id=sr_id).first()
+    if not route:
+        return JsonResponse({'success': False, 'message': '공유된 루트를 찾을 수 없습니다.'}, status=404)
+    if route.member_id == member.m_id:
+        return JsonResponse({'success': False, 'message': '내 루트에는 별점을 줄 수 없어요.'}, status=400)
+
+    try:
+        rating = int(request.POST.get('rating') or 0)
+    except ValueError:
+        rating = 0
+    if not 1 <= rating <= 5:
+        return JsonResponse({'success': False, 'message': '별점은 1~5점이에요.'}, status=400)
+
+    RouteRating.objects.update_or_create(route=route, member=member, defaults={'rating': rating})
+    stats = route.ratings.aggregate(avg=Avg('rating'), count=Count('rr_id'))
+    return JsonResponse({
+        'success': True, 'mine': rating,
+        'avg': '%.1f' % (stats['avg'] or 0), 'count': stats['count'],
+    })
+
+
+# 댓글 쓰기 (폼 POST → 상세로 돌아감)
+@require_POST
+def route_comment(request, sr_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    route = get_object_or_404(SharedRoute, sr_id=sr_id)
+    content = (request.POST.get('content') or '').strip()
+    if not content:
+        request.session['route_message'] = '댓글 내용을 적어 주세요.'
+    elif len(content) > ROUTE_COMMENT_MAX:
+        request.session['route_message'] = '댓글은 %d자까지 쓸 수 있어요.' % ROUTE_COMMENT_MAX
+    else:
+        RouteComment.objects.create(route=route, member=member, content=content)
+    return redirect(reverse('route_detail', args=[route.sr_id]) + '#comments')
+
+
+# 댓글 지우기 (내 댓글, 또는 내 루트에 달린 댓글)
+@require_POST
+def route_comment_delete(request, rc_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    comment = get_object_or_404(RouteComment.objects.select_related('route'), rc_id=rc_id)
+    if member.m_id not in (comment.member_id, comment.route.member_id):
+        return HttpResponseForbidden('권한이 없습니다.')
+    sr_id = comment.route.sr_id
+    comment.delete()
+    return redirect(reverse('route_detail', args=[sr_id]) + '#comments')
 
 
 # 내가 다녀온 곳(시작한 여행의 장소) 중 아직 리뷰 안 쓴 곳
@@ -811,6 +1101,8 @@ def travel_detail(request, travel_id):
     context = {
         'travel': travel,
         'member': member,
+        # 리뷰 게시판 '여행 루트'에 공유했는지 (공유 버튼·창)
+        'shared_route': SharedRoute.objects.filter(travel=travel).first(),
         'schedules': schedules,
         'days': days,
         'visited_places': visited_places,
@@ -1521,8 +1813,9 @@ def index(request):
                     recent_travel,
                 'recent_travels':
                     recent_travels,
-                'review_picks':
-                    build_review_picks(),
+                # 홈 오른쪽 카드: 장소 리뷰 대신 공유된 여행 루트 추천
+                'route_picks':
+                    build_route_picks(),
             },
             request
         )
