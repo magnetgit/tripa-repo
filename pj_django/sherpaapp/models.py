@@ -267,6 +267,7 @@ class Travel(models.Model):
 BUDGET_CATEGORY_CHOICES = [
     ('sight', '관광지'),
     ('food', '식비'),
+    ('cafe', '카페'),
     ('move', '교통'),
     ('stay', '숙박'),
     ('shop', '쇼핑'),

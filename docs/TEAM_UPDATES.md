@@ -10,6 +10,30 @@
 
 ---
 
+## 2026-11-04 · 비용 '카페' 분류(0012), 지출 차트, `kakao_id` 담아 보내기, 여행 기간 축제·행사 끌어 넣기 — 🟦 임영준
+**DB 변경 있음 → 모두 `python manage.py migrate`** (0012: `TravelBudget.category` 선택지에 `cafe` 추가만, 칸 변경 없음). 기존 키·함수 이름 변경 없음, **추가만**.
+
+### 1) 비용 분류 '카페' (`cafe`)
+- 비용 추가 화면 '비용 항목'에 카페. 분류 키 표 `BUDGET_CATEGORIES`에 `('카페', 'cafe', ...)`, `BUDGET_CATEGORY_CHOICES`에 `('cafe', '카페')`
+- 키워드 '카페·커피·디저트·베이커리·빵·음료'는 이제 식비가 아니라 카페로 셈 → 예전에 '카페'로 적힌 비용도 카페로 다시 묶여 보임
+
+### 2) 비용 관리 아래 '지출 차트'
+- 분류별 비율(도넛)·날짜별 지출(하루 예산 점선)·분류별 예산 대비 사용. `views._budget_chart` → 화면 `chart_data` (Chart.js 4.4.1, cdnjs)
+- 분류별 예산(`travel_budget`)이 저장되면 연한 '예산' 막대가 같이 나옴
+
+### 3) `kakao_id` 담아 보내기 (위 🟧 요청 완료)
+- 장소 검색 응답(`_search_kakao_places`)에 `kakao_id` 키 추가, 장소 추가 폼 3곳에서 `place_kakao_id` 전송
+
+### 4) 여행 상세 왼쪽 '여행 기간 축제·행사' + 끌어서 일정에 넣기
+- 새 주소 `travel_festivals/<travel_id>/` (이름 `travel_festivals`, GET, 로그인·내 여행만) → `{success, festivals: [{id, title, start, end, period, addr, lat, lon, image, tel, days, always}]}`
+- 새 파일 `services/festival_service.py`: 관광공사 `searchFestival2`로 여행 기간과 겹치고 주소에 여행 지역 이름이 있는 행사(지역 이름이 없을 때만 일정 장소 40km 안), 6시간 저장. 두 달 넘게 하는 건 `always: true`(상시). `TOUR_API_KEY` 필요(없으면 빈 목록)
+- 넣을 때는 기존 `schedule_place_add`(`place_kind='축제'`) + 원하는 자리면 `schedule_place_reorder` 그대로 사용 → 🟧 서버 함수 변경 없음
+
+### 🟩 참고
+- [ ] 추천 카드 `cost.cat`에 `cafe`를 써도 됨 (지금처럼 `food`여도 그대로 동작)
+
+---
+
 ## 2026-11-04 · `settings.py`: 서버도 정식 설정(`DEPLOY=True`)으로, DB는 어디서나 MariaDB — 🟧 이수한
 DB·응답 키 변경 없음. **팀원 할 일 없음** (로컬 `.env`는 지금 그대로 `DEPLOY=False`)
 
@@ -47,8 +71,8 @@ DB 변경 없음(칸은 이미 있었음). 받는 값 **추가만** → 🟦 보
 - 아직 보내지 않아도 오류 없음 (지금처럼 비어 있게 저장)
 
 ### 🟦 요청
-- [ ] 장소 추가 폼에 `place_kakao_id` 함께 보내기 (검색 결과 장소의 카카오 id)
-- [ ] 채팅 추천 카드를 담을 때(pin) 카드의 `kakao_id`도 같이 담기
+- [x] 장소 추가 폼에 `place_kakao_id` 함께 보내기 (검색 결과 장소의 카카오 id) (11-04 🟦 완료, 장소 검색 응답에 `kakao_id` 키 추가)
+- [x] 채팅 추천 카드를 담을 때(pin) 카드의 `kakao_id`도 같이 담기 (11-04 🟦 완료, 기존 채팅·React 둘 다)
 
 ---
 

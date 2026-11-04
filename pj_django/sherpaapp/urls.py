@@ -191,6 +191,12 @@ urlpatterns = [
     ),
 
     path(
+        'travel_festivals/<int:travel_id>/',
+        views.travel_festivals,
+        name='travel_festivals'
+    ),
+
+    path(
         'travel_delete/<int:travel_id>/',
         views.travel_delete,
         name='travel_delete'

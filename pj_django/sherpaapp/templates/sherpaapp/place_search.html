@@ -322,7 +322,8 @@
                             '{{ place.category|escapejs }}',
                             '{{ place.y|escapejs }}',
                             '{{ place.x|escapejs }}',
-                            '{{ place.image|default:''|escapejs }}'
+                            '{{ place.image|default:''|escapejs }}',
+                            '{{ place.kakao_id|default:''|escapejs }}'
                         );"
                     >
                         일정에 추가
@@ -563,7 +564,8 @@ function tpIcon(name) {
             category,
             lat,
             lon,
-            image
+            image,
+            kakaoId
         ) {
             scheduleAddPlace = {
                 name: name || "",
@@ -571,7 +573,8 @@ function tpIcon(name) {
                 category: category || "",
                 lat: lat || "",
                 lon: lon || "",
-                image: image || ""
+                image: image || "",
+                kakaoId: kakaoId || ""
             };
 
             const modal =
@@ -829,6 +832,12 @@ function tpIcon(name) {
             body.append(
                 "place_image",
                 scheduleAddPlace.image
+            );
+
+            // 카카오 장소 id: 일정 장소에 리뷰 별점·사진을 붙일 때 씀
+            body.append(
+                "place_kakao_id",
+                scheduleAddPlace.kakaoId
             );
 
             fetch(
