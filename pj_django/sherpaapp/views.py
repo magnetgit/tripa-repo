@@ -3443,7 +3443,7 @@ def schedule_place_add(request):
     place_lat = request.POST.get('place_lat') or None
     place_lon = request.POST.get('place_lon') or None
     place_image = request.POST.get('place_image') or None
-    place_kakao_id = request.POST.get('place_kakao_id') or None
+    place_kakao_id = request.POST.get('place_kakao_id') or None  # 리뷰·사진을 붙이는 열쇠, 화면이 안 보내면 None
 
     # schedule_id가 있으면 기존 일정을 사용한다.
     if schedule_id:
@@ -5546,7 +5546,7 @@ def _chat_add_pins(travel, pins, with_images=False):
 
                 addr = (pin.get('addr') or '').strip()
                 kind = (pin.get('kind') or '').strip()
-                kakao_id = str(pin.get('kakao_id') or '').strip() or None
+                kakao_id = str(pin.get('kakao_id') or '').strip() or None  # 리뷰·사진을 붙이는 열쇠, 화면이 안 보내면 None
 
                 schedule = (
                     Schedule.objects.filter(travel=travel, s_day=day_date).order_by('s_id').first()
@@ -5863,7 +5863,11 @@ def travel_chat_preview(request):
     return JsonResponse(result)
 
 
+# ==========================================
+# 장소별 리뷰 목록
+# ==========================================
 def review_list(request):
+    """kakao_id 장소의 리뷰를 최신순·도움돼요 순으로 돌려준다. 평균 별점·개수, 내 리뷰·내가 누른 도움돼요 표시 포함"""
     kakao_id = request.GET.get('kakao_id')
     sort = request.GET.get('sort')
     if not kakao_id:
@@ -5904,7 +5908,13 @@ def review_list(request):
         'reviews': result
     })
 
+
+# ==========================================
+# 여러 장소 리뷰 평균
+# ==========================================
+
 def review_summary(request):
+    """kakao_ids(쉼표, 최대 50개) 장소들의 평균 별점·리뷰 수를 한 번에 돌려준다. 리뷰 없는 장소는 빠진다"""
     kakao_ids = request.GET.get('kakao_ids', '')
     id_list = [k.strip() for k in kakao_ids.split(',') if k.strip()][:50]
     
@@ -5927,7 +5937,12 @@ def review_summary(request):
     })
 
 
+# ==========================================
+# 리뷰 키워드 요약(AI)
+# ==========================================
+
 def review_keywords(request):
+    """kakao_id 장소 리뷰의 키워드(최대 5개)와 한 줄 요약을 돌려준다. 실제 요약은 review_service.summarize_review"""
     kakao_id = request.GET.get('kakao_id')
     if not kakao_id:
         return JsonResponse(
