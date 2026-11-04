@@ -10,6 +10,24 @@
 
 ---
 
+## 2026-11-04 · 리뷰 게시판 '여행 루트' 탭: 회원 여행 루트 공유 + 별점·댓글 — 🟦 임영준
+**DB 변경 있음 (마이그레이션 0014, 새 테이블 3개만)** → 모두 pull 후 `python manage.py migrate`. 기존 표·키·함수 이름 변경 없음, **추가만**.
+
+- 새 테이블: `shared_route`(여행 하나당 공유 하나, 한 줄 소개) · `route_rating`(루트·회원당 별점 1개, 바꿀 수 있음) · `route_comment`(댓글)
+- 리뷰 게시판 `/review/`: 기본 탭이 **여행 루트**(공유된 여행 카드 목록, 검색·최신/별점/댓글순). 예전 장소 리뷰는 `/review/?tab=places` 그대로 → 홈 '여행 리뷰 추천'·`review_list`·`review_summary`·`review_keywords` 영향 없음
+- 새 주소(이름 = 주소 이름):
+  - `route/<sr_id>/` `route_detail` — DAY별 루트(시간·머묾·이동) + 지도 + 별점 + 댓글
+  - `route/<sr_id>/rate/` `route_rate` (POST `rating` 1~5, JSON `{success, mine, avg, count}`, 내 루트는 400)
+  - `route/<sr_id>/comment/` `route_comment` (POST `content` ≤300) · `route/comment/<rc_id>/delete/` `route_comment_delete` (내 댓글·내 루트 댓글만)
+  - `route_share/<travel_id>/` `route_share` (POST `intro`, `action=unshare`면 공유 취소, 장소가 하나도 없으면 400)
+- 여행 상세 헤더에 '게시판에 공유' 버튼(주인만). 공유해도 비용은 안 보임. 공유 취소하면 별점·댓글도 지워짐
+- 홈 오른쪽 카드가 '여행 리뷰 추천'(장소) → **'여행 루트 추천'**으로 바뀜: `index`가 `review_picks` 대신 `route_picks`(`build_route_picks()`, 별점 높고 반응 많은 순 3개)를 넘김. `build_review_picks()` 함수는 그대로 남겨 둠
+
+### 🟧 참고
+- [ ] 나중에 '내 일정으로 가져오기'(다른 회원 루트 복사)를 만들면 `_route_days()`를 그대로 쓰면 돼요
+
+---
+
 ## 2026-11-04 · 비용 '카페' 분류(0013), 지출 차트, `kakao_id` 담아 보내기, 여행 기간 축제·행사 끌어 넣기 — 🟦 임영준
 **DB 변경 있음 → 모두 `python manage.py migrate`** (0013: `TravelBudget.category` 선택지에 `cafe` 추가만, 칸 변경 없음). 기존 키·함수 이름 변경 없음, **추가만**.
 

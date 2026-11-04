@@ -6444,3 +6444,8 @@ a.review-pick:focus-visible {
     .bg-chart__grid { grid-template-columns: 1fr; padding: 14px 14px 0; }
     .bg-chart__canvas { height: 220px; }
 }
+
+/* 홈 여행 루트 추천: 장소 순서 줄은 두 줄까지 */
+.review-pick__quote.review-pick__route { color: #2d5fbf; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.45; }
+.review-pick__head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-pick__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

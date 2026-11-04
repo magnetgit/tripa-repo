@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261063">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261066">
 
 </head>
 
@@ -374,49 +374,49 @@
 
         {% endif %}
 
-        <!-- 여행 리뷰 추천: 지역별로 평점 높고 리뷰 많은 순 (views.build_review_picks)
-             review_picks 항목 키: region, place, rating(4.8), count(리뷰 수), quote(한 줄 후기), url -->
+        <!-- 여행 루트 추천: 공유된 루트 중 별점 높고 반응 많은 순 (views.build_route_picks)
+             route_picks 항목 키: title, region, length, rating('4.5' 또는 ''), rating_count, comment_count, owner, route(장소 순서), url -->
         <div class="hero-preview hero-reviews">
 
             <div class="preview-window review-board">
 
                 <div class="preview-header">
                     <span>
-                        {% include "_icon.html" with name="chat" %} 여행 리뷰 추천
+                        {% include "_icon.html" with name="route" %} 여행 루트 추천
                     </span>
                     <span class="preview-status">
-                        {% if review_picks %}인기 {{ review_picks|length }}곳{% else %}리뷰 없음{% endif %}
+                        {% if route_picks %}인기 {{ route_picks|length }}개{% else %}루트 없음{% endif %}
                     </span>
                 </div>
 
-                <p class="review-board__desc">회원들이 다녀온 곳 중 평점이 높고 리뷰가 많은 곳이에요.</p>
+                <p class="review-board__desc">회원들이 공유한 여행 루트 중 별점이 높고 반응이 좋은 코스예요.</p>
 
                 <ol class="review-board__list">
-                    {% for pick in review_picks %}
+                    {% for pick in route_picks %}
                     <li>
-                        <a href="{{ pick.url|default:'#' }}" class="review-pick">
+                        <a href="{{ pick.url }}" class="review-pick">
                             <span class="review-pick__rank">{{ forloop.counter }}</span>
                             <div class="review-pick__body">
                                 <div class="review-pick__head">
-                                    <strong>{{ pick.region }}</strong>
-                                    <span class="review-pick__rating">★ {{ pick.rating }}</span>
+                                    <strong>{{ pick.title }}</strong>
+                                    <span class="review-pick__rating">★ {% if pick.rating %}{{ pick.rating }}{% else %}-{% endif %}</span>
                                 </div>
-                                <p class="review-pick__meta">{{ pick.place }} · 리뷰 {{ pick.count }}개</p>
-                                <p class="review-pick__quote">"{{ pick.quote }}"</p>
+                                <p class="review-pick__meta">{{ pick.region }}{% if pick.length %} · {{ pick.length }}{% endif %} · {{ pick.owner }} · 💬 {{ pick.comment_count }}</p>
+                                <p class="review-pick__quote review-pick__route">{{ pick.route }}</p>
                             </div>
                         </a>
                     </li>
                     {% empty %}
                     <li class="review-board__empty">
-                        <strong>아직 올라온 리뷰가 없어요</strong>
-                        <p>다녀온 여행지의 첫 리뷰를 남겨 보세요.</p>
-                        <a href="{% url 'review_write' %}">리뷰 쓰러 가기 →</a>
+                        <strong>아직 공유된 여행 루트가 없어요</strong>
+                        <p>내 여행을 첫 번째로 공유해 보세요.</p>
+                        <a href="{% url 'review_board' %}">여행 루트 게시판 가기 →</a>
                     </li>
                     {% endfor %}
                 </ol>
 
                 <a href="{% url 'review_board' %}" class="btn btn-secondary preview-open">
-                    리뷰 전체 보기
+                    여행 루트 전체 보기
                 </a>
 
             </div>

@@ -1361,6 +1361,17 @@
         /* =========================================
            여행 기간 축제·행사 (왼쪽) + 끌어서 넣기
         ========================================= */
+        /* 헤더 버튼 묶음 + 공유 창 */
+        .trip-head-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .route-share-open { display: inline-flex; align-items: center; gap: 6px; }
+        .route-share-open.is-shared { border-color: #2d6cdf; color: #2d6cdf; background: #eef4ff; }
+        .route-share__desc { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: #f6f9ff; color: #3d4d68; font-size: 13.5px; line-height: 1.6; }
+        .route-share textarea { width: 100%; padding: 10px 12px; border: 1px solid #dbe4f3; border-radius: 10px; font: inherit; font-size: 14px; resize: vertical; box-sizing: border-box; }
+        .route-share__actions { flex-wrap: wrap; }
+        .route-share__actions a.btn { text-decoration: none; }
+        .route-share__off { color: #e5484d; }
+        .trip-edit__error.is-ok { color: #2d6cdf; }
+
         .fest-box { margin: 18px 0 6px; }
         .fest-toggle {
             display: flex; align-items: center; gap: 12px; width: 100%;
@@ -1621,9 +1632,16 @@
 
 
                 {% if member and member.m_id == travel.member_id %}
-                <button type="button" class="btn btn-primary trip-edit-open" onclick="openTripEdit()">
-                    {% include "_icon.html" with name="edit" %} 여행 수정
-                </button>
+                <div class="trip-head-actions">
+                    <button type="button" class="btn btn-secondary route-share-open{% if shared_route %} is-shared{% endif %}"
+                            id="routeShareOpen" onclick="openRouteShare()">
+                        {% include "_icon.html" with name="chat" %}
+                        <span id="routeShareLabel">{% if shared_route %}게시판 공유 중{% else %}게시판에 공유{% endif %}</span>
+                    </button>
+                    <button type="button" class="btn btn-primary trip-edit-open" onclick="openTripEdit()">
+                        {% include "_icon.html" with name="edit" %} 여행 수정
+                    </button>
+                </div>
                 {% endif %}
 
 
@@ -1806,6 +1824,38 @@
      여행 수정 팝업 (이름·지역·날짜)
 ========================================================= -->
 {% if member and member.m_id == travel.member_id %}
+{% if member and member.m_id == travel.member_id %}
+<!-- 리뷰 게시판 '여행 루트'에 공유하기 -->
+<div id="routeShareModal" class="place-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="routeShareTitle">
+    <div class="place-modal-overlay" onclick="closeRouteShare()"></div>
+    <div class="place-modal-content trip-edit route-share">
+        <div class="place-modal-header">
+            <h2 id="routeShareTitle">{% include "_icon.html" with name="chat" %} 게시판에 여행 루트 공유</h2>
+            <button type="button" onclick="closeRouteShare()" aria-label="닫기">×</button>
+        </div>
+
+        <p class="route-share__desc">
+            공유하면 다른 회원이 이 여행의 DAY별 루트를 보고 <b>별점</b>과 <b>댓글</b>을 남길 수 있어요.
+            비용은 공개되지 않아요. 언제든 공유를 취소할 수 있어요.
+        </p>
+
+        <label class="trip-edit__field">
+            <span>한 줄 소개 (선택)</span>
+            <textarea id="routeShareIntro" maxlength="200" rows="3"
+                      placeholder="예: 부모님과 다녀온 느긋한 부산 2박 3일 코스예요.">{{ shared_route.intro|default:"" }}</textarea>
+        </label>
+
+        <p class="trip-edit__error" id="routeShareError" role="alert"></p>
+
+        <div class="trip-edit__actions route-share__actions">
+            <a class="btn btn-secondary" id="routeShareView" href="{% if shared_route %}{% url 'route_detail' shared_route.sr_id %}{% endif %}"{% if not shared_route %} hidden{% endif %}>게시판에서 보기</a>
+            <button type="button" class="btn btn-secondary route-share__off" id="routeShareOff" onclick="saveRouteShare('unshare')"{% if not shared_route %} hidden{% endif %}>공유 취소</button>
+            <button type="button" class="btn btn-primary" id="routeShareSave" onclick="saveRouteShare('share')">{% if shared_route %}소개 저장{% else %}공유하기{% endif %}</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div id="tripEditModal"
      class="place-modal"
      style="display:none;">
@@ -2057,6 +2107,61 @@ function updateTripEditSummary() {
     if (days < 1) { box.textContent = "끝나는 날이 시작하는 날보다 빨라요."; return; }
     box.textContent = days === 1 ? "당일치기 (DAY 1)" : (days - 1) + "박 " + days + "일 (DAY 1 ~ DAY " + days + ")";
 }
+
+/* =========================================================
+   리뷰 게시판 '여행 루트'에 공유
+========================================================= */
+function openRouteShare() {
+    const modal = document.getElementById("routeShareModal");
+    if (!modal) return;
+    document.getElementById("routeShareError").textContent = "";
+    modal.style.display = "flex";
+    setTimeout(function () { document.getElementById("routeShareIntro").focus(); }, 30);
+}
+
+function closeRouteShare() {
+    const modal = document.getElementById("routeShareModal");
+    if (modal) modal.style.display = "none";
+}
+
+function saveRouteShare(action) {
+    const err = document.getElementById("routeShareError");
+    if (action === "unshare" && !confirm("공유를 취소할까요? 달린 별점과 댓글도 함께 지워져요.")) return;
+
+    const body = new URLSearchParams();
+    body.append("action", action);
+    body.append("intro", document.getElementById("routeShareIntro").value.trim());
+
+    fetch("{% url 'route_share' travel.t_id %}", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "X-CSRFToken": getCookie("csrftoken") },
+        body: body.toString()
+    })
+        .then(function (r) { return r.json().catch(function () { return { success: false }; }); })
+        .then(function (data) {
+            if (!data.success) { err.textContent = data.message || "저장하지 못했어요."; return; }
+            const shared = !!data.shared;
+            document.getElementById("routeShareLabel").textContent = shared ? "게시판 공유 중" : "게시판에 공유";
+            document.getElementById("routeShareOpen").classList.toggle("is-shared", shared);
+            document.getElementById("routeShareOff").hidden = !shared;
+            document.getElementById("routeShareSave").textContent = shared ? "소개 저장" : "공유하기";
+            const view = document.getElementById("routeShareView");
+            view.hidden = !shared;
+            if (shared && data.url) view.href = data.url;
+            err.textContent = shared ? "게시판에 올라갔어요!" : "공유를 취소했어요.";
+            err.classList.add("is-ok");
+            setTimeout(function () { err.classList.remove("is-ok"); }, 2500);
+        })
+        .catch(function () { err.textContent = "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요."; });
+}
+
+// 게시판의 '내 여행 공유하기'에서 넘어오면 (?share=1) 바로 창을 연다
+document.addEventListener("DOMContentLoaded", function () {
+    if (new URLSearchParams(location.search).get("share") === "1") openRouteShare();
+});
+document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeRouteShare(); });
+
 
 function openTripEdit() {
     const modal = document.getElementById("tripEditModal");
