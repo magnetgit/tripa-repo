@@ -36,6 +36,7 @@ from .services.schedule_service import (
 from .services.review_service import summarize_review
 from .services import chat_service
 from .services import festival_service
+from .services import region_photo_service
 
 logger = logging.getLogger(__name__)
 from .services.route_service import get_kakao_route, get_travel_time
@@ -632,7 +633,9 @@ def _route_cards(routes):
     cards = []
     for r in routes:
         places = by_travel.get(r.travel_id, [])
-        cover = next((p.p_image for p in places if p.p_image and str(p.p_image).startswith('http')), '')
+        # 표지: 여행 지역 대표 사진 (없으면 루트 안 첫 장소 사진)
+        cover = region_photo_service.region_cover(r.travel.t_place) or next(
+            (p.p_image for p in places if p.p_image and str(p.p_image).startswith('http')), '')
         cards.append({
             'route': r,
             'travel': r.travel,
