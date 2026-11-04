@@ -35,7 +35,7 @@ DEBUG = env.bool(
 # 보안 / 호스트
 # =========================================================
 
-# 운영(PythonAnywhere)에서는 반드시 .env에 SECRET_KEY를 넣는다.
+# 운영(AWS 서버)에서는 반드시 .env에 SECRET_KEY를 넣는다.
 # 로컬 개발에서는 .env가 없어도 서버가 켜지도록 개발 전용 fallback만 둔다.
 if DEPLOY:
     SECRET_KEY = env("SECRET_KEY")
@@ -172,46 +172,36 @@ WSGI_APPLICATION = "pj_django.wsgi.application"
 # Database
 # =========================================================
 
-# PythonAnywhere 운영환경은 현재 SQLite 사용.
-# 로컬 개발환경은 MariaDB / MySQL 사용.
-if DEPLOY:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
+# 로컬·서버 모두 MariaDB, 접속 정보는 .env의 DB_*
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env(
+            "DB_NAME",
+            default="sherpa_schema",
+        ),
+        "USER": env(
+            "DB_USER",
+            default="sherpa",
+        ),
+        "PASSWORD": env(
+            "DB_PASSWORD",
+            default="",
+        ),
+        "HOST": env(
+            "DB_HOST",
+            default="127.0.0.1",
+        ),
+        "PORT": env(
+            "DB_PORT",
+            default="3306",
+        ),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
     }
-
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.mysql",
-            "NAME": env(
-                "DB_NAME",
-                default="sherpa_schema",
-            ),
-            "USER": env(
-                "DB_USER",
-                default="sherpa",
-            ),
-            "PASSWORD": env(
-                "DB_PASSWORD",
-                default="",
-            ),
-            "HOST": env(
-                "DB_HOST",
-                default="127.0.0.1",
-            ),
-            "PORT": env(
-                "DB_PORT",
-                default="3306",
-            ),
-            "OPTIONS": {
-                "charset": "utf8mb4",
-                "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-            },
-        }
-    }
+}
 
 
 # =========================================================

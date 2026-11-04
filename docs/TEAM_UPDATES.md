@@ -10,6 +10,15 @@
 
 ---
 
+## 2026-11-04 · `settings.py`: 서버도 정식 설정(`DEPLOY=True`)으로, DB는 어디서나 MariaDB — 🟧 이수한
+DB·응답 키 변경 없음. **팀원 할 일 없음** (로컬 `.env`는 지금 그대로 `DEPLOY=False`)
+
+- 예전 PythonAnywhere용으로 `DEPLOY=True`면 SQLite를 쓰던 블록을 지움 → 로컬·서버 모두 `.env`의 `DB_*`로 MariaDB 접속
+- 그동안 서버는 MariaDB를 쓰려고 `DEPLOY=False`로 돌고 있었음 → 이번에 `DEPLOY=True`로 바꿈 (운영에서는 `SECRET_KEY` 필수 검사가 켜짐)
+- 로컬에서 `DEPLOY=True`로 켜도 빈 SQLite로 바뀌지 않음
+
+---
+
 ## 2026-11-03 · 리뷰 `kakao_id` 빈칸 허용(마이그레이션 0011), 같은 카카오 장소 리뷰 중복 막기 — 🟦 임영준
 **DB 변경 있음 → 모두 `python manage.py migrate`**. 응답 키·주소 변경 없음.
 
