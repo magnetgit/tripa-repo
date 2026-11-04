@@ -1467,6 +1467,43 @@
             100% { box-shadow: none; }
         }
         body.fest-dragging, body.fest-dragging * { cursor: grabbing !important; }
+
+        /* ===== 운영시간 (travel_hours) ===== */
+        .sp-hours {
+            display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+            margin-top: 5px; padding: 2px 8px; border-radius: 999px;
+            font-size: 11.5px; font-weight: 700; line-height: 1.5;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            background: #eaf7ef; color: #1f8a4c;
+        }
+        .sp-hours.is-est { background: #f1f4f8; color: #64748b; }
+        .sp-hours.is-warn { background: #fff3e0; color: #c25e00; }
+        .sp-hours.is-closed { background: #fdecec; color: #d13438; }
+        .sp-hours-summary {
+            display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px;
+            padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+            background: #eef7f1; color: #1f6b40; border: 1px solid #cfe9d9;
+        }
+        .sp-hours-summary.is-warn { background: #fff7ec; color: #9a4b00; border-color: #fad9ad; }
+        .sp-hours-summary b { font-weight: 800; }
+        .sp-hours-summary ul { margin: 4px 0 0; padding-left: 16px; }
+        .sp-hours-summary li { margin: 1px 0; }
+
+        /* 끌고 있는 장소가 운영시간 밖 자리에 오면 회색 */
+        .sp-item.sp-drag-off .sp-card {
+            background: #eceff3 !important; border-color: #c9d0da !important;
+            filter: grayscale(1); opacity: .8;
+        }
+        .sp-item.sp-drag-off .time-picker-trigger { background: #eceff3; color: #8a94a6; border-color: #c9d0da; }
+        .sp-drag-hint {
+            display: none; margin: 6px 0 0; padding: 4px 10px; border-radius: 8px;
+            background: #5b6474; color: #fff; font-size: 12px; font-weight: 700; width: fit-content;
+        }
+        .sp-item.sp-drag-off .sp-drag-hint { display: block; }
+
+        /* 축제 진행 시간 + 놓을 자리가 행사 시간 밖이면 회색 */
+        .fest-card__time { display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 6px; background: #fff3e0; color: #c25e00; font-size: 10.5px; font-weight: 700; }
+        .fest-drop.is-off { border-color: #b8c0cc; background: #eceff3; color: #5b6474; }
         @media (prefers-reduced-motion: reduce) {
             .fest-card, .fest-drop, .fest-ghost.is-landing { transition: none; }
             .sp-item.fest-new .sp-card { animation: none; }
@@ -5131,6 +5168,7 @@ function loadDay(day) {
 
             // DAY 데이터만으로 먼저 빠르게 렌더링한다.
             renderSchedule(data, null);
+            loadPlaceHours(day);
             renderPayment(data);
 
             const currentDayTitle =
@@ -5997,6 +6035,7 @@ function renderSchedule(
         Array.isArray(data.places)
             ? data.places
             : [];
+    spRenderedPlaces = places;
 
     const startPoint =
         routeData
@@ -6244,6 +6283,232 @@ function renderSchedule(
     container
         .querySelectorAll(".sp-card.open")
         .forEach(loadSpPhoto);
+
+    applySpHours();
+}
+
+
+/* =========================================================
+   운영시간: 장소마다 운영시간 표시 + 안 맞으면 추천, 끌 때 회색
+   (travel_hours: 관광공사 운영시간, 식당·카페는 보통 영업시간 '예상')
+========================================================= */
+
+let spHours = {};              // sp_id → {open, close, open_min, close_min, estimated, closed, text, rest}
+let spHoursDay = null;
+let spRenderedPlaces = [];     // 지금 화면에 그린 장소들 (방문 순서)
+
+function loadPlaceHours(day) {
+    fetch(`/travel_hours/${travelId}/${day}/`, { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            if (!data || !data.success || String(currentDay) !== String(day)) {
+                return;
+            }
+            spHours = data.places || {};
+            spHoursDay = day;
+            applySpHours();
+        })
+        .catch(function () { /* 운영시간은 덤: 실패해도 일정은 그대로 */ });
+}
+
+function hoursRangeText(h) {
+    if (!h || h.open_min == null) {
+        return "";
+    }
+    if (h.open_min === 0 && h.close_min >= 24 * 60) {
+        return "24시간";
+    }
+    return `${h.open}~${h.close}`;
+}
+
+// 도착·출발(분)이 운영시간에 맞는지: ok / early(아직 안 엶) / late(닫음) / closed(휴무) / unknown
+function hoursFit(h, arrive, leave) {
+    if (!h) {
+        return "unknown";
+    }
+    if (h.closed) {
+        return "closed";
+    }
+    if (h.open_min == null || arrive == null) {
+        return "unknown";
+    }
+    let a = arrive;
+    let l = leave == null ? arrive : leave;
+    if (l < a) {
+        l += 24 * 60;
+    }
+    // 새벽까지 하는 곳(예: 11:00~02:00)에 새벽에 가는 경우
+    if (h.close_min > 24 * 60 && a + 24 * 60 <= h.close_min && a < h.open_min) {
+        a += 24 * 60;
+        l += 24 * 60;
+    }
+    if (a < h.open_min) {
+        return "early";
+    }
+    if (a >= h.close_min || l > h.close_min) {
+        return "late";
+    }
+    return "ok";
+}
+
+function spStayMinutes(sp) {
+    const stay = Number(sp && sp.stay_time || 0);
+    return stay > 0 ? stay : 60;
+}
+
+// 방문 순서 자리마다 도착 시각(분). 끌 때 '이 자리에 가면 몇 시쯤'으로 씀
+function spSlotTimes() {
+    return spRenderedPlaces.map(function (sp) {
+        return timelineTimeToMinutes(sp.arrive_time);
+    });
+}
+
+// 운영시간에 맞는 다른 자리 (없으면 -1)
+function bestSlotFor(h, stay, slots, selfIndex) {
+    for (let j = 0; j < slots.length; j++) {
+        if (j === selfIndex || slots[j] == null) {
+            continue;
+        }
+        if (hoursFit(h, slots[j], slots[j] + stay) === "ok") {
+            return j;
+        }
+    }
+    return -1;
+}
+
+function spHoursAdvice(h, fit) {
+    if (fit === "closed") {
+        return "이날 휴무예요" + (h.rest ? ` (${h.rest})` : "");
+    }
+    if (fit === "early") {
+        return `아직 안 열어요 → ${formatVisitTime(h.open)} 이후 방문 추천`;
+    }
+    if (fit === "late") {
+        return `문 닫을 시간 → ${formatVisitTime(h.close)} 전에 끝나게 추천`;
+    }
+    return "";
+}
+
+function applySpHours() {
+    const container = document.getElementById("timelineContainer");
+    if (!container || String(spHoursDay) !== String(currentDay) || spDrag.state === "dragging") {
+        return;
+    }
+
+    container.querySelectorAll(".sp-hours, .sp-hours-fact, .sp-hours-summary, .sp-drag-hint")
+        .forEach(function (el) { el.remove(); });
+
+    const byId = {};
+    spRenderedPlaces.forEach(function (sp) { byId[String(sp.sp_id)] = sp; });
+    const slots = spSlotTimes();
+    const warns = [];
+    let known = 0;
+
+    container.querySelectorAll(".sp-item").forEach(function (item, index) {
+        // 끌 때 보여줄 안내 칸 (평소엔 숨김)
+        const hint = document.createElement("p");
+        hint.className = "sp-drag-hint";
+        const card = item.querySelector(".sp-card");
+        if (card) {
+            card.appendChild(hint);
+        }
+
+        const sp = byId[item.dataset.spId];
+        const h = spHours[item.dataset.spId];
+        if (!sp || !h) {
+            return;
+        }
+        known++;
+
+        const arrive = timelineTimeToMinutes(sp.arrive_time);
+        const leave = timelineTimeToMinutes(sp.start_time);
+        const fit = hoursFit(h, arrive, leave);
+        const range = hoursRangeText(h);
+
+        let cls = "is-ok";
+        let text = range ? `운영 ${range}` : "";
+        if (h.estimated) {
+            cls = "is-est";
+            text = `보통 ${range} (예상)`;
+        }
+        if (fit === "early" || fit === "late") {
+            cls = "is-warn";
+            text = `${text} · ${spHoursAdvice(h, fit)}`;
+        } else if (fit === "closed") {
+            cls = "is-closed";
+            text = spHoursAdvice(h, fit);
+        } else if (fit === "ok" && !h.estimated) {
+            text = `✓ ${text}`;
+        }
+        if (!text) {
+            return;
+        }
+
+        if (fit === "early" || fit === "late" || fit === "closed") {
+            const best = fit === "closed" ? -1 : bestSlotFor(h, spStayMinutes(sp), slots, index);
+            warns.push(
+                `<li><b>${escapeHtml(sp.place_name || "")}</b> · ${escapeHtml(spHoursAdvice(h, fit))}`
+                + (best >= 0 ? ` <span>(${best + 1}번째 자리로 옮기면 맞아요)</span>` : "")
+                + `</li>`
+            );
+        }
+
+        const badge = document.createElement("span");
+        badge.className = `sp-hours ${cls}`;
+        badge.textContent = text;
+        badge.title = [h.text ? `운영시간: ${h.text}` : "", h.rest ? `쉬는 날: ${h.rest}` : "", h.estimated ? "관광공사 정보가 없어 보통 영업시간으로 예상했어요" : ""]
+            .filter(Boolean).join("\n");
+        const main = item.querySelector(".sp-main");
+        if (main) {
+            main.appendChild(badge);
+        }
+
+        // 펼친 칸에 원문
+        const facts = item.querySelector(".sp-facts");
+        if (facts && (h.text || h.rest || h.estimated)) {
+            const row = document.createElement("div");
+            row.className = "sp-hours-fact";
+            row.innerHTML = `<dt>운영시간</dt><dd>${escapeHtml(h.text || `보통 ${range} (예상)`)}`
+                + (h.rest ? `<br><small>쉬는 날: ${escapeHtml(h.rest)}</small>` : "") + `</dd>`;
+            facts.insertBefore(row, facts.lastElementChild);
+        }
+    });
+
+    if (!known) {
+        return;
+    }
+
+    const summary = document.createElement("div");
+    summary.className = "sp-hours-summary" + (warns.length ? " is-warn" : "");
+    summary.innerHTML = warns.length
+        ? `<span>⚠</span><div><b>운영시간이 안 맞는 곳 ${warns.length}곳</b>`
+            + `<ul>${warns.join("")}</ul></div>`
+        : `<span>✓</span><div><b>운영시간 확인 완료</b> · 정보가 있는 ${known}곳 모두 문 여는 시간에 가요</div>`;
+    container.insertBefore(summary, container.firstChild);
+}
+
+// 끄는 중: 지금 자리의 도착 시각이 운영시간 밖이면 회색 + 안내
+function spDragHoursCheck() {
+    const item = spDrag.item;
+    if (!item) {
+        return;
+    }
+    const h = spHours[item.dataset.spId];
+    const hint = item.querySelector(".sp-drag-hint");
+    const slots = spDrag.slots || [];
+    const index = Array.from(spDrag.container.querySelectorAll(".sp-item")).indexOf(item);
+    const slot = slots[index];
+
+    const fit = slot == null ? "unknown" : hoursFit(h, slot, slot + (spDrag.stay || 60));
+    const off = fit === "early" || fit === "late" || fit === "closed";
+    item.classList.toggle("sp-drag-off", off);
+
+    if (hint) {
+        const at = slot == null ? "" : formatVisitTime(timelineMinutesToTime(slot));
+        hint.textContent = !off ? ""
+            : fit === "closed" ? "이날은 휴무예요"
+            : `이 자리(${at})엔 ${fit === "early" ? "아직 안 열어요" : "문을 닫아요"} · ${h.estimated ? "보통 " : "운영 "}${hoursRangeText(h)}`;
+    }
 }
 
 
@@ -6435,6 +6700,12 @@ function startSpDrag() {
     container.classList.add("timeline-sorting");
     item.classList.add("sp-dragging");
 
+    // 운영시간 확인용: 자리마다 원래 도착 시각, 이 장소의 머무는 시간
+    spDrag.slots = spSlotTimes();
+    const dragSp = spRenderedPlaces.find(function (sp) { return String(sp.sp_id) === item.dataset.spId; });
+    spDrag.stay = spStayMinutes(dragSp);
+    spDragHoursCheck();
+
     if (navigator.vibrate) {
         try { navigator.vibrate(12); } catch (err) { /* 무시 */ }
     }
@@ -6561,6 +6832,7 @@ function reorderSpAt(pointerY) {
 
     // 끄는 줄은 화면에서 그 자리에 그대로 있게 (부드럽게 따라가는 중이라 튀지 않도록)
     spDrag.offsetY += itemTopBefore - item.offsetTop;
+    spDragHoursCheck();
 
     others.forEach(function (el) {
         const dy = before.get(el) - el.getBoundingClientRect().top;
@@ -6595,7 +6867,7 @@ function finishSpDrag() {
     const changed = spOrder(container) !== spDrag.beforeOrder;
 
     setTimeout(function () {
-        item.classList.remove("sp-dragging");
+        item.classList.remove("sp-dragging", "sp-drag-off");
         item.style.transition = "";
 
         container.querySelectorAll(".sp-item").forEach(function (el) {
@@ -8216,10 +8488,13 @@ function goToTravelDetail(travelId) {
         var days = (!f.always && f.days && f.days.length && f.days.length < total)
             ? '<span class="fest-card__days">DAY ' + f.days.join("·") + '</span>' : "";
         var always = f.always ? '<span class="fest-card__always">상시</span>' : "";
+        // 진행 시간: 읽었으면 '10:00~18:00', 못 읽었으면 원문 앞부분 (예: '프로그램별 상이')
+        var timeText = f.open ? (f.open + "~" + f.close) : (f.time || "").slice(0, 14);
+        var time = timeText ? '<span class="fest-card__time" title="' + esc(f.time || "") + '">🕒 ' + esc(timeText) + '</span>' : "";
         return '<article class="fest-card" data-fest="' + i + '" aria-label="' + esc(f.title) + ' 끌어서 일정에 넣기">'
             + '<p class="fest-card__title">' + esc(f.title) + '</p>'
             + '<span class="fest-card__period">' + esc(f.period) + '</span>'
-            + '<p class="fest-card__addr">' + esc(f.addr) + days + always + '</p>'
+            + '<p class="fest-card__addr">' + esc(f.addr) + days + always + time + '</p>'
             + '<button type="button" class="fest-card__add" data-fest-add="' + i + '">+ 일정에</button>'
             + '</article>';
     }
@@ -8475,6 +8750,31 @@ function goToTravelDetail(travelId) {
             }
         });
         requestAnimationFrame(function () { ph.classList.add("is-open"); });
+        dropHoursCheck(ph, index, items);
+    }
+
+    // 놓을 자리에 가면 몇 시쯤인지: 그 자리 장소의 도착 시각 (맨 끝이면 마지막 장소 출발 시각)
+    function dropHoursCheck(ph, index, items) {
+        var f = festivals[+drag.card.dataset.fest];
+        var places = typeof spRenderedPlaces !== "undefined" ? spRenderedPlaces : [];
+        var byId = {};
+        places.forEach(function (sp) { byId[String(sp.sp_id)] = sp; });
+        var slot = null;
+        if (index < items.length) {
+            var sp = byId[items[index].dataset.spId];
+            slot = sp ? timelineTimeToMinutes(sp.arrive_time) : null;
+        } else if (items.length) {
+            var last = byId[items[items.length - 1].dataset.spId];
+            slot = last ? timelineTimeToMinutes(last.start_time || last.arrive_time) : null;
+        }
+        var at = slot == null ? "" : formatVisitTime(timelineMinutesToTime(slot));
+        var fit = (f && f.open_min != null && slot != null)
+            ? hoursFit({ open_min: f.open_min, close_min: f.close_min, closed: false }, slot, slot) : "unknown";
+        var off = fit === "early" || fit === "late";
+        ph.classList.toggle("is-off", off);
+        ph.textContent = off
+            ? "이 시간(" + at + ")엔 행사를 안 해요 · " + f.open + "~" + f.close
+            : (at ? "여기에 놓기 · " + at + "쯤 도착" : "여기에 놓기");
     }
 
     function hideDrop() {

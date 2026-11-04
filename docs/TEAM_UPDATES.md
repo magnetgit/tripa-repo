@@ -10,6 +10,45 @@
 
 ---
 
+## 2026-11-04 · 여행 만들기 '직접 선택' 화면 삭제 (AI 대화 방식만) — 🟦 임영준
+DB·주소 변경 없음.
+
+- `travel_create.html`에서 예전 직접 입력 폼(`?mode=manual`, `#travelCreateForm`, 장소 검색 창·스크립트)을 지움. 이제 `/travel_create/`는 `?mode=manual`이어도 AI 대화 화면
+- 일정 초안 아래 '직접 선택해서 만들기' 링크도 지움 (`travel_create.html`, React `DraftPanel.jsx` → `static/chat/chat.js` 다시 빌드)
+
+### 🟧 참고
+- [ ] `views.travel_create`의 POST 처리(폼 저장 → `generate_schedule`)는 이제 화면에서 안 부름. 그대로 두었으니 지울지 정해 주세요
+
+---
+
+## 2026-11-04 · 여행 상세: 장소 운영시간 확인·추천, 축제 진행 시간, 끌 때 운영시간 밖이면 회색 — 🟦 임영준
+DB 변경 없음. 기존 키·함수 이름 변경 없음, **추가만**.
+
+- 새 파일 `services/hours_service.py`: 관광공사 `detailIntro2`의 운영시간 문장(usetime·opentimefood·playtime 등)을 여는·닫는 시각으로 바꿈
+  - 계절마다 다르면(예: `[11월~2월] 06:00~18:00`) 방문 달 칸만, 브레이크·준비 시간은 뺌, 쉬는 날은 `tour_service.closed_on` 그대로 씀
+  - 관광공사에 없는 식당·카페는 보통 영업시간(식당 11~21시, 카페 10~22시)을 `estimated: true`로 줌. 7일 캐시
+- 새 주소 `travel_hours/<travel_id>/<day>/` `travel_hours` (주인만) → `{success, day, date, places: {sp_id: {text, open, close, open_min, close_min, estimated, closed, rest}}}` (모르는 장소는 빠짐)
+- `travel_festivals` 응답의 축제마다 키 추가: `time`(원문), `open`, `close`('HH:MM' 또는 ''), `open_min`, `close_min`
+- 화면: 장소마다 '운영 09:00~18:00' 표시, 안 맞으면 주황으로 추천 시간 + "N번째 자리로 옮기면 맞아요", 맨 위 요약. 일정·축제를 끌 때 그 자리 도착 시각이 운영(행사) 시간 밖이면 회색 + 안내
+
+### 🟩 참고
+- [ ] `tour_service.find_tour_item`·`_tour_get`·`closed_on`·`REST_KEYS`를 가져다 씀 (이름 바꾸면 알려 주세요). TourAPI 호출이 장소당 처음 한 번씩 늘어남 (7일 캐시)
+- [ ] 나중에 AI 일정 짜기에서도 `hours_service.parse_hours(text, month)`로 운영시간 안에 넣을 수 있어요
+
+---
+
+## 2026-11-04 · 여행 루트 카드 표지 = 지역 대표 사진 — 🟦 임영준
+DB·주소·키 변경 없음 (pull만 하면 됨).
+
+- 새 파일 `services/region_photo_service.py`: `region_cover(t_place)` → 지역 대표 사진 주소 (못 찾으면 `''`)
+  - 주요 지역은 `LANDMARKS`(예: 수원→수원화성)의 명소 사진, 없는 지역은 그 지역 관광지 사진을 관광공사 `searchKeyword2`에서 찾음. 지역별 7일 캐시
+- `views._route_cards`의 `cover`가 이 사진을 먼저 쓰고, 없으면 예전처럼 루트 안 첫 장소 사진
+
+### 🟩 참고
+- [ ] 🟩의 `tour_service._tour_get`을 가져다 씀 (이름·인자 바꾸면 알려 주세요). 대표 명소를 바꾸거나 더 넣으려면 `LANDMARKS`에 추가
+
+---
+
 ## 2026-11-04 · 리뷰 게시판 '여행 루트' 탭: 회원 여행 루트 공유 + 별점·댓글 — 🟦 임영준
 **DB 변경 있음 (마이그레이션 0014, 새 테이블 3개만)** → 모두 pull 후 `python manage.py migrate`. 기존 표·키·함수 이름 변경 없음, **추가만**.
 

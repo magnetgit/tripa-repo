@@ -221,6 +221,12 @@ urlpatterns = [
     ),
 
     path(
+        'travel_hours/<int:travel_id>/<int:day>/',
+        views.travel_hours,
+        name='travel_hours'
+    ),
+
+    path(
         'travel_festivals/<int:travel_id>/',
         views.travel_festivals,
         name='travel_festivals'
