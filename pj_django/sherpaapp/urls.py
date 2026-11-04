@@ -244,6 +244,12 @@ urlpatterns = [
     ),
 
     path(
+        'review_keywords/',
+        views.review_keywords,
+        name='review_keywords'
+    ),
+
+    path(
         'schedule_place_time_update/',
         views.schedule_place_time_update,
         name='schedule_place_time_update'

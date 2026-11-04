@@ -10,8 +10,8 @@
 
 ---
 
-## 2026-11-04 · 비용 '카페' 분류(0012), 지출 차트, `kakao_id` 담아 보내기, 여행 기간 축제·행사 끌어 넣기 — 🟦 임영준
-**DB 변경 있음 → 모두 `python manage.py migrate`** (0012: `TravelBudget.category` 선택지에 `cafe` 추가만, 칸 변경 없음). 기존 키·함수 이름 변경 없음, **추가만**.
+## 2026-11-04 · 비용 '카페' 분류(0013), 지출 차트, `kakao_id` 담아 보내기, 여행 기간 축제·행사 끌어 넣기 — 🟦 임영준
+**DB 변경 있음 → 모두 `python manage.py migrate`** (0013: `TravelBudget.category` 선택지에 `cafe` 추가만, 칸 변경 없음). 기존 키·함수 이름 변경 없음, **추가만**.
 
 ### 1) 비용 분류 '카페' (`cafe`)
 - 비용 추가 화면 '비용 항목'에 카페. 분류 키 표 `BUDGET_CATEGORIES`에 `('카페', 'cafe', ...)`, `BUDGET_CATEGORY_CHOICES`에 `('cafe', '카페')`
@@ -31,6 +31,23 @@
 
 ### 🟩 참고
 - [ ] 추천 카드 `cost.cat`에 `cafe`를 써도 됨 (지금처럼 `food`여도 그대로 동작)
+
+---
+
+## 2026-11-04 · 리뷰 키워드 요약 (LLM) `review_keywords` + 요약 저장 테이블 `review_summary` — 🟧 이수한
+**DB 변경 있음 (마이그레이션 0012)** → 모두 pull 후 `python manage.py migrate`. 기존 응답 키 변경 없음, 새 주소만 추가
+
+- 주소: `GET /review_keywords/?kakao_id=12345`
+- 응답: `{"success": true, "kakao_id": "12345", "keywords": ["바다 전망", "사진 맛집", ...], "summary": "한 문장 요약", "count": 3}`
+  - `keywords`는 최대 5개, `summary`는 한 문장. 리뷰가 없으면 `keywords: []`, `summary: ""`, `count: 0`
+  - `kakao_id`가 없으면 400
+- AI 코드: `services/review_service.py`의 `summarize_review(kakao_id)` (최신 리뷰 30개를 `call_llm`으로 요약)
+- 새 테이블 `review_summary`: 카카오 ID당 한 줄(키워드·요약·요약할 때의 리뷰 수). **리뷰 수가 바뀔 때만 LLM을 다시 부름** → 첫 호출 2~3초, 그다음은 바로 응답
+- LLM이 실패하면 예전 요약을 돌려줌 (없으면 빈 값). 화면이 깨지지 않음
+
+### 🟦 요청 (선택)
+- [ ] 장소 정보·리뷰 화면에서 키워드 칩과 한 줄 요약 표시. 첫 호출은 몇 초 걸릴 수 있으니 로딩 표시 권장
+- 추천 카드(`mock.json`)에 키워드를 넣을지는 다음 작업(맞춤 추천 점수) 때 같이 정해요
 
 ---
 

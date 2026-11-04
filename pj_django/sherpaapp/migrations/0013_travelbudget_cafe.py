@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('sherpaapp', '0011_review_kakao_id_null'),
+        ('sherpaapp', '0012_reviewsummary'),
     ]
 
     operations = [
