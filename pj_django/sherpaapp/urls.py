@@ -225,6 +225,10 @@ urlpatterns = [
         name='schedule_place_reorder'
     ),
 
+    # ==========================================
+    # 리뷰 API (목록·평균·키워드 요약)
+    # ==========================================
+
     path(
         'review_list/',
         views.review_list,
