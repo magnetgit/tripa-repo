@@ -33,6 +33,7 @@ from .services.schedule_service import (
     get_travel_day_plans,
     resolve_effective_accommodations,
 )
+from .services.review_service import summarize_review
 from .services import chat_service
 from .services.route_service import get_kakao_route, get_travel_time
 from .models import TravelCategory
@@ -5911,7 +5912,12 @@ def review_summary(request):
         return JsonResponse(
             {'success': False, 'message': 'kakao_ids가 필요합니다.'}, status=400
         )
-    stats = Review.objects.filter(kakao_id__in=id_list).values('kakao_id').annotate(rating=Avg('rating'), count=Count('rv_id'))
+    stats = (
+        Review.objects.filter(kakao_id__in=id_list)
+        .values('kakao_id')
+        .annotate(rating=Avg('rating'),
+        count=Count('rv_id'))
+        )
     result = {}
     for s in stats:
         result[s['kakao_id']] = {'rating': round(s['rating'], 1), 'count': s['count']}
@@ -5919,3 +5925,28 @@ def review_summary(request):
         'success': True,
         'reviews': result
     })
+
+
+def review_keywords(request):
+    kakao_id = request.GET.get('kakao_id')
+    if not kakao_id:
+        return JsonResponse(
+            {'success': False, 'message': 'kakao_id가 필요합니다.'}, status=400
+        )
+    result = summarize_review(kakao_id)
+    if result is None:
+        return JsonResponse({
+            'success': True,
+            'kakao_id': kakao_id,
+            'keywords': [],
+            'summary': '',
+            'count': 0
+        })
+    else:
+        return JsonResponse({
+            'success': True,
+            'kakao_id': kakao_id,
+            'keywords': result['keywords'],
+            'summary': result['summary'],
+            'count': result['count']
+        })

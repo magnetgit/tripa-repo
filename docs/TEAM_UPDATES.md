@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-11-04 · 리뷰 키워드 요약 (LLM) `review_keywords` + 요약 저장 테이블 `review_summary` — 🟧 이수한
+**DB 변경 있음 (마이그레이션 0012)** → 모두 pull 후 `python manage.py migrate`. 기존 응답 키 변경 없음, 새 주소만 추가
+
+- 주소: `GET /review_keywords/?kakao_id=12345`
+- 응답: `{"success": true, "kakao_id": "12345", "keywords": ["바다 전망", "사진 맛집", ...], "summary": "한 문장 요약", "count": 3}`
+  - `keywords`는 최대 5개, `summary`는 한 문장. 리뷰가 없으면 `keywords: []`, `summary: ""`, `count: 0`
+  - `kakao_id`가 없으면 400
+- AI 코드: `services/review_service.py`의 `summarize_review(kakao_id)` (최신 리뷰 30개를 `call_llm`으로 요약)
+- 새 테이블 `review_summary`: 카카오 ID당 한 줄(키워드·요약·요약할 때의 리뷰 수). **리뷰 수가 바뀔 때만 LLM을 다시 부름** → 첫 호출 2~3초, 그다음은 바로 응답
+- LLM이 실패하면 예전 요약을 돌려줌 (없으면 빈 값). 화면이 깨지지 않음
+
+### 🟦 요청 (선택)
+- [ ] 장소 정보·리뷰 화면에서 키워드 칩과 한 줄 요약 표시. 첫 호출은 몇 초 걸릴 수 있으니 로딩 표시 권장
+- 추천 카드(`mock.json`)에 키워드를 넣을지는 다음 작업(맞춤 추천 점수) 때 같이 정해요
+
+---
+
 ## 2026-11-04 · `settings.py`: 서버도 정식 설정(`DEPLOY=True`)으로, DB는 어디서나 MariaDB — 🟧 이수한
 DB·응답 키 변경 없음. **팀원 할 일 없음** (로컬 `.env`는 지금 그대로 `DEPLOY=False`)
 

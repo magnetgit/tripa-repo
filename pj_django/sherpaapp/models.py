@@ -854,3 +854,45 @@ class PlacePhoto(models.Model):
 
     def __str__(self):
         return f'{self.kakao_id} ({self.source})'
+
+
+class ReviewSummary(models.Model):
+
+    rs_id = models.AutoField(
+        primary_key=True,
+        db_column='RS_ID'
+    )
+
+    kakao_id = models.CharField(
+        max_length=20,
+        unique=True,
+        db_column='KAKAO_ID'
+    )
+
+    keywords = models.JSONField(
+        default=list,
+        blank=True,
+        db_column='KEYWORDS'
+    )
+
+    summary = models.CharField(
+        max_length=100,
+        blank=True,
+        db_column='SUMMARY'
+    )
+
+    review_count = models.IntegerField(
+        db_column='REVIEW_COUNT',
+        default=0
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        db_column='UPDATED_AT'
+    )
+
+    class Meta:
+        db_table = 'review_summary'
+
+    def __str__(self):
+        return f'{self.kakao_id} - {len(self.keywords)} ({self.review_count})'
