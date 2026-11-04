@@ -144,7 +144,6 @@ const DraftPanel = forwardRef(function DraftPanel(
         <button type="button" className="tc-btn tc-btn--ghost" onClick={onEdit}>
           <Icon name="chat" sprite={sprite} /> 채팅으로 고치기
         </button>
-        <a className="tc-link tc-manual" href={manualUrl}>직접 선택해서 만들기</a>
       </footer>
     </section>
   );
