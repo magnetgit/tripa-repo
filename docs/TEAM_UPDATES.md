@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-11-03 · 리뷰 `kakao_id` 빈칸 허용(마이그레이션 0011), 같은 카카오 장소 리뷰 중복 막기 — 🟦 임영준
+**DB 변경 있음 → 모두 `python manage.py migrate`**. 응답 키·주소 변경 없음.
+
+### 왜
+- 0009에서 리뷰 유니크가 (회원, `kakao_id`)로 바뀜. 그런데 카카오 id가 없는 장소 리뷰는 `''`로 저장돼서, 한 사람이 그런 리뷰를 2개 쓰면 "같은 장소"로 걸려 저장 오류. 이미 `''` 리뷰가 2개 이상 있는 DB는 0009 migrate 자체가 실패함.
+
+### 바꾼 것
+- `models.py` `Review.kakao_id` → `null=True, blank=True` (🟧 파일, 이 한 줄만). NULL끼리는 유니크에 안 걸림
+- `migrations/0011_review_kakao_id_null.py`: 칸을 NULL 허용으로 + 기존 `''` 리뷰를 NULL로
+- `views.py` `review_write`: 카카오 id 없으면 `None` 저장. `_reviewable_places`: 이미 리뷰한 카카오 장소는 다른 여행에서 또 가도 목록에서 뺌
+
+### migrate가 0009에서 실패하면
+- 이미 `''` 리뷰가 같은 회원에게 2개 이상 있는 경우. shell에서 그 리뷰들의 `kakao_id`를 잠깐 서로 다른 값(`tmp-리뷰번호`)으로 바꾸고 migrate → 끝나면 `tmp-`로 시작하는 걸 `None`으로 돌려 주세요
+
+### 🟧 확인
+- [ ] `review_list`·`review_summary`는 `kakao_id`로만 찾아서 그대로 동작 (NULL 리뷰는 안 나옴)
+
+---
+
 ## 2026-11-03 · 일정에 담은 장소에 카카오 ID 저장 (`p_kakao_id`) — 🟧 이수한
 DB 변경 없음(칸은 이미 있었음). 받는 값 **추가만** → 🟦 보내 주면 됨, 🟩 영향 없음
 

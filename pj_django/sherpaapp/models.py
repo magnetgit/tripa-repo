@@ -554,6 +554,8 @@ class Review(models.Model):
 
     kakao_id = models.CharField(
         max_length=20,
+        null=True,
+        blank=True,
         db_column='KAKAO_ID',
         db_index=True
     )

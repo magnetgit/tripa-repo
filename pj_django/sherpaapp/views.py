@@ -575,10 +575,19 @@ def review_board(request):
 # 내가 다녀온 곳(시작한 여행의 장소) 중 아직 리뷰 안 쓴 곳
 def _reviewable_places(member):
     reviewed = Review.objects.filter(member=member, place__isnull=False).values('place_id')
+    # 같은 카카오 장소는 한 사람당 리뷰 1개 (다른 여행에서 또 간 곳도 빠짐)
+    reviewed_kakao = (
+        Review.objects.filter(member=member, kakao_id__isnull=False)
+        .exclude(kakao_id='')
+        .values_list('kakao_id', flat=True)
+    )
+    # 두 표의 글자 정렬 방식(collation)이 달라 SQL 안에서 비교하면 오류 -> 목록으로 먼저 꺼냄
+    reviewed_kakao = list(reviewed_kakao)
     return (
         Place.objects
         .filter(travel__member=member, travel__t_start__lte=date.today())
         .exclude(p_id__in=reviewed)
+        .exclude(p_kakao_id__in=reviewed_kakao)
         .select_related('travel')
         .order_by('-travel__t_start', 'travel_id', 'p_name')
     )
@@ -620,7 +629,7 @@ def review_write(request):
             Review.objects.create(
                 member=member,
                 place=place,
-                kakao_id=place.p_kakao_id or '',
+                kakao_id=place.p_kakao_id or None,
                 place_name=place.p_name,
                 rating=rating,
                 content=form['content'],
