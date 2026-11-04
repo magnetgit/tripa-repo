@@ -37,6 +37,7 @@ from .services.review_service import summarize_review
 from .services import chat_service
 from .services import festival_service
 from .services import region_photo_service
+from .services import hours_service
 
 logger = logging.getLogger(__name__)
 from .services.route_service import get_kakao_route, get_travel_time
@@ -1510,7 +1511,46 @@ def travel_festivals(request, travel_id):
         logger.exception('축제 목록 실패 travel=%s', travel_id)
         festivals = []
 
+    # 축제 진행 시간 (time 원문, open·close 'HH:MM') - 실패해도 목록은 보여준다
+    try:
+        festivals = hours_service.festival_times(festivals, travel.t_start.month if travel.t_start else None)
+    except Exception:
+        logger.exception('축제 시간 실패 travel=%s', travel_id)
+
     return JsonResponse({'success': True, 'festivals': festivals})
+
+
+# 여행 상세: 그날 일정 장소들의 운영시간 (관광공사 + 식당·카페는 보통 영업시간 예상)
+# 화면이 일정을 그린 뒤 따로 불러서, 운영시간 밖이면 알려 주고 드래그할 때 회색으로 표시
+def travel_hours(request, travel_id, day):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    schedules = list(Schedule.objects.filter(travel=travel).order_by('s_day'))
+    if day < 1 or day > len(schedules):
+        return JsonResponse({'success': False, 'message': '존재하지 않는 DAY입니다.'}, status=404)
+    schedule = schedules[day - 1]
+
+    sps = SchedulePlace.objects.filter(schedule=schedule).select_related('place')
+    try:
+        hours = hours_service.schedule_hours(sps, schedule.s_day)
+    except Exception:
+        logger.exception('운영시간 실패 travel=%s day=%s', travel_id, day)
+        hours = {}
+
+    return JsonResponse({
+        'success': True,
+        'day': day,
+        'date': schedule.s_day.isoformat(),
+        'places': {str(k): v for k, v in hours.items()},
+    })
 
 
 TRAVEL_MAX_DAYS = 30
