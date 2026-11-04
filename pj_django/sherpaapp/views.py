@@ -35,6 +35,7 @@ from .services.schedule_service import (
 )
 from .services.review_service import summarize_review
 from .services import chat_service
+from .services.photo_service import attach_photos, place_photo_url
 from .services import festival_service
 from .services import region_photo_service
 from .services import hours_service
@@ -1246,11 +1247,14 @@ def travel_detail_day(
                     f"{place.p_name} {place.p_addr or ''}"
                 ).strip()
 
-                place_image = (
-                    _search_kakao_image(image_query)
-                    or _search_kakao_image(place.p_name)
-                    or ''
-                )
+                if place.p_kakao_id:
+                    place_image = place_photo_url(place)
+                else:
+                    place_image = (
+                        _search_kakao_image(image_query)
+                        or _search_kakao_image(place.p_name)
+                        or ''
+                    )
 
                 if place_image and hasattr(place, 'p_image'):
                     place.p_image = place_image
@@ -5814,6 +5818,7 @@ def travel_chat_apply(request):
 # ==============================================
 
 PREVIEW_RATE_COUNT = 30        # 10분에 30번까지 (일정 생성은 무거운 작업이라 따로 센다)
+PREVIEW_PHOTO_NEW = 8          # 미리보기에서 사진을 새로 찾는 장소 수 (나머지는 다음 미리보기 때)
 PREVIEW_CACHE_SECONDS = 600    # 같은 초안/삭제 조건이면 10분 동안 저장해 둔 결과를 다시 쓴다
 PREVIEW_TRANSPORT_LABEL = {
     'car': '자동차',
@@ -5990,7 +5995,10 @@ def _chat_add_pins(travel, pins, with_images=False):
 
                 if with_images and not (place.p_image or ''):
                     try:
-                        image = _search_kakao_image(f'{name} {addr}'.strip()) or _search_kakao_image(name)
+                        if place.p_kakao_id:
+                            image = place_photo_url(place)
+                        else:
+                            image = _search_kakao_image(f'{name} {addr}'.strip()) or _search_kakao_image(name)
 
                         if image:
                             place.p_image = image
@@ -6180,6 +6188,7 @@ def _chat_preview_days(travel, draft):
                 'move': row.travel_time,
                 'is_stay': '숙' in kind,
                 'pin': (index + 1, place.p_name) in pin_keys,
+                'kakao_id': place.p_kakao_id or None,
             })
 
         days.append({
@@ -6272,6 +6281,10 @@ def travel_chat_preview(request):
     except Exception:
         chat_logger.exception('AI 대화 일정 미리보기 실패')
         return _chat_error('일정 미리보기를 만들지 못했어요. 잠시 후 다시 시도해 주세요.', 500)
+
+    # 장소마다 사진 1장 (mock.json 의 stops[].photo). 롤백 밖에서 해야 찾은 사진이 저장된다.
+    # 새로 찾는 건 한 번에 PREVIEW_PHOTO_NEW곳까지 (응답이 늦어지지 않게)
+    attach_photos([item for day in days for item in day['items']], max_new=PREVIEW_PHOTO_NEW)
 
     transport = (draft.get('transport') or '').strip()
 
