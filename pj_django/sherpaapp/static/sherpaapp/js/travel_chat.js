@@ -401,7 +401,7 @@
     }
     state.draft.pins = (state.draft.pins || []).concat([{
       day: day, name: item.name, addr: item.addr, kind: item.kind, lat: item.lat, lon: item.lon,
-      phone: item.phone, url: item.url, time: time || null
+      phone: item.phone, url: item.url, time: time || null, kakao_id: item.kakao_id || null
     }]);
     state.notes = [];
     save();
@@ -1310,6 +1310,7 @@
           place_lon: p.lon
         });
         if (p.time) body.set('arrive_time', p.time);
+        if (p.kakao_id) body.set('place_kakao_id', p.kakao_id);
 
         return fetch(cfg.addUrl, {
           method: 'POST',

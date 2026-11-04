@@ -6423,3 +6423,29 @@ a.review-pick:focus-visible {
     color: #2d6cdf;
     text-decoration: none;
 }
+
+/* =========================================================
+   비용 관리 · 지출 차트
+========================================================= */
+.bg-chart { margin-top: 20px; padding-bottom: 20px; }
+.bg-chart__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px 28px;
+    padding: 16px 20px 0;
+}
+.bg-chart__box { margin: 0; min-width: 0; }
+.bg-chart__box--wide { grid-column: 1 / -1; }
+.bg-chart__box figcaption { margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #1f2d4a; }
+.bg-chart__canvas { position: relative; height: 240px; }
+.bg-chart__empty { margin: 0; padding: 28px 20px 8px; text-align: center; font-size: 13px; color: #7b88a1; }
+
+@media (max-width: 900px) {
+    .bg-chart__grid { grid-template-columns: 1fr; padding: 14px 14px 0; }
+    .bg-chart__canvas { height: 220px; }
+}
+
+/* 홈 여행 루트 추천: 장소 순서 줄은 두 줄까지 */
+.review-pick__quote.review-pick__route { color: #2d5fbf; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.45; }
+.review-pick__head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-pick__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

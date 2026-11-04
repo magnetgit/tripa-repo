@@ -10,6 +10,93 @@
 
 ---
 
+## 2026-11-04 · 리뷰 게시판 '여행 루트' 탭: 회원 여행 루트 공유 + 별점·댓글 — 🟦 임영준
+**DB 변경 있음 (마이그레이션 0014, 새 테이블 3개만)** → 모두 pull 후 `python manage.py migrate`. 기존 표·키·함수 이름 변경 없음, **추가만**.
+
+- 새 테이블: `shared_route`(여행 하나당 공유 하나, 한 줄 소개) · `route_rating`(루트·회원당 별점 1개, 바꿀 수 있음) · `route_comment`(댓글)
+- 리뷰 게시판 `/review/`: 기본 탭이 **여행 루트**(공유된 여행 카드 목록, 검색·최신/별점/댓글순). 예전 장소 리뷰는 `/review/?tab=places` 그대로 → 홈 '여행 리뷰 추천'·`review_list`·`review_summary`·`review_keywords` 영향 없음
+- 새 주소(이름 = 주소 이름):
+  - `route/<sr_id>/` `route_detail` — DAY별 루트(시간·머묾·이동) + 지도 + 별점 + 댓글
+  - `route/<sr_id>/rate/` `route_rate` (POST `rating` 1~5, JSON `{success, mine, avg, count}`, 내 루트는 400)
+  - `route/<sr_id>/comment/` `route_comment` (POST `content` ≤300) · `route/comment/<rc_id>/delete/` `route_comment_delete` (내 댓글·내 루트 댓글만)
+  - `route_share/<travel_id>/` `route_share` (POST `intro`, `action=unshare`면 공유 취소, 장소가 하나도 없으면 400)
+- 여행 상세 헤더에 '게시판에 공유' 버튼(주인만). 공유해도 비용은 안 보임. 공유 취소하면 별점·댓글도 지워짐
+- 홈 오른쪽 카드가 '여행 리뷰 추천'(장소) → **'여행 루트 추천'**으로 바뀜: `index`가 `review_picks` 대신 `route_picks`(`build_route_picks()`, 별점 높고 반응 많은 순 3개)를 넘김. `build_review_picks()` 함수는 그대로 남겨 둠
+
+### 🟧 참고
+- [ ] 나중에 '내 일정으로 가져오기'(다른 회원 루트 복사)를 만들면 `_route_days()`를 그대로 쓰면 돼요
+
+---
+
+## 2026-11-04 · 비용 '카페' 분류(0013), 지출 차트, `kakao_id` 담아 보내기, 여행 기간 축제·행사 끌어 넣기 — 🟦 임영준
+**DB 변경 있음 → 모두 `python manage.py migrate`** (0013: `TravelBudget.category` 선택지에 `cafe` 추가만, 칸 변경 없음). 기존 키·함수 이름 변경 없음, **추가만**.
+
+### 1) 비용 분류 '카페' (`cafe`)
+- 비용 추가 화면 '비용 항목'에 카페. 분류 키 표 `BUDGET_CATEGORIES`에 `('카페', 'cafe', ...)`, `BUDGET_CATEGORY_CHOICES`에 `('cafe', '카페')`
+- 키워드 '카페·커피·디저트·베이커리·빵·음료'는 이제 식비가 아니라 카페로 셈 → 예전에 '카페'로 적힌 비용도 카페로 다시 묶여 보임
+
+### 2) 비용 관리 아래 '지출 차트'
+- 분류별 비율(도넛)·날짜별 지출(하루 예산 점선)·분류별 예산 대비 사용. `views._budget_chart` → 화면 `chart_data` (Chart.js 4.4.1, cdnjs)
+- 분류별 예산(`travel_budget`)이 저장되면 연한 '예산' 막대가 같이 나옴
+
+### 3) `kakao_id` 담아 보내기 (위 🟧 요청 완료)
+- 장소 검색 응답(`_search_kakao_places`)에 `kakao_id` 키 추가, 장소 추가 폼 3곳에서 `place_kakao_id` 전송
+
+### 4) 여행 상세 왼쪽 '여행 기간 축제·행사' + 끌어서 일정에 넣기
+- 새 주소 `travel_festivals/<travel_id>/` (이름 `travel_festivals`, GET, 로그인·내 여행만) → `{success, festivals: [{id, title, start, end, period, addr, lat, lon, image, tel, days, always}]}`
+- 새 파일 `services/festival_service.py`: 관광공사 `searchFestival2`로 여행 기간과 겹치고 주소에 여행 지역 이름이 있는 행사(지역 이름이 없을 때만 일정 장소 40km 안), 6시간 저장. 두 달 넘게 하는 건 `always: true`(상시). `TOUR_API_KEY` 필요(없으면 빈 목록)
+- 넣을 때는 기존 `schedule_place_add`(`place_kind='축제'`) + 원하는 자리면 `schedule_place_reorder` 그대로 사용 → 🟧 서버 함수 변경 없음
+
+### 🟩 참고
+- [ ] 추천 카드 `cost.cat`에 `cafe`를 써도 됨 (지금처럼 `food`여도 그대로 동작)
+
+---
+
+## 2026-11-04 · 리뷰 키워드 요약 (LLM) `review_keywords` + 요약 저장 테이블 `review_summary` — 🟧 이수한
+**DB 변경 있음 (마이그레이션 0012)** → 모두 pull 후 `python manage.py migrate`. 기존 응답 키 변경 없음, 새 주소만 추가
+
+- 주소: `GET /review_keywords/?kakao_id=12345`
+- 응답: `{"success": true, "kakao_id": "12345", "keywords": ["바다 전망", "사진 맛집", ...], "summary": "한 문장 요약", "count": 3}`
+  - `keywords`는 최대 5개, `summary`는 한 문장. 리뷰가 없으면 `keywords: []`, `summary: ""`, `count: 0`
+  - `kakao_id`가 없으면 400
+- AI 코드: `services/review_service.py`의 `summarize_review(kakao_id)` (최신 리뷰 30개를 `call_llm`으로 요약)
+- 새 테이블 `review_summary`: 카카오 ID당 한 줄(키워드·요약·요약할 때의 리뷰 수). **리뷰 수가 바뀔 때만 LLM을 다시 부름** → 첫 호출 2~3초, 그다음은 바로 응답
+- LLM이 실패하면 예전 요약을 돌려줌 (없으면 빈 값). 화면이 깨지지 않음
+
+### 🟦 요청 (선택)
+- [ ] 장소 정보·리뷰 화면에서 키워드 칩과 한 줄 요약 표시. 첫 호출은 몇 초 걸릴 수 있으니 로딩 표시 권장
+- 추천 카드(`mock.json`)에 키워드를 넣을지는 다음 작업(맞춤 추천 점수) 때 같이 정해요
+
+---
+
+## 2026-11-04 · `settings.py`: 서버도 정식 설정(`DEPLOY=True`)으로, DB는 어디서나 MariaDB — 🟧 이수한
+DB·응답 키 변경 없음. **팀원 할 일 없음** (로컬 `.env`는 지금 그대로 `DEPLOY=False`)
+
+- 예전 PythonAnywhere용으로 `DEPLOY=True`면 SQLite를 쓰던 블록을 지움 → 로컬·서버 모두 `.env`의 `DB_*`로 MariaDB 접속
+- 그동안 서버는 MariaDB를 쓰려고 `DEPLOY=False`로 돌고 있었음 → 이번에 `DEPLOY=True`로 바꿈 (운영에서는 `SECRET_KEY` 필수 검사가 켜짐)
+- 로컬에서 `DEPLOY=True`로 켜도 빈 SQLite로 바뀌지 않음
+
+---
+
+## 2026-11-03 · 리뷰 `kakao_id` 빈칸 허용(마이그레이션 0011), 같은 카카오 장소 리뷰 중복 막기 — 🟦 임영준
+**DB 변경 있음 → 모두 `python manage.py migrate`**. 응답 키·주소 변경 없음.
+
+### 왜
+- 0009에서 리뷰 유니크가 (회원, `kakao_id`)로 바뀜. 그런데 카카오 id가 없는 장소 리뷰는 `''`로 저장돼서, 한 사람이 그런 리뷰를 2개 쓰면 "같은 장소"로 걸려 저장 오류. 이미 `''` 리뷰가 2개 이상 있는 DB는 0009 migrate 자체가 실패함.
+
+### 바꾼 것
+- `models.py` `Review.kakao_id` → `null=True, blank=True` (🟧 파일, 이 한 줄만). NULL끼리는 유니크에 안 걸림
+- `migrations/0011_review_kakao_id_null.py`: 칸을 NULL 허용으로 + 기존 `''` 리뷰를 NULL로
+- `views.py` `review_write`: 카카오 id 없으면 `None` 저장. `_reviewable_places`: 이미 리뷰한 카카오 장소는 다른 여행에서 또 가도 목록에서 뺌
+
+### migrate가 0009에서 실패하면
+- 이미 `''` 리뷰가 같은 회원에게 2개 이상 있는 경우. shell에서 그 리뷰들의 `kakao_id`를 잠깐 서로 다른 값(`tmp-리뷰번호`)으로 바꾸고 migrate → 끝나면 `tmp-`로 시작하는 걸 `None`으로 돌려 주세요
+
+### 🟧 확인
+- [ ] `review_list`·`review_summary`는 `kakao_id`로만 찾아서 그대로 동작 (NULL 리뷰는 안 나옴)
+
+---
+
 ## 2026-11-03 · 일정 장소에도 사진 (`stops[].photo`), 자동 일정에 카카오 ID 저장 — 🟩 서지윤
 DB 변경 없음. 응답 키 **추가만** (일정 미리보기 장소에 `photo`·`kakao_id`) → 🟦 화면에서 쓰면 됨. 🟧 파일(`views.py`, `schedule_service.py`)을 조금 고쳤으니 확인 부탁
 
@@ -42,8 +129,8 @@ DB 변경 없음(칸은 이미 있었음). 받는 값 **추가만** → 🟦 보
 - 아직 보내지 않아도 오류 없음 (지금처럼 비어 있게 저장)
 
 ### 🟦 요청
-- [ ] 장소 추가 폼에 `place_kakao_id` 함께 보내기 (검색 결과 장소의 카카오 id)
-- [ ] 채팅 추천 카드를 담을 때(pin) 카드의 `kakao_id`도 같이 담기
+- [x] 장소 추가 폼에 `place_kakao_id` 함께 보내기 (검색 결과 장소의 카카오 id) (11-04 🟦 완료, 장소 검색 응답에 `kakao_id` 키 추가)
+- [x] 채팅 추천 카드를 담을 때(pin) 카드의 `kakao_id`도 같이 담기 (11-04 🟦 완료, 기존 채팅·React 둘 다)
 
 ---
 

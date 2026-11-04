@@ -12,8 +12,8 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Sum
-from django.http import HttpResponse, JsonResponse
+from django.db.models import Avg, Count, Exists, F, OuterRef, Prefetch, Q, Sum
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template import loader
@@ -33,11 +33,17 @@ from .services.schedule_service import (
     get_travel_day_plans,
     resolve_effective_accommodations,
 )
+from .services.review_service import summarize_review
 from .services import chat_service
 from .services.photo_service import attach_photos, place_photo_url
+from .services import festival_service
+
+logger = logging.getLogger(__name__)
 from .services.route_service import get_kakao_route, get_travel_time
 from .models import TravelCategory
 from .models import TravelDayPlan
+from .models import TravelBudget
+from .models import SharedRoute, RouteRating, RouteComment
 
 # ==============================================
 # 카카오 이미지 검색 공통 함수
@@ -109,6 +115,7 @@ def _search_kakao_places(query, size=5):
 
         places.append({
             'name': place_name,
+            'kakao_id': item.get('id'),
             'address': item.get('road_address_name') or item.get('address_name'),
             'category': item.get('category_name'),
             'phone': item.get('phone'),
@@ -555,6 +562,14 @@ def review_board(request):
     if not member:
         return redirect('login')
 
+    # 기본은 '여행 루트' 탭, ?tab=places 면 예전 '장소 리뷰'
+    if request.GET.get('tab') != 'places':
+        return render(request, 'sherpaapp/review.html', {
+            'member': member,
+            'message': request.session.pop('review_message', ''),
+            **_review_board_routes(request, member),
+        })
+
     reviews = _reviews_with_counts(member).order_by('-created_at', '-rv_id')
     page = Paginator(reviews, REVIEW_PAGE_SIZE).get_page(request.GET.get('page'))
 
@@ -570,16 +585,306 @@ def review_board(request):
         'best_reviews': best_reviews,
         'review_total': page.paginator.count,
         'message': request.session.pop('review_message', ''),
+        'tab': 'places',
     })
+
+
+# ==============================================
+# 여행 루트 공유 (리뷰 게시판 '여행 루트' 탭)
+# ==============================================
+
+ROUTE_PAGE_SIZE = 12
+ROUTE_INTRO_MAX = 200
+ROUTE_COMMENT_MAX = 300
+
+
+def _trip_length_text(travel):
+    if not travel.t_start or not travel.t_end:
+        return ''
+    days = (travel.t_end - travel.t_start).days + 1
+    return '당일치기' if days <= 1 else '%d박 %d일' % (days - 1, days)
+
+
+def _routes_with_stats():
+    return (
+        SharedRoute.objects
+        .select_related('travel', 'member')
+        .annotate(
+            avg_rating=Avg('ratings__rating'),
+            rating_count=Count('ratings', distinct=True),
+            comment_count=Count('comments', distinct=True),
+        )
+    )
+
+
+def _route_cards(routes):
+    """게시판 카드에 쓸 값: 기간 글자, 장소 수, 앞쪽 장소 이름 몇 개, 표지 사진"""
+    travel_ids = [r.travel_id for r in routes]
+    by_travel = {}
+    rows = (
+        SchedulePlace.objects
+        .filter(schedule__travel_id__in=travel_ids)
+        .select_related('place', 'schedule')
+        .order_by('schedule__s_day', 'visit_order', 'sp_id')
+    )
+    for sp in rows:
+        by_travel.setdefault(sp.schedule.travel_id, []).append(sp.place)
+
+    cards = []
+    for r in routes:
+        places = by_travel.get(r.travel_id, [])
+        cover = next((p.p_image for p in places if p.p_image and str(p.p_image).startswith('http')), '')
+        cards.append({
+            'route': r,
+            'travel': r.travel,
+            'length': _trip_length_text(r.travel),
+            'place_count': len(places),
+            'preview': [p.p_name for p in places[:4]],
+            'more': max(len(places) - 4, 0),
+            'cover': cover,
+            'avg': ('%.1f' % r.avg_rating) if r.avg_rating else '',
+        })
+    return cards
+
+
+def _review_board_routes(request, member):
+    sort = request.GET.get('sort') or 'new'
+    q = (request.GET.get('q') or '').strip()
+
+    routes = _routes_with_stats()
+    if q:
+        routes = routes.filter(Q(travel__t_place__icontains=q) | Q(travel__t_title__icontains=q))
+    if sort == 'best':
+        routes = routes.order_by(F('avg_rating').desc(nulls_last=True), '-rating_count', '-created_at')
+    elif sort == 'talk':
+        routes = routes.order_by('-comment_count', '-created_at')
+    else:
+        sort = 'new'
+        routes = routes.order_by('-created_at', '-sr_id')
+
+    page = Paginator(routes, ROUTE_PAGE_SIZE).get_page(request.GET.get('page'))
+    return {
+        'tab': 'routes',
+        'sort': sort,
+        'q': q,
+        'route_page': page,
+        'route_cards': _route_cards(list(page.object_list)),
+        'route_total': page.paginator.count,
+        # '내 여행 공유하기' 목록 (공유 중인지 표시)
+        'my_travels': (
+            Travel.objects.filter(member=member)
+            .annotate(is_shared=Exists(SharedRoute.objects.filter(travel=OuterRef('pk'))))
+            .order_by('-t_start', '-t_id')[:20]
+        ),
+    }
+
+
+def _route_days(travel):
+    """루트 상세: 날짜별 장소(방문·출발 시간, 머무는 시간, 이동 시간) + 그날 숙소"""
+    stays = {dp.plan_date: dp for dp in TravelDayPlan.objects.filter(travel=travel)}
+    days = []
+    schedules = Schedule.objects.filter(travel=travel).order_by('s_day')
+    for index, schedule in enumerate(schedules, start=1):
+        items = []
+        sps = (
+            SchedulePlace.objects.filter(schedule=schedule)
+            .select_related('place')
+            .order_by('visit_order', 'sp_id')
+        )
+        for sp in sps:
+            p = sp.place
+            items.append({
+                'name': p.p_name,
+                'kind': p.p_kind or '',
+                'addr': p.p_addr or '',
+                'image': p.p_image if p.p_image and str(p.p_image).startswith('http') else '',
+                'arrive': sp.arrive_time.strftime('%H:%M') if sp.arrive_time else '',
+                'leave': sp.start_time.strftime('%H:%M') if sp.start_time else '',
+                'stay': sp.stay_time_display if sp.stay_time else '',
+                'move': sp.travel_time or 0,
+                'lat': float(p.p_lat) if p.p_lat is not None else None,
+                'lon': float(p.p_lon) if p.p_lon is not None else None,
+            })
+        stay = stays.get(schedule.s_day)
+        days.append({
+            'no': index,
+            'date': schedule.s_day,
+            'weekday': '월화수목금토일'[schedule.s_day.weekday()],
+            'items': items,
+            'stay': stay.accommodation_name if stay and stay.accommodation_name else '',
+        })
+    return days
+
+
+# 홈 '여행 루트 추천' 카드: 별점 높고 반응 많은 공유 루트 몇 개
+def build_route_picks(limit=3):
+    routes = list(
+        _routes_with_stats()
+        .order_by(F('avg_rating').desc(nulls_last=True), '-rating_count', '-comment_count', '-created_at')[:limit]
+    )
+    picks = []
+    for c in _route_cards(routes):
+        r = c['route']
+        picks.append({
+            'title': c['travel'].t_title,
+            'region': c['travel'].t_place,
+            'length': c['length'],
+            'rating': c['avg'],
+            'rating_count': r.rating_count,
+            'comment_count': r.comment_count,
+            'owner': r.member.nickname,
+            'route': ' → '.join(c['preview']) + (' 외 %d곳' % c['more'] if c['more'] else ''),
+            'url': reverse('route_detail', args=[r.sr_id]),
+        })
+    return picks
+
+
+# 여행 루트 상세 (게시판 카드를 누르면): DAY별 루트 + 지도 + 별점 + 댓글
+def route_detail(request, sr_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    route = get_object_or_404(_routes_with_stats(), sr_id=sr_id)
+    travel = route.travel
+    days = _route_days(travel)
+    mine = RouteRating.objects.filter(route=route, member=member).first()
+
+    map_days = [
+        {'no': d['no'], 'points': [
+            {'name': it['name'], 'lat': it['lat'], 'lon': it['lon']}
+            for it in d['items'] if it['lat'] is not None and it['lon'] is not None
+        ]}
+        for d in days
+    ]
+
+    return render(request, 'sherpaapp/route_detail.html', {
+        'member': member,
+        'route': route,
+        'travel': travel,
+        'length': _trip_length_text(travel),
+        'days': days,
+        'place_count': sum(len(d['items']) for d in days),
+        'map_days': map_days,
+        'avg': ('%.1f' % route.avg_rating) if route.avg_rating else '',
+        'my_rating': mine.rating if mine else 0,
+        'is_owner': route.member_id == member.m_id,
+        'comments': route.comments.select_related('member').order_by('created_at'),
+        'comment_max': ROUTE_COMMENT_MAX,
+        'message': request.session.pop('route_message', ''),
+        'KAKAO_MAP_API_KEY': settings.KAKAO_MAP_API_KEY,
+    })
+
+
+# 내 여행을 게시판에 공유 / 소개 수정 / 공유 취소 (여행 상세의 '게시판에 공유' 창, JSON)
+@require_POST
+def route_share(request, travel_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '내 여행만 공유할 수 있어요.'}, status=403)
+
+    if request.POST.get('action') == 'unshare':
+        SharedRoute.objects.filter(travel=travel).delete()
+        return JsonResponse({'success': True, 'shared': False})
+
+    intro = (request.POST.get('intro') or '').strip()
+    if len(intro) > ROUTE_INTRO_MAX:
+        return JsonResponse({'success': False, 'message': '소개는 %d자까지 쓸 수 있어요.' % ROUTE_INTRO_MAX}, status=400)
+    if not SchedulePlace.objects.filter(schedule__travel=travel).exists():
+        return JsonResponse({'success': False, 'message': '일정에 장소를 하나 이상 넣어야 공유할 수 있어요.'}, status=400)
+
+    route, _ = SharedRoute.objects.update_or_create(
+        travel=travel, defaults={'member': member, 'intro': intro}
+    )
+    return JsonResponse({
+        'success': True, 'shared': True, 'sr_id': route.sr_id,
+        'url': reverse('route_detail', args=[route.sr_id]),
+    })
+
+
+# 별점 주기/바꾸기 (한 사람 1개, 내 루트에는 못 줌, JSON)
+@require_POST
+def route_rate(request, sr_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    route = SharedRoute.objects.filter(sr_id=sr_id).first()
+    if not route:
+        return JsonResponse({'success': False, 'message': '공유된 루트를 찾을 수 없습니다.'}, status=404)
+    if route.member_id == member.m_id:
+        return JsonResponse({'success': False, 'message': '내 루트에는 별점을 줄 수 없어요.'}, status=400)
+
+    try:
+        rating = int(request.POST.get('rating') or 0)
+    except ValueError:
+        rating = 0
+    if not 1 <= rating <= 5:
+        return JsonResponse({'success': False, 'message': '별점은 1~5점이에요.'}, status=400)
+
+    RouteRating.objects.update_or_create(route=route, member=member, defaults={'rating': rating})
+    stats = route.ratings.aggregate(avg=Avg('rating'), count=Count('rr_id'))
+    return JsonResponse({
+        'success': True, 'mine': rating,
+        'avg': '%.1f' % (stats['avg'] or 0), 'count': stats['count'],
+    })
+
+
+# 댓글 쓰기 (폼 POST → 상세로 돌아감)
+@require_POST
+def route_comment(request, sr_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    route = get_object_or_404(SharedRoute, sr_id=sr_id)
+    content = (request.POST.get('content') or '').strip()
+    if not content:
+        request.session['route_message'] = '댓글 내용을 적어 주세요.'
+    elif len(content) > ROUTE_COMMENT_MAX:
+        request.session['route_message'] = '댓글은 %d자까지 쓸 수 있어요.' % ROUTE_COMMENT_MAX
+    else:
+        RouteComment.objects.create(route=route, member=member, content=content)
+    return redirect(reverse('route_detail', args=[route.sr_id]) + '#comments')
+
+
+# 댓글 지우기 (내 댓글, 또는 내 루트에 달린 댓글)
+@require_POST
+def route_comment_delete(request, rc_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    comment = get_object_or_404(RouteComment.objects.select_related('route'), rc_id=rc_id)
+    if member.m_id not in (comment.member_id, comment.route.member_id):
+        return HttpResponseForbidden('권한이 없습니다.')
+    sr_id = comment.route.sr_id
+    comment.delete()
+    return redirect(reverse('route_detail', args=[sr_id]) + '#comments')
 
 
 # 내가 다녀온 곳(시작한 여행의 장소) 중 아직 리뷰 안 쓴 곳
 def _reviewable_places(member):
     reviewed = Review.objects.filter(member=member, place__isnull=False).values('place_id')
+    # 같은 카카오 장소는 한 사람당 리뷰 1개 (다른 여행에서 또 간 곳도 빠짐)
+    reviewed_kakao = (
+        Review.objects.filter(member=member, kakao_id__isnull=False)
+        .exclude(kakao_id='')
+        .values_list('kakao_id', flat=True)
+    )
+    # 두 표의 글자 정렬 방식(collation)이 달라 SQL 안에서 비교하면 오류 -> 목록으로 먼저 꺼냄
+    reviewed_kakao = list(reviewed_kakao)
     return (
         Place.objects
         .filter(travel__member=member, travel__t_start__lte=date.today())
         .exclude(p_id__in=reviewed)
+        .exclude(p_kakao_id__in=reviewed_kakao)
         .select_related('travel')
         .order_by('-travel__t_start', 'travel_id', 'p_name')
     )
@@ -621,7 +926,7 @@ def review_write(request):
             Review.objects.create(
                 member=member,
                 place=place,
-                kakao_id=place.p_kakao_id or '',
+                kakao_id=place.p_kakao_id or None,
                 place_name=place.p_name,
                 rating=rating,
                 content=form['content'],
@@ -797,6 +1102,8 @@ def travel_detail(request, travel_id):
     context = {
         'travel': travel,
         'member': member,
+        # 리뷰 게시판 '여행 루트'에 공유했는지 (공유 버튼·창)
+        'shared_route': SharedRoute.objects.filter(travel=travel).first(),
         'schedules': schedules,
         'days': days,
         'visited_places': visited_places,
@@ -1181,6 +1488,32 @@ def travel_update(
 #   잘리는 날에 장소·비용이 있으면 confirm=1 없이는 지우지 않고 무엇이 지워지는지 돌려줌
 # ==============================================
 
+# ==============================================
+# 여행 기간 축제·행사 (여행 상세 왼쪽 목록, JSON)
+# ==============================================
+
+def travel_festivals(request, travel_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    places = Place.objects.filter(travel=travel).only('p_lat', 'p_lon')
+    try:
+        festivals = festival_service.festivals_for_travel(travel, places)
+    except Exception:
+        # 축제 목록은 덤이라, 실패해도 화면은 그대로 쓰게 빈 목록
+        logger.exception('축제 목록 실패 travel=%s', travel_id)
+        festivals = []
+
+    return JsonResponse({'success': True, 'festivals': festivals})
+
+
 TRAVEL_MAX_DAYS = 30
 
 
@@ -1484,8 +1817,9 @@ def index(request):
                     recent_travel,
                 'recent_travels':
                     recent_travels,
-                'review_picks':
-                    build_review_picks(),
+                # 홈 오른쪽 카드: 장소 리뷰 대신 공유된 여행 루트 추천
+                'route_picks':
+                    build_route_picks(),
             },
             request
         )
@@ -1505,7 +1839,9 @@ BUDGET_CATEGORIES = [
     ('관광지', 'sight', '#2d6cdf', 'landmark',
      ('관광', '입장', '체험', '티켓', '문화', '역사', '공원', '박물관', '미술관')),
     ('식비', 'food', '#f0a03c', 'utensils',
-     ('음식', '식당', '카페', '맛집', '점심', '저녁', '아침', '커피', '간식')),
+     ('음식', '식당', '맛집', '점심', '저녁', '아침', '간식')),
+    ('카페', 'cafe', '#a9744f', 'cup',
+     ('카페', '커피', '디저트', '베이커리', '빵', '음료')),
     ('교통', 'move', '#7a8cf0', 'bus',
      ('이동', '버스', '택시', '지하철', '기차', 'KTX', '렌트', '주유', '주차', '항공', '톨게이트')),
     ('숙박', 'stay', '#2fb59b', 'bed',
@@ -1516,7 +1852,7 @@ BUDGET_CATEGORIES = [
 ]
 
 # 키워드로 찾을 때의 우선순위 (넓게 걸리는 '관광지'는 마지막)
-_BUDGET_KEYWORD_ORDER = ('stay', 'move', 'food', 'shop', 'sight')
+_BUDGET_KEYWORD_ORDER = ('stay', 'move', 'cafe', 'food', 'shop', 'sight')
 
 
 def _budget_category(pay):
@@ -1607,6 +1943,51 @@ def _budget_overview(travel, pays, total_budget, used_money):
         'total_marker': _pct(total_budget, whole) if is_over else None,
         'top_category': categories[0] if categories else None,
         'pay_count': len(ordered),
+    }
+
+
+def _budget_chart(travel, pays, total_budget):
+    """비용 관리 아래 '지출 차트'에 쓸 숫자 묶음 (화면에서 json_script로 읽음)."""
+    by_key = {}
+    for cat in BUDGET_CATEGORIES:
+        by_key[cat[1]] = {'name': cat[0], 'key': cat[1], 'color': cat[2], 'used': 0, 'budget': 0}
+
+    # 분류별 예산 (travel_budget 표, 아직 없으면 0)
+    for row in TravelBudget.objects.filter(travel=travel):
+        if row.category in by_key:
+            by_key[row.category]['budget'] = row.amount or 0
+
+    # 날짜 칸: 여행 첫날~마지막 날 (지출이 없는 날도 0으로)
+    days = []
+    if travel.t_start and travel.t_end and travel.t_end >= travel.t_start:
+        count = min((travel.t_end - travel.t_start).days + 1, 60)
+        days = [travel.t_start + timedelta(days=i) for i in range(count)]
+    day_used = {d: 0 for d in days}
+
+    for pay in pays:
+        amount = pay.pay_pay or 0
+        by_key[_budget_category(pay)[1]]['used'] += amount
+        day = pay.schedule.s_day if pay.schedule_id and pay.schedule else None
+        if day is not None:
+            day_used[day] = day_used.get(day, 0) + amount
+
+    ordered_days = sorted(day_used)
+    start = travel.t_start or (ordered_days[0] if ordered_days else None)
+    daily = []
+    for d in ordered_days:
+        no = (d - start).days + 1 if start else None
+        label = '%s일차 %d/%d' % (no, d.month, d.day) if no and no > 0 else '%d/%d' % (d.month, d.day)
+        daily.append({'label': label, 'amount': day_used[d]})
+
+    cats = [c for c in by_key.values() if c['used'] > 0 or c['budget'] > 0]
+    cats.sort(key=lambda c: (-c['used'], -c['budget']))
+
+    return {
+        'categories': cats,
+        'daily': daily,
+        # 하루 예산 = 총 예산 ÷ 여행 일수 (점선)
+        'daily_budget': round(total_budget / len(days)) if total_budget > 0 and days else 0,
+        'has_cat_budget': any(c['budget'] > 0 for c in cats),
     }
 
 
@@ -1822,7 +2203,15 @@ def budget(
                 pays,
                 total_budget,
                 used_money
-            )
+            ),
+
+            # 아래쪽 지출 차트
+            'chart_data':
+                _budget_chart(
+                    travel,
+                    pays,
+                    total_budget
+                )
         }
     )
 
@@ -3437,7 +3826,7 @@ def schedule_place_add(request):
     place_lat = request.POST.get('place_lat') or None
     place_lon = request.POST.get('place_lon') or None
     place_image = request.POST.get('place_image') or None
-    place_kakao_id = request.POST.get('place_kakao_id') or None
+    place_kakao_id = request.POST.get('place_kakao_id') or None  # 리뷰·사진을 붙이는 열쇠, 화면이 안 보내면 None
 
     # schedule_id가 있으면 기존 일정을 사용한다.
     if schedule_id:
@@ -5541,7 +5930,7 @@ def _chat_add_pins(travel, pins, with_images=False):
 
                 addr = (pin.get('addr') or '').strip()
                 kind = (pin.get('kind') or '').strip()
-                kakao_id = str(pin.get('kakao_id') or '').strip() or None
+                kakao_id = str(pin.get('kakao_id') or '').strip() or None  # 리뷰·사진을 붙이는 열쇠, 화면이 안 보내면 None
 
                 schedule = (
                     Schedule.objects.filter(travel=travel, s_day=day_date).order_by('s_id').first()
@@ -5866,7 +6255,11 @@ def travel_chat_preview(request):
     return JsonResponse(result)
 
 
+# ==========================================
+# 장소별 리뷰 목록
+# ==========================================
 def review_list(request):
+    """kakao_id 장소의 리뷰를 최신순·도움돼요 순으로 돌려준다. 평균 별점·개수, 내 리뷰·내가 누른 도움돼요 표시 포함"""
     kakao_id = request.GET.get('kakao_id')
     sort = request.GET.get('sort')
     if not kakao_id:
@@ -5907,7 +6300,13 @@ def review_list(request):
         'reviews': result
     })
 
+
+# ==========================================
+# 여러 장소 리뷰 평균
+# ==========================================
+
 def review_summary(request):
+    """kakao_ids(쉼표, 최대 50개) 장소들의 평균 별점·리뷰 수를 한 번에 돌려준다. 리뷰 없는 장소는 빠진다"""
     kakao_ids = request.GET.get('kakao_ids', '')
     id_list = [k.strip() for k in kakao_ids.split(',') if k.strip()][:50]
     
@@ -5915,7 +6314,12 @@ def review_summary(request):
         return JsonResponse(
             {'success': False, 'message': 'kakao_ids가 필요합니다.'}, status=400
         )
-    stats = Review.objects.filter(kakao_id__in=id_list).values('kakao_id').annotate(rating=Avg('rating'), count=Count('rv_id'))
+    stats = (
+        Review.objects.filter(kakao_id__in=id_list)
+        .values('kakao_id')
+        .annotate(rating=Avg('rating'),
+        count=Count('rv_id'))
+        )
     result = {}
     for s in stats:
         result[s['kakao_id']] = {'rating': round(s['rating'], 1), 'count': s['count']}
@@ -5923,3 +6327,33 @@ def review_summary(request):
         'success': True,
         'reviews': result
     })
+
+
+# ==========================================
+# 리뷰 키워드 요약(AI)
+# ==========================================
+
+def review_keywords(request):
+    """kakao_id 장소 리뷰의 키워드(최대 5개)와 한 줄 요약을 돌려준다. 실제 요약은 review_service.summarize_review"""
+    kakao_id = request.GET.get('kakao_id')
+    if not kakao_id:
+        return JsonResponse(
+            {'success': False, 'message': 'kakao_id가 필요합니다.'}, status=400
+        )
+    result = summarize_review(kakao_id)
+    if result is None:
+        return JsonResponse({
+            'success': True,
+            'kakao_id': kakao_id,
+            'keywords': [],
+            'summary': '',
+            'count': 0
+        })
+    else:
+        return JsonResponse({
+            'success': True,
+            'kakao_id': kakao_id,
+            'keywords': result['keywords'],
+            'summary': result['summary'],
+            'count': result['count']
+        })

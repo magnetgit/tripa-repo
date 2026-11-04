@@ -267,6 +267,7 @@ class Travel(models.Model):
 BUDGET_CATEGORY_CHOICES = [
     ('sight', '관광지'),
     ('food', '식비'),
+    ('cafe', '카페'),
     ('move', '교통'),
     ('stay', '숙박'),
     ('shop', '쇼핑'),
@@ -554,6 +555,8 @@ class Review(models.Model):
 
     kakao_id = models.CharField(
         max_length=20,
+        null=True,
+        blank=True,
         db_column='KAKAO_ID',
         db_index=True
     )
@@ -852,3 +855,172 @@ class PlacePhoto(models.Model):
 
     def __str__(self):
         return f'{self.kakao_id} ({self.source})'
+
+
+# 장소별 리뷰 AI 요약 저장 (카카오 ID당 한 줄). review_count가 바뀌면 다시 요약
+class ReviewSummary(models.Model):
+
+    rs_id = models.AutoField(
+        primary_key=True,
+        db_column='RS_ID'
+    )
+
+    kakao_id = models.CharField(
+        max_length=20,
+        unique=True,
+        db_column='KAKAO_ID'
+    )
+
+    keywords = models.JSONField(
+        default=list,
+        blank=True,
+        db_column='KEYWORDS'
+    )
+
+    summary = models.CharField(
+        max_length=100,
+        blank=True,
+        db_column='SUMMARY'
+    )
+
+    review_count = models.IntegerField(
+        db_column='REVIEW_COUNT',
+        default=0
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        db_column='UPDATED_AT'
+    )
+
+    class Meta:
+        db_table = 'review_summary'
+
+    def __str__(self):
+        return f'{self.kakao_id} - {len(self.keywords)} ({self.review_count})'
+
+
+# ==============================================
+# 여행 루트 공유 (리뷰 게시판 '여행 루트' 탭)
+# - 주인이 '게시판에 공유'를 누른 여행만 남에게 보임
+# - 다른 회원은 별점(한 사람 1개, 바꿀 수 있음)과 댓글을 남김
+# ==============================================
+
+class SharedRoute(models.Model):
+
+    sr_id = models.AutoField(
+        primary_key=True,
+        db_column='SR_ID'
+    )
+
+    # 여행 하나당 공유 하나 (여행을 지우면 같이 지워짐)
+    travel = models.OneToOneField(
+        Travel,
+        on_delete=models.CASCADE,
+        db_column='T_ID',
+        related_name='shared_route'
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        db_column='M_ID',
+        related_name='shared_routes'
+    )
+
+    # 한 줄 소개 (선택)
+    intro = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        db_column='INTRO'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_column='CREATED_AT'
+    )
+
+    class Meta:
+        db_table = 'shared_route'
+
+    def __str__(self):
+        return f'{self.travel.t_title} ({self.member.nickname})'
+
+
+class RouteRating(models.Model):
+
+    rr_id = models.AutoField(
+        primary_key=True,
+        db_column='RR_ID'
+    )
+
+    route = models.ForeignKey(
+        SharedRoute,
+        on_delete=models.CASCADE,
+        db_column='SR_ID',
+        related_name='ratings'
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        db_column='M_ID',
+        related_name='route_ratings'
+    )
+
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        db_column='RATING'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now=True,
+        db_column='CREATED_AT'
+    )
+
+    class Meta:
+        db_table = 'route_rating'
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['route', 'member'],
+                name='unique_route_rating_member'
+            )
+        ]
+
+
+class RouteComment(models.Model):
+
+    rc_id = models.AutoField(
+        primary_key=True,
+        db_column='RC_ID'
+    )
+
+    route = models.ForeignKey(
+        SharedRoute,
+        on_delete=models.CASCADE,
+        db_column='SR_ID',
+        related_name='comments'
+    )
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        db_column='M_ID',
+        related_name='route_comments'
+    )
+
+    content = models.CharField(
+        max_length=300,
+        db_column='CONTENT'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_column='CREATED_AT'
+    )
+
+    class Meta:
+        db_table = 'route_comment'
+        ordering = ['created_at']

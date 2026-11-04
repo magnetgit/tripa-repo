@@ -191,6 +191,42 @@ urlpatterns = [
     ),
 
     path(
+        'route/<int:sr_id>/',
+        views.route_detail,
+        name='route_detail'
+    ),
+
+    path(
+        'route/<int:sr_id>/rate/',
+        views.route_rate,
+        name='route_rate'
+    ),
+
+    path(
+        'route/<int:sr_id>/comment/',
+        views.route_comment,
+        name='route_comment'
+    ),
+
+    path(
+        'route/comment/<int:rc_id>/delete/',
+        views.route_comment_delete,
+        name='route_comment_delete'
+    ),
+
+    path(
+        'route_share/<int:travel_id>/',
+        views.route_share,
+        name='route_share'
+    ),
+
+    path(
+        'travel_festivals/<int:travel_id>/',
+        views.travel_festivals,
+        name='travel_festivals'
+    ),
+
+    path(
         'travel_delete/<int:travel_id>/',
         views.travel_delete,
         name='travel_delete'
@@ -225,6 +261,10 @@ urlpatterns = [
         name='schedule_place_reorder'
     ),
 
+    # ==========================================
+    # 리뷰 API (목록·평균·키워드 요약)
+    # ==========================================
+
     path(
         'review_list/',
         views.review_list,
@@ -235,6 +275,12 @@ urlpatterns = [
         'review_summary/',
         views.review_summary,
         name='review_summary'
+    ),
+
+    path(
+        'review_keywords/',
+        views.review_keywords,
+        name='review_keywords'
     ),
 
     path(

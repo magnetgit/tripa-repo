@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIPA - {{ travel.t_title }} 여행 루트</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261065">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=5">
+</head>
+<body>
+<div class="detail-container">
+
+    <aside class="sidebar">
+        <div class="logo">
+            <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>
+        </div>
+
+        <div class="menu-title">MENU</div>
+
+        <ul class="menu">
+            <li><a href="{% url 'travel_list' %}">{% include "_icon.html" with name="suitcase" %} 내 여행</a></li>
+            <li><a href="{% url 'travel_create' %}">{% include "_icon.html" with name="plus" %} 여행 만들기</a></li>
+            <li><a href="{% url 'schedule_manage' %}">{% include "_icon.html" with name="calendar" %} 일정 관리</a></li>
+            <li><a href="{% url 'budget' %}">{% include "_icon.html" with name="wallet" %} 비용 관리</a></li>
+            <li><a href="{% url 'review_board' %}" class="active">{% include "_icon.html" with name="chat" %} 리뷰 게시판</a></li>
+        </ul>
+
+        {% if member %}
+            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} {{ member.nickname }}</a>
+        {% else %}
+            <a href="{% url 'login' %}" class="user-profile">{% include "_icon.html" with name="user" %} 로그인</a>
+        {% endif %}
+    </aside>
+
+    <main class="detail-content rv-page trip-sky">
+        <a href="{% url 'review_board' %}" class="rd-back">‹ 여행 루트 목록</a>
+
+        <!-- 제목 · 기간 · 만든 사람 · 별점 -->
+        <header class="rd-head">
+            <div>
+                <h1>{{ travel.t_title }}</h1>
+                <div class="rd-meta">
+                    <span>{% include "_icon.html" with name="pin" %} {{ travel.t_place }}</span>
+                    <span>{% include "_icon.html" with name="calendar" %} {{ travel.t_start|date:"Y.m.d" }} ~ {{ travel.t_end|date:"m.d" }}{% if length %} · {{ length }}{% endif %}</span>
+                    <span>{% include "_icon.html" with name="route" %} 장소 {{ place_count }}곳</span>
+                    {% if travel.t_way %}<span>{% include "_icon.html" with name="car" %} {{ travel.t_way }}</span>{% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="rd-owner">
+                    <img src="{% static 'sherpaapp/avatars/'|add:route.member.avatar_key|add:'.svg' %}" alt="" width="40" height="40">
+                    <div>
+                        <strong>{{ route.member.nickname }}</strong>
+                        <small>{{ route.created_at|date:"Y.m.d" }} 공유</small>
+                    </div>
+                </div>
+                <div class="rd-score" aria-live="polite">
+                    <b id="rdAvg">★ {% if avg %}{{ avg }}{% else %}-{% endif %}</b>
+                    <span id="rdCount">별점 {{ route.rating_count }}개</span> · <span>댓글 {{ route.comment_count }}개</span>
+                </div>
+            </div>
+            {% if route.intro %}<p class="rd-intro">{{ route.intro }}</p>{% endif %}
+        </header>
+
+        {% if message %}<p class="rv-flash" role="status">{{ message }}</p>{% endif %}
+
+        <div class="rd-layout">
+
+            <!-- 왼쪽: DAY별 루트 (일정 관리처럼) -->
+            <section class="rd-card" aria-labelledby="rdRouteTitle">
+                <header class="rd-card__head">
+                    <h2 id="rdRouteTitle">{% include "_icon.html" with name="calendar" %} 여행 루트</h2>
+                </header>
+
+                <div class="rd-days" role="tablist" aria-label="날짜">
+                    {% for d in days %}
+                    <button type="button" class="rd-day{% if forloop.first %} is-on{% endif %}" role="tab"
+                            id="rdTab{{ d.no }}" aria-controls="rdDay{{ d.no }}"
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}" data-day="{{ d.no }}">
+                        <strong>DAY {{ d.no }}</strong>
+                        <span>{{ d.date|date:"m.d" }} ({{ d.weekday }})</span>
+                    </button>
+                    {% endfor %}
+                </div>
+
+                {% for d in days %}
+                <div class="rd-day-panel" id="rdDay{{ d.no }}" role="tabpanel" aria-labelledby="rdTab{{ d.no }}"{% if not forloop.first %} hidden{% endif %}>
+                    <ol class="rd-timeline">
+                        {% for it in d.items %}
+                        {% if not forloop.first and it.move %}
+                        <li class="rd-move" aria-label="이동">{% include "_icon.html" with name="route" %} 이동 {{ it.move }}분</li>
+                        {% endif %}
+                        <li class="rd-stop">
+                            <span class="rd-stop__time">{{ it.arrive|default:"-" }}</span>
+                            <div class="rd-stop__card">
+                                <span class="rd-stop__num">{{ forloop.counter }}</span>
+                                <div>
+                                    <p class="rd-stop__name">{{ it.name }}{% if it.kind %}<span class="rd-stop__kind">{{ it.kind }}</span>{% endif %}</p>
+                                    <p class="rd-stop__sub">
+                                        {% if it.stay %}머묾 {{ it.stay }}{% endif %}{% if it.stay and it.leave %} · {% endif %}{% if it.leave %}{{ it.leave }} 출발{% endif %}
+                                    </p>
+                                    {% if it.addr %}<p class="rd-stop__sub">{{ it.addr }}</p>{% endif %}
+                                </div>
+                                {% if it.image %}<img class="rd-stop__img" src="{{ it.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="rd-empty-day">이날은 아직 넣은 장소가 없어요.</li>
+                        {% endfor %}
+                        {% if d.stay %}
+                        <li class="rd-stay">{% include "_icon.html" with name="bed" %} 숙소 · {{ d.stay }}</li>
+                        {% endif %}
+                    </ol>
+                </div>
+                {% endfor %}
+            </section>
+
+            <!-- 오른쪽: 지도 · 별점 · 댓글 -->
+            <div class="rd-side">
+
+                <section class="rd-card" aria-labelledby="rdMapTitle">
+                    <header class="rd-card__head">
+                        <h2 id="rdMapTitle">{% include "_icon.html" with name="map" %} 지도 <small id="rdMapDay" class="bg-meta">DAY 1</small></h2>
+                    </header>
+                    <div class="rd-map" id="rdMap"><div class="rd-map__none">지도를 불러오는 중...</div></div>
+                </section>
+
+                <section class="rd-card" aria-labelledby="rdRateTitle">
+                    <header class="rd-card__head">
+                        <h2 id="rdRateTitle">{% include "_icon.html" with name="check" %} 별점</h2>
+                    </header>
+                    <div class="rd-rate">
+                        {% if is_owner %}
+                        <p>내가 공유한 루트예요. 다른 회원이 준 별점이 위에 모여요.</p>
+                        {% else %}
+                        <p>이 루트, 몇 점 주고 싶어요? (다시 누르면 바꿀 수 있어요)</p>
+                        <div class="rd-stars" role="radiogroup" aria-label="별점 주기" data-url="{% url 'route_rate' route.sr_id %}">
+                            {% for i in "54321" %}
+                            <button type="button" role="radio" data-rate="{{ i }}" aria-label="{{ i }}점"
+                                    aria-checked="{% if my_rating|stringformat:'s' == i %}true{% else %}false{% endif %}"
+                                    class="{% if my_rating|stringformat:'s' == i %}is-on{% endif %}">★</button>
+                            {% endfor %}
+                        </div>
+                        <p class="rd-rate__msg" id="rdRateMsg" aria-live="polite">{% if my_rating %}내 별점 {{ my_rating }}점{% endif %}</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="rd-card" id="comments" aria-labelledby="rdCommentTitle">
+                    <header class="rd-card__head">
+                        <h2 id="rdCommentTitle">{% include "_icon.html" with name="chat" %} 댓글 <small class="bg-meta">{{ route.comment_count }}개</small></h2>
+                    </header>
+                    <div class="rd-comments">
+                        {% for c in comments %}
+                        <article class="rd-comment">
+                            <img src="{% static 'sherpaapp/avatars/'|add:c.member.avatar_key|add:'.svg' %}" alt="" width="34" height="34">
+                            <div>
+                                <div class="rd-comment__head">
+                                    <strong>{{ c.member.nickname }}</strong>
+                                    {% if c.member_id == route.member_id %}<span class="is-owner">작성자</span>{% endif %}
+                                    <time datetime="{{ c.created_at|date:'c' }}">{{ c.created_at|date:"Y.m.d H:i" }}</time>
+                                    {% if c.member_id == member.m_id or is_owner %}
+                                    <form method="post" action="{% url 'route_comment_delete' c.rc_id %}" onsubmit="return confirm('댓글을 지울까요?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="rd-comment__del">삭제</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                                <p>{{ c.content }}</p>
+                            </div>
+                        </article>
+                        {% empty %}
+                        <p class="rd-comment-empty">첫 댓글을 남겨 보세요. 가 본 곳 팁이나 궁금한 점도 좋아요.</p>
+                        {% endfor %}
+
+                        <form class="rd-comment-form" method="post" action="{% url 'route_comment' route.sr_id %}">
+                            {% csrf_token %}
+                            <label class="sr-only" for="rdCommentText">댓글</label>
+                            <textarea id="rdCommentText" name="content" maxlength="{{ comment_max }}" required
+                                      placeholder="예: 둘째 날 동선 좋네요! 시장은 저녁에 가면 더 좋아요."></textarea>
+                            <div class="rd-comment-form__row">
+                                <span id="rdCommentCount">0/{{ comment_max }}</span>
+                                <button type="submit" class="btn btn-primary">댓글 남기기</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+</div>
+
+{{ map_days|json_script:"rdMapData" }}
+{% csrf_token %}
+
+<script>
+(function () {
+    var mapDays = JSON.parse(document.getElementById("rdMapData").textContent);
+    var token = document.querySelector("[name=csrfmiddlewaretoken]").value;
+    var map = null, overlays = [];
+
+    // ---------- DAY 탭 ----------
+    function showDay(no) {
+        document.querySelectorAll(".rd-day").forEach(function (b) {
+            var on = b.dataset.day === String(no);
+            b.classList.toggle("is-on", on);
+            b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        document.querySelectorAll(".rd-day-panel").forEach(function (p) {
+            p.hidden = p.id !== "rdDay" + no;
+        });
+        document.getElementById("rdMapDay").textContent = "DAY " + no;
+        drawDay(no);
+    }
+    document.querySelectorAll(".rd-day").forEach(function (b) {
+        b.addEventListener("click", function () { showDay(+b.dataset.day); });
+    });
+
+    // ---------- 지도: 그날 장소에 번호 + 순서대로 선 ----------
+    function drawDay(no) {
+        if (!map) return;
+        overlays.forEach(function (o) { o.setMap(null); });
+        overlays = [];
+        var day = mapDays.filter(function (d) { return d.no === no; })[0];
+        var pts = day ? day.points : [];
+        var box = document.getElementById("rdMap");
+        var none = box.querySelector(".rd-map__none");
+        if (!pts.length) {
+            if (!none) { none = document.createElement("div"); none.className = "rd-map__none"; box.appendChild(none); }
+            none.textContent = "이날은 지도에 표시할 장소가 없어요.";
+            none.style.cssText = "position:absolute;inset:0;z-index:2;background:rgba(232,238,248,.85)";
+            return;
+        }
+        if (none) none.remove();
+        var bounds = new kakao.maps.LatLngBounds();
+        var path = [];
+        pts.forEach(function (p, i) {
+            var pos = new kakao.maps.LatLng(p.lat, p.lon);
+            path.push(pos); bounds.extend(pos);
+            var el = document.createElement("div");
+            el.style.cssText = "display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#2d6cdf;color:#fff;font:800 12px/1 sans-serif;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25)";
+            el.textContent = i + 1;
+            el.title = p.name;
+            overlays.push(new kakao.maps.CustomOverlay({ map: map, position: pos, content: el, yAnchor: 0.5 }));
+        });
+        if (path.length > 1) {
+            overlays.push(new kakao.maps.Polyline({ map: map, path: path, strokeWeight: 4, strokeColor: "#2d6cdf", strokeOpacity: 0.75, strokeStyle: "solid" }));
+        }
+        map.relayout();
+        if (path.length === 1) { map.setCenter(path[0]); map.setLevel(5); } else { map.setBounds(bounds, 40, 40, 40, 40); }
+    }
+
+    function initMap() {
+        var box = document.getElementById("rdMap");
+        if (!window.kakao || !kakao.maps) { box.innerHTML = '<div class="rd-map__none">지도를 불러오지 못했어요.</div>'; return; }
+        kakao.maps.load(function () {
+            box.style.position = "relative";
+            map = new kakao.maps.Map(box, { center: new kakao.maps.LatLng(36.5, 127.8), level: 12 });
+            drawDay(1);
+        });
+    }
+    window.rdInitMap = initMap;
+
+    // ---------- 별점 ----------
+    var stars = document.querySelector(".rd-stars");
+    if (stars) {
+        stars.addEventListener("click", function (e) {
+            var btn = e.target.closest("[data-rate]");
+            if (!btn) return;
+            var body = new URLSearchParams(); body.append("rating", btn.dataset.rate);
+            fetch(stars.dataset.url, {
+                method: "POST", credentials: "same-origin",
+                headers: { "X-CSRFToken": token, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+                body: body.toString()
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var msg = document.getElementById("rdRateMsg");
+                    if (!data.success) { msg.textContent = data.message || "별점을 저장하지 못했어요."; return; }
+                    stars.querySelectorAll("[data-rate]").forEach(function (b) {
+                        var on = b.dataset.rate === String(data.mine);
+                        b.classList.toggle("is-on", on);
+                        b.setAttribute("aria-checked", on ? "true" : "false");
+                    });
+                    msg.textContent = "내 별점 " + data.mine + "점 저장됐어요";
+                    document.getElementById("rdAvg").textContent = "★ " + data.avg;
+                    document.getElementById("rdCount").textContent = "별점 " + data.count + "개";
+                })
+                .catch(function () { document.getElementById("rdRateMsg").textContent = "별점을 저장하지 못했어요."; });
+        });
+    }
+
+    // ---------- 댓글 글자 수 ----------
+    var text = document.getElementById("rdCommentText");
+    if (text) {
+        text.addEventListener("input", function () {
+            document.getElementById("rdCommentCount").textContent = text.value.length + "/" + text.maxLength;
+        });
+    }
+})();
+</script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false" onload="rdInitMap()" onerror="rdInitMap()"></script>
+</body>
+</html>
