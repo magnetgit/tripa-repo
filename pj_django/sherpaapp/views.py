@@ -28,7 +28,9 @@ from .models import Pay
 from .models import Category
 from .models import SchedulePlace
 from .services.schedule_service import (
+    build_accommodation_candidate,
     generate_schedule,
+    get_or_create_place,
     get_day_start_time,
     get_travel_day_plans,
     resolve_effective_accommodations,
@@ -5879,6 +5881,21 @@ def _chat_create_travel(member, draft):
                 arrival_time=stay.get('arrival_time') or None,
                 departure_time=stay.get('departure_time') or None,
             )
+
+            # 숙소 장소를 kakao_id와 함께 먼저 만들어 둔다.
+            # TravelDayPlan에는 kakao_id 칸이 없지만, 일정 생성은 같은 이름의 Place를 다시 쓰므로
+            # 숙소에도 사진·리뷰 별점이 붙는다.
+            if stay.get('kakao_id'):
+                candidate = build_accommodation_candidate(
+                    stay.get('name') or stay.get('query'),
+                    stay.get('addr'),
+                    stay.get('lat'),
+                    stay.get('lon'),
+                )
+
+                if candidate:
+                    candidate['kakao_id'] = stay['kakao_id']
+                    get_or_create_place(travel, candidate)
 
     return travel
 
