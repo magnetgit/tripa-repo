@@ -539,7 +539,14 @@ def _clean_pin(item):
         'phone': _clean_text(item.get('phone'), 30),
         'url': _clean_url(item.get('url')),
         'time': _clean_time(item.get('time')),
+        # 카드의 카카오 장소 ID (일정에 저장 → 사진·리뷰 별점). 숫자만 받는다
+        'kakao_id': _clean_kakao_id(item.get('kakao_id')),
     }
+
+
+def _clean_kakao_id(value):
+    value = str(value or '').strip()
+    return value if value.isdigit() and len(value) <= 20 else None
 
 
 def _clean_recommend(raw, draft):
