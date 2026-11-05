@@ -213,6 +213,8 @@ def kakao_first_place(query, near=None):
         ),
         'lat': coord[0],
         'lon': coord[1],
+        # 사진·리뷰를 붙이는 열쇠 (숙소가 일정에 들어갈 때 Place.p_kakao_id로 저장됨)
+        'kakao_id': _clean_kakao_id(item.get('id')),
     }
 
 
@@ -228,7 +230,7 @@ def _find_start_place(query, region):
 
 def _resolved_or_empty(query, found):
     """검색 결과(또는 못 찾음)를 초안에 넣는 모양으로 만든다."""
-    base = {'query': query, 'name': None, 'addr': None, 'lat': None, 'lon': None}
+    base = {'query': query, 'name': None, 'addr': None, 'lat': None, 'lon': None, 'kakao_id': None}
 
     if found:
         base.update(found)
@@ -246,6 +248,7 @@ def _from_client_place(query, data):
         'addr': _clean_text(data.get('addr'), 255),
         'lat': coord[0] if coord else None,
         'lon': coord[1] if coord else None,
+        'kakao_id': _clean_kakao_id(data.get('kakao_id')),
     } if coord else None)
 
 
