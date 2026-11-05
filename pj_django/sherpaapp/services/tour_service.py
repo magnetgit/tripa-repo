@@ -207,4 +207,36 @@ def drop_closed(items, day):
         else:
             kept.append(item)
 
+    # 이름은 다르지만 쉬는 곳과 같은 곳이면 같이 뺀다
+    # ('부산박물관 동래관'은 카카오 이름일 뿐, 주소가 부산박물관과 같음 → 관광공사에서 못 찾음)
+    for item in list(kept):
+        same = next((c for c in closed if _same_place(item, c)), None)
+
+        if same:
+            item['open'] = dict(same['open'])
+            kept.remove(item)
+            closed.append(item)
+
     return kept, closed
+
+
+def _squash_name(text):
+    return re.sub(r'[\s()\[\]·.,-]+', '', str(text or '')).lower()
+
+
+def _same_place(a, b):
+    """주소가 같고 이름 앞부분(3글자 이상)이 같으면 같은 곳으로 본다."""
+    addr_a, addr_b = _squash_name(a.get('addr')), _squash_name(b.get('addr'))
+
+    if not addr_a or addr_a != addr_b:
+        return False
+
+    name_a, name_b = _squash_name(a.get('name')), _squash_name(b.get('name'))
+    common = 0
+
+    for x, y in zip(name_a, name_b):
+        if x != y:
+            break
+        common += 1
+
+    return common >= 3
