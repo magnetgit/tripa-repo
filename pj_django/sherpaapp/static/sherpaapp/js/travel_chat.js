@@ -16,6 +16,7 @@
     applyUrl: app.dataset.applyUrl,
     addUrl: app.dataset.addUrl,
     previewUrl: app.dataset.previewUrl,
+    estimateUrl: app.dataset.estimateUrl || '',
     loginUrl: app.dataset.loginUrl,
     member: app.dataset.member || 'guest',
     sprite: app.dataset.sprite,
@@ -297,10 +298,35 @@
     if (item.review && item.review.count) {
       parts.push('★ ' + Number(item.review.rating).toFixed(1) + ' · 리뷰 ' + item.review.count + '개');
     }
-    if (item.cost && item.cost.amount) {
-      parts.push('예상 ' + Number(item.cost.amount).toLocaleString('ko-KR') + '원');
-    }
     return parts.join(' · ');
+  }
+
+  // 예상 비용: 1인 요금 × 인원, 방 요금 × 방 개수(인원 ÷ 방 기준 인원). 인원은 지금 초안 값으로 다시 계산
+  function peopleCount() {
+    return Math.max(1, Number(state.draft.people) || 1);
+  }
+
+  function roomCount(cost, n) {
+    return Math.ceil(n / Math.max(1, cost.cap || 2));
+  }
+
+  // 인원 기준 금액 (가격 모르면 0)
+  function costAmount(cost, n) {
+    if (!cost || cost.per == null) return 0;
+    return cost.unit === 'room' ? cost.per * roomCount(cost, n) : cost.per * n;
+  }
+
+  function costText(cost) {
+    if (!cost || cost.per == null) return '';
+    var n = peopleCount();
+    var tag = cost.source === 'tour' ? '관광공사 요금' : '보통 가격 예상';
+    if (cost.unit === 'room') {
+      var rooms = roomCount(cost, n);
+      return '1박 방 ' + won(cost.per) + (rooms > 1 ? ' × ' + rooms + '개' : '') +
+        ' = ' + n + '명 ' + won(cost.per * rooms) + ' (' + tag + ')';
+    }
+    if (!cost.per) return '무료 (' + tag + ')';
+    return '1인 ' + won(cost.per) + (n > 1 ? ' · ' + n + '명 ' + won(cost.per * n) : '') + ' (' + tag + ')';
   }
 
   function renderRec(rec) {
@@ -349,6 +375,16 @@
       // 평점(review)·예상 비용(cost)은 값이 올 때만 (mock.json 키)
       var extraText = cardExtra(item);
       if (extraText) body.appendChild(make('p', 'tc-card__extra', extraText));
+
+      // 예상 비용 (인원 기준)
+      var costLine = costText(item.cost);
+      if (costLine) {
+        var cost = make('p', 'tc-card__cost');
+        cost.appendChild(icon('wallet'));
+        cost.appendChild(document.createTextNode(' ' + costLine));
+        if (item.cost.text) cost.title = item.cost.text;
+        body.appendChild(cost);
+      }
 
       var actions = make('div', 'tc-card__actions');
       var n = tripDays();
@@ -470,6 +506,96 @@
     }
   }
 
+  /* ---------- 예상 비용 (담은 장소·숙소 × 인원, 서버 budget_estimate) ---------- */
+
+  var COST_CAT = { sight: '관광지', food: '식비', cafe: '카페', move: '교통', stay: '숙박', shop: '쇼핑', etc: '기타' };
+  var estimate = null;
+  var estimateKey = '';
+  var estimateTimer = null;
+
+  function costKey() {
+    var d = state.draft;
+    return JSON.stringify([
+      d.people || 1,
+      (d.pins || []).map(function (p) { return [p.day, p.name, p.kakao_id]; }),
+      (d.stays || []).map(function (s) { return [s.date, s.name || s.query]; })
+    ]);
+  }
+
+  function loadEstimate() {
+    var d = state.draft;
+    var key = costKey();
+    if (key === estimateKey) return;
+    estimateKey = key;
+    clearTimeout(estimateTimer);
+    if (!cfg.estimateUrl || cfg.member === 'guest' || (!(d.pins || []).length && !(d.stays || []).length)) {
+      estimate = null;
+      renderEstimate();
+      return;
+    }
+    // 장소를 연달아 담을 수 있으니 0.6초 기다렸다가 한 번만
+    estimateTimer = setTimeout(function () {
+      post(cfg.estimateUrl, { draft: state.draft }).then(function (data) {
+        if (key !== estimateKey) return;   // 그사이 초안이 또 바뀜
+        estimate = data.success ? data : null;
+        renderEstimate();
+      }, function () {
+        if (key === estimateKey) { estimate = null; renderEstimate(); }
+      });
+    }, 600);
+  }
+
+  // 일정 미리보기가 있으면 미리보기 전체(자동으로 들어간 식당·카페 포함, 지운 장소 제외)로 다시 센다
+  function planEstimate() {
+    if (!planFresh()) return null;
+    var n = peopleCount();
+    var by = {};
+    var unknown = [];
+    var planned = 0;
+    var counted = 0;
+    state.plan.days.forEach(function (day) {
+      (day.items || []).forEach(function (it) {
+        if (isGone(day, it)) return;
+        if (!it.cost) { unknown.push(it.name); return; }
+        var amount = costAmount(it.cost, n);
+        by[it.cost.cat] = (by[it.cost.cat] || 0) + amount;
+        planned += amount;
+        counted += 1;
+      });
+    });
+    if (!counted) return null;
+    return { people: n, planned: planned, by: by, unknown: unknown, plan: true };
+  }
+
+  function renderEstimate() {
+    var row = app.querySelector('[data-row="estimate"]');
+    if (!row) return;
+    var shown = planEstimate() || estimate;
+    row.hidden = !shown;
+    if (!shown) return;
+
+    var d = state.draft;
+    var box = make('span', 'tc-estimate');
+    box.appendChild(make('strong', null, '약 ' + won(shown.planned)));
+    box.appendChild(make('span', 'tc-sub', shown.people + '명 기준' + (d.people ? '' : ' (인원 미정)')));
+    if (d.budget_total > 0 && shown.planned > d.budget_total) {
+      box.appendChild(make('span', 'tc-warn', '총예산보다 ' + won(shown.planned - d.budget_total) + ' 많아요'));
+    }
+    var chips = make('span', 'tc-chips');
+    Object.keys(COST_CAT).forEach(function (k) {
+      if (shown.by[k] > 0) chips.appendChild(make('span', 'tc-chip', COST_CAT[k] + ' ' + won(shown.by[k])));
+    });
+    if (chips.childNodes.length) box.appendChild(chips);
+    if (shown.unknown.length) {
+      box.appendChild(make('span', 'tc-sub tc-estimate__note', '가격 정보 없음: ' +
+        shown.unknown.slice(0, 3).join(', ') + (shown.unknown.length > 3 ? ' 외' : '')));
+    }
+    box.appendChild(make('span', 'tc-sub tc-estimate__note', (shown.plan
+      ? '일정 미리보기 전체 기준 (자동으로 넣은 식당·카페 포함)'
+      : '담은 장소·숙소 기준') + ', 일정 적용 때 분류별 예산으로 저장돼요'));
+    setRow('estimate', box, true, false);
+  }
+
   function renderDraft(changed) {
     var d = state.draft;
     changed = changed || [];
@@ -548,6 +674,9 @@
       pinList.appendChild(line);
     });
     setRow('pins', pinList, (d.pins || []).length > 0, changed.indexOf('추가한 장소') > -1);
+
+    renderEstimate();
+    loadEstimate();
 
     // 필수 항목 진행도
     var total = 4;
@@ -695,6 +824,7 @@
   }
 
   function renderPlan() {
+    renderEstimate();   // 미리보기가 바뀌면 예상 비용도 (지운 장소 빼고) 다시
     el.planTabs.textContent = '';
     el.planBody.textContent = '';
     el.planState.textContent = '';
@@ -848,6 +978,16 @@
         meta.appendChild(icon('route'));
         meta.appendChild(document.createTextNode(' ' + sub.join(' · ')));
         body.appendChild(meta);
+      }
+
+      // 예상 비용 (인원 기준, 자동으로 들어간 식당·카페 포함)
+      var stopCost = costText(it.cost);
+      if (stopCost) {
+        var costRow = make('p', 'tc-card__cost tc-tl__cost');
+        costRow.appendChild(icon('wallet'));
+        costRow.appendChild(document.createTextNode(' ' + stopCost));
+        if (it.cost.text) costRow.title = it.cost.text;
+        body.appendChild(costRow);
       }
 
       row.appendChild(body);

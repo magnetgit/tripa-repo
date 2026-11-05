@@ -1477,6 +1477,23 @@
             background: #eaf7ef; color: #1f8a4c;
         }
         .sp-hours.is-est { background: #f1f4f8; color: #64748b; }
+
+        /* ===== AI 예상 비용 (travel_costs) ===== */
+        .sp-cost {
+            display: inline-flex; align-items: center; max-width: 100%;
+            margin-top: 5px; margin-left: 4px; padding: 2px 8px; border-radius: 999px;
+            font-size: 11.5px; font-weight: 700; line-height: 1.5;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            background: #eef3fd; color: #2d6cdf;
+        }
+        .pay-ai:empty { display: none; }
+        .pay-ai { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #f4f7fd; border: 1px solid #e3eaf7; }
+        .pay-ai__title { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 13px; font-weight: 800; color: #1f2d4a; }
+        .pay-ai__title .tp-icon { width: 15px; height: 15px; color: #2d6cdf; }
+        .pay-ai__title span { margin-left: auto; font-size: 12px; font-weight: 600; color: #7b88a1; }
+        .pay-ai .pay-item.is-ai { font-size: 13px; color: #4a5b78; }
+        .pay-ai .total-pay.is-ai { color: #2d6cdf; }
+        .pay-ai__note { margin: 6px 0 0; font-size: 11px; color: #98a3b8; line-height: 1.5; }
         .sp-hours.is-warn { background: #fff3e0; color: #c25e00; }
         .sp-hours.is-closed { background: #fdecec; color: #d13438; }
         .sp-hours-summary {
@@ -5170,6 +5187,7 @@ function loadDay(day) {
             renderSchedule(data, null);
             loadPlaceHours(day);
             renderPayment(data);
+            loadPlaceCosts(day);
 
             const currentDayTitle =
                 document.getElementById(
@@ -6285,6 +6303,115 @@ function renderSchedule(
         .forEach(loadSpPhoto);
 
     applySpHours();
+    applySpCosts();
+}
+
+
+/* =========================================================
+   AI 예상 비용: 여행 만들 때 AI가 매긴 장소 가격 × 인원 (travel_costs)
+   카드마다 '예상 18,000원' + 왼쪽 여행 비용 칸에 그날 예상 합계
+========================================================= */
+
+let spCosts = {};              // sp_id → {amount, per, unit, cap, source, text}
+let spCostsDay = null;
+let spCostPeople = 0;
+let spCostTotal = 0;
+
+function loadPlaceCosts(day) {
+    fetch(`/travel_costs/${travelId}/${day}/`, { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            if (!data || !data.success || String(currentDay) !== String(day)) {
+                return;
+            }
+            spCosts = data.places || {};
+            spCostsDay = day;
+            spCostPeople = data.people || 1;
+            spCostTotal = data.planned || 0;
+            applySpCosts();
+            renderPayAi();
+        })
+        .catch(function () { /* 예상 비용은 덤: 실패해도 일정은 그대로 */ });
+}
+
+function wonText(n) {
+    return `${Number(n || 0).toLocaleString("ko-KR")}원`;
+}
+
+// "예상 18,000원 (1인 9,000원 × 2명)" / "예상 120,000원 (방 1개)" / "무료"
+function spCostText(c) {
+    if (!c) {
+        return "";
+    }
+    if (c.unit === "room") {
+        const rooms = Math.ceil(spCostPeople / Math.max(1, c.cap || 2));
+        return `예상 ${wonText(c.amount)} (방 ${rooms}개 · ${spCostPeople}명)`;
+    }
+    if (!c.per) {
+        return "무료";
+    }
+    return spCostPeople > 1
+        ? `예상 ${wonText(c.amount)} (1인 ${wonText(c.per)} × ${spCostPeople}명)`
+        : `예상 ${wonText(c.amount)}`;
+}
+
+function applySpCosts() {
+    const container = document.getElementById("timelineContainer");
+    if (!container) {
+        return;
+    }
+    container.querySelectorAll(".sp-cost").forEach(function (el) { el.remove(); });
+    if (String(spCostsDay) !== String(currentDay)) {
+        return;
+    }
+
+    container.querySelectorAll(".sp-item").forEach(function (item) {
+        const c = spCosts[item.dataset.spId];
+        const main = item.querySelector(".sp-main");
+        if (!c || !main) {
+            return;
+        }
+        const badge = document.createElement("span");
+        badge.className = "sp-cost";
+        badge.textContent = spCostText(c);
+        badge.title = [
+            c.source === "tour" ? "관광공사 요금" : "보통 가격으로 예상",
+            c.text || ""
+        ].filter(Boolean).join("\n");
+        main.appendChild(badge);
+    });
+}
+
+// 왼쪽 'DAY n 여행 비용' 아래: 장소별 AI 예상 비용 + 예상 합계
+function renderPayAi() {
+    const box = document.getElementById("payAi");
+    if (!box) {
+        return;
+    }
+    if (String(spCostsDay) !== String(currentDay) || !Object.keys(spCosts).length) {
+        box.innerHTML = "";
+        return;
+    }
+
+    let html = `<div class="pay-ai__title">${tpIcon("bulb")} AI 예상 비용 <span>${spCostPeople}명 기준</span></div>`;
+    spRenderedPlaces.forEach(function (sp) {
+        const c = spCosts[String(sp.sp_id)];
+        if (!c) {
+            return;
+        }
+        html += `
+            <div class="pay-item is-ai">
+                <span>${escapeHtml(sp.place_name || "")}</span>
+                <strong>${c.amount ? wonText(c.amount) : "무료"}</strong>
+            </div>`;
+    });
+    html += `
+        <div class="pay-item total-pay is-ai">
+            <span>DAY ${currentDay} 예상 합계</span>
+            <strong>${wonText(spCostTotal)}</strong>
+        </div>
+        <p class="pay-ai__note">여행 만들 때 AI가 매긴 가격(관광공사 요금·보통 가격)이에요. 인원은 비용 관리에서 바꿀 수 있어요.</p>`;
+    box.innerHTML = html;
 }
 
 
@@ -7152,8 +7279,13 @@ function renderPayment(data) {
         </div>
     `;
 
+    // AI 예상 비용 자리 (travel_costs 를 받으면 renderPayAi 가 채움)
+    html += `<div class="pay-ai" id="payAi"></div>`;
+
     payBox.innerHTML =
         html;
+
+    renderPayAi();
 }
 
 

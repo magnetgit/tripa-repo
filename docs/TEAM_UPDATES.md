@@ -10,6 +10,76 @@
 
 ---
 
+## 2026-11-05 · 리뷰 게시판: 내 글만 수정·삭제 — 🟦 임영준
+DB·응답 키 변경 없음. 🟧 `views.py`·`urls.py`에 **추가만**.
+
+- 여행 루트 탭: 내가 공유한 카드에만 '수정(한 줄 소개)'·'삭제(게시판에서 내리기)' 버튼. 기존 `route_share`(내 여행이 아니면 403)를 그대로 씀. 내리면 별점·댓글은 사라지고 여행 일정은 남음
+- 장소 리뷰 탭: 내 리뷰에만 '수정(별점·내용·태그)'·'삭제' 버튼
+  - `POST review/<rv_id>/edit/` (`review_update`), `POST review/<rv_id>/delete/` (`review_delete`) → 게시판으로 돌아감. 로그인 안 하면 로그인 화면, **남의 리뷰는 403**
+- 남의 글에는 버튼이 없고, 주소를 직접 불러도 서버가 막음
+
+### 확인
+- [ ] 🟧 `views.py`의 `review_update`·`review_delete` 확인 부탁
+
+---
+
+## 2026-11-05 · 예산 AI: 장소 가격 → 인원 기준 예상 비용, 카테고리 예산 저장 API, 대화에서 인원 묻기 — 🟦 임영준 (🟩 `chat_service.py` 조금 수정)
+DB 변경 없음 → `migrate` 필요 없음 (기존 `travel_budget` 표 사용). 응답 키는 **추가만**.
+
+### 1) 가격 찾기 — 새 파일 `services/budget_service.py` (🟦)
+- 관광공사(TourAPI) 요금 문장을 읽음: 관광지 `detailInfo2` '입장료', 문화시설·레포츠·축제 `usefee`·`usefeeleports`·`usetimefestival`, 숙박 `detailInfo2` 객실 요금(가장 싼 방)
+  - 성인·어른·대인·일반 요금 먼저, 단체 요금 줄은 뺌, '무료'면 0원 (예: 경복궁 3,000 / 남이섬 19,000 / 화성행궁 2,000 / 노보텔 수원 방 187,000)
+- 관광공사에 요금이 없으면 **보통 가격 예상**(`source: "estimate"`): 카페 7,000 / 식당은 종류별(횟집 35,000·고기 20,000·국밥 11,000·분식 7,000 …) / 숙소 방 하나(호텔 120,000·게스트하우스 1인 35,000·펜션 4인 150,000 …) / 해수욕장·공원·시장은 0
+- 인원 계산: 1인 요금 × 인원, 방 요금 × 방 개수(인원 ÷ 방 기준 인원, 올림)
+- 같은 장소는 7일 캐시
+
+### 2) 추천 카드 `cost` 키 (mock.json 키 + 추가)
+- `cost: {amount, cat, source, per, unit, cap, people, text}` 또는 `null`
+  - `amount` 인원 기준 금액, `cat` 분류(sight·food·cafe·move·stay·shop·etc), `source` `tour`(관광공사 요금)·`estimate`(보통 가격)
+  - `per` 1인(또는 방 하나) 금액, `unit` `person`·`room`, `cap` 방 기준 인원, `text` 요금 원문
+- 화면(대화 화면 `travel_chat.js`·React `RecCards.jsx`): "1인 9,000원 · 2명 18,000원 (보통 가격 예상)" — 인원이 바뀌면 지금 초안 인원으로 다시 계산
+
+### 3) 새 주소 (🟧 `views.py`·`urls.py`에 **추가만**)
+- `POST budget_estimate/` (`budget_estimate`): `{draft}` → `{success, people, planned, by: {분류: 금액}, items, unknown}` — 초안의 담은 장소·숙소 × 인원. 일정 초안 칸에 '예상 비용' 줄로 보여줌
+- `GET·POST budget/<travel_id>/category/` (`budget_category`): **카테고리 예산 저장 API**
+  - GET → `{success, budget: {total, limit: {분류: 예산}, by: {분류: 쓴 돈}}}` (mock.json `budget`의 `total`·`limit`·`by`)
+  - POST JSON `{limit: {food: 150000, stay: 120000}}` → 보낸 분류만 저장(있으면 고침) → 같은 모양. 로그인 401, 남의 여행 403, 값 없으면 400
+- `travel_chat_apply`(이 일정 적용하기)가 끝날 때 **만들어진 일정 전체**(자동으로 넣은 식당·카페 포함)의 예상 비용을 분류별 예산으로 `travel_budget`에 저장. 대화에서 총예산을 따로 말하지 않았으면 `t_budget`도 예상 합계로 저장
+- 일정 미리보기 응답에 `budget` 키(모양은 `budget_estimate`와 같음), 장소마다 `cost` 키 추가 (mock.json `plan.days[].stops[].cost`)
+- `POST budget/<travel_id>/ai-fill/` (`budget_ai_fill`, 폼 `people`): 저장된 일정 × 인원으로 분류별 예산·총 예산을 다시 채우고 비용 관리로 돌아감 (AI 대화로 안 만든 여행·인원 바뀐 여행용)
+
+### 3-1) 비용 관리 화면 `budget.html` (🟦)
+- 왼쪽 '여행 예산' 카드에 **AI 예상 예산** 칸: 분류마다 "쓴 돈 / 예산" + 진행 막대, 넘으면 빨간 글씨. 인원 입력 + 'AI 예산 계산 / 다시 계산' 버튼
+- 여행 상세 `travel_detail.html` (🟦): 일정 카드마다 '예상 18,000원 (1인 9,000원 × 2명)' 칩, 왼쪽 'DAY n 여행 비용' 아래 **AI 예상 비용**(장소별 + 그날 예상 합계)
+  - 새 주소 `GET travel_costs/<travel_id>/<day>/` (`travel_costs`, 🟧 `views.py`·`urls.py`에 추가만): `{success, day, people, places: {sp_id: cost}, planned, by}` — 로그인 401, 남의 여행 403. `travel_hours`처럼 일정을 먼저 그리고 나중에 붙임
+- 계산한 인원은 세션 `budget_people: {여행 id: 인원}`에 기억 (적용할 때 대화 인원, 다시 계산할 때 입력 인원) → 인원 칸에 그대로 보임. DB 칸은 없어서 다른 기기·로그아웃 뒤에는 기본 2명
+- `views.budget` 화면 값에 `ai_budget: {rows: [{name, key, color, icon, limit, used, left, over, width}], total}` 추가
+
+### 4) 대화에서 인원 묻기 (🟩 `chat_service.py`)
+- `next_question`: 컨셉 다음에 "몇 분이서 가시나요? 인원에 맞춰 예상 비용을 계산해 드릴게요."
+- `guess_people`: 🟩이 main에 같은 이름으로 먼저 넣어서 **🟩 함수를 그대로 씀** (내가 만든 같은 함수는 합칠 때 뺌). 인원 질문·적용 흐름만 이 항목 내용
+- 시스템 프롬프트 6번에 people 설명 한 줄, 추천 카드 만들 때 `attach_costs(items, people)` 호출, 카드에 `_category`(카카오 분류) 잠깐 붙였다가 지움
+
+### 확인
+- [ ] 🟩 `chat_service.py`의 `guess_people`·`next_question` 인원 질문·`attach_costs` 호출 확인 부탁
+- [ ] 🟧 `views.py` 맨 아래 `budget_estimate`·`budget_category`, `travel_chat_apply` 끝의 예산 저장 확인 부탁
+- [ ] 🟦 다음: 카테고리 예산 화면(React)에서 `budget_category` 쓰기, 예산 넘으면 같은 분류 더 싼 대안
+
+---
+
+## 2026-11-05 · AI 대화: '1박2일 → 2박3일로 수정해줘'가 안 바뀌던 문제 — 🟦 임영준 (🟩 `chat_service.py` 수정)
+DB·응답 키 변경 없음.
+
+- 제목이 '수원 1박 2일 여행'에 남던 문제: `normalize_draft`가 제목 속 'N박 M일'·'당일치기'를 실제 날짜에 맞게 바꿈
+- 기간으로 못 읽던 말: `guess_nights`가 '이박삼일', '3일로·3일 일정'(날짜 '11월 3일'은 제외)도 읽음 → 예전엔 이런 말이면 AI가 바꾼 날짜까지 되돌렸음
+- '하루 더 늘려줘'·'하루 줄여줘': `_relative_nights`가 이전 박 수 ± 1로 계산 (AI가 날짜를 안 바꿔도 됨)
+- 가짜 AI로 시험: 2박3일로 수정/바꿔/하루 더/3일로/이박삼일/하루 줄여/당일치기/11월 13일로/3박4일/3일 뒤 → 모두 날짜·제목 맞음
+
+### 🟩 확인
+- [ ] `chat_service.py`의 `guess_nights`·`_relative_nights`·`_apply_guessed_dates`·`normalize_draft` 제목 부분 확인 부탁
+
+---
+
 ## 2026-11-05 · 숙소에도 `kakao_id` (숙소 사진·리뷰 별점) — 🟩 서지윤
 DB 변경 없음. 응답 키는 **추가만** → 🟦 🟧 고칠 것 없음
 
@@ -137,7 +207,7 @@ AI_BACKUP_MODEL=gpt-4o-mini
 - `.env` 설정 B: `AI_BASE_URL=http://127.0.0.1:11434/v1`, `AI_MODEL=qwen3:8b`, `AI_FALLBACK_MODELS=exaone3.5:7.8b`, `AI_TIMEOUT=120` (키 값 필요 없음)
 
 ### 같이 정할 것
-- [ ] 🟦🟧 설정 B를 `qwen3:8b` + 예비 `exaone3.5:7.8b`로 할지 (반대 의견은 PR 댓글로)
+- [ ] 🟦🟧 설정 B를 `qwen3:8b` + 예비 `exaone3.5:7.8b`로 할지 (반대 의견은 PR 댓글로) — **🟦 동의 (11/05)**
 - [ ] 🟩 정해지면: 생각 모드 끄는 옵션, '혼자·N명' 코드 보완, Ollama가 꺼지면 GPT로 넘어가기
 
 ---
@@ -162,8 +232,8 @@ AI_BACKUP_MODEL=gpt-4o-mini
 - 미리보기 `is_stay`, 여행 상세 경로, 다음 날 출발점 확인
 
 ### 정할 것
-- [ ] 할지 말지, 한다면 언제 (제안: 4주차 여유 있을 때)
-- [ ] 담당 (제안: 🟩 일정 만들기 + 🟦 화면, 🟧는 담은 장소·비용 연결)
+- [ ] 할지 말지, 한다면 언제 (제안: 4주차 여유 있을 때) — **🟦 동의: 하기, 4주차 (11/05)**
+- [ ] 담당 (제안: 🟩 일정 만들기 + 🟦 화면, 🟧는 담은 장소·비용 연결) — **🟦 동의: 화면 맡음 (11/05)**
 
 ### 참고: 버그는 먼저 따로 고침 (🟧)
 - 담은 장소가 체크인 뒤에 붙는 문제 → `_chat_add_pins`가 숙소 줄을 빼고 "직전 장소"를 찾아 그 뒤(숙소 앞)에 넣게
@@ -586,7 +656,7 @@ DB 변경 없음. 응답 키 **추가만** (`/travel_chat/` 응답에 `weather`)
 ### 🟦 임영준 — 예산 AI
 - [ ] 장소·이동 비용 추정(6개 분류), 예산 넘으면 같은 분류의 더 싼 대안, 이동수단별 가격 비교
 - [ ] 카테고리 예산 화면(React)
-- [ ] **카테고리 예산 저장 API** ← 🟧에서 옮김 (테이블 `travel_budget`은 이미 있음)
+- [x] **카테고리 예산 저장 API** ← 🟧에서 옮김 (테이블 `travel_budget`은 이미 있음) — 11/05 완료 (`budget/<travel_id>/category/`, 맨 위 항목)
 - 계속 담당: 반응형 공통 레이아웃, 지도 이동·팝업, 추천 카드 → 핀·장소 추가 폼에 `kakao_id` 담아 보내기
 
 ### 🟩 서지윤 — 대화형 일정 에이전트

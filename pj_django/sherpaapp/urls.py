@@ -221,9 +221,28 @@ urlpatterns = [
     ),
 
     path(
+        'travel_costs/<int:travel_id>/<int:day>/',
+        views.travel_costs,
+        name='travel_costs'
+    ),
+
+    path(
         'travel_hours/<int:travel_id>/<int:day>/',
         views.travel_hours,
         name='travel_hours'
+    ),
+
+    # 예산 AI (🟦): 초안 예상 비용, 여행별 카테고리 예산 (GET 읽기 / POST 저장)
+    path(
+        'budget_estimate/',
+        views.budget_estimate,
+        name='budget_estimate'
+    ),
+
+    path(
+        'budget/<int:travel_id>/category/',
+        views.budget_category,
+        name='budget_category'
     ),
 
     path(
@@ -329,6 +348,13 @@ urlpatterns = [
         name='budget_update_total'
     ),
 
+    # AI 예상 예산 다시 계산 (저장된 일정 × 인원)
+    path(
+        'budget/<int:travel_id>/ai-fill/',
+        views.budget_ai_fill,
+        name='budget_ai_fill'
+    ),
+
     path(
         'budget/<int:travel_id>/add/',
         views.budget_add,
@@ -368,6 +394,18 @@ urlpatterns = [
         'review/write/',
         views.review_write,
         name='review_write'
+    ),
+
+    path(
+        'review/<int:rv_id>/edit/',
+        views.review_update,
+        name='review_update'
+    ),
+
+    path(
+        'review/<int:rv_id>/delete/',
+        views.review_delete,
+        name='review_delete'
     ),
 
     path(

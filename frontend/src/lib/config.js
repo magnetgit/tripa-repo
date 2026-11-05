@@ -15,6 +15,7 @@ export function readConfig(root) {
     applyUrl: ds.applyUrl || '/travel_chat_apply/',
     addUrl: ds.addUrl || '/schedule_place_add/',
     previewUrl: ds.previewUrl || '/travel_chat_preview/',
+    estimateUrl: ds.estimateUrl || '/budget_estimate/',
     loginUrl: ds.loginUrl || '/login/',
     manualUrl: ds.manualUrl || '/travel_create/?mode=manual',
     member: ds.member || 'guest',
