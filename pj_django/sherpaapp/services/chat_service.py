@@ -33,6 +33,7 @@ from .tour_service import REASON_LABELS, drop_closed
 from .indoor_service import indoor_first, is_indoor
 from .busan_spots import MAX_PICKS, NEAR_LIMIT_M, QUERY_CONCEPTS, pick_rows
 from .review_rank import rank_by_reviews
+from .budget_service import attach_costs
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +289,30 @@ def match_categories(raw, category_names):
 
 _NOT_CONCEPT_WORDS = ('추천', '빼', '제외', '말고', '싫', '별로')
 
+# 인원: '혼자', '둘이서', '4명', '3인', '가족 다섯 명' (AI가 '혼자 → 1'을 자주 놓쳐서 코드가 읽음)
+_PEOPLE_NUM_RE = re.compile(r'(?<![\d.])(\d{1,2})\s*(?:명|인(?!분|실|용|승)|사람)')
+_PEOPLE_KO = (
+    (('혼자', '나홀로', '홀로', '솔로'), 1),
+    (('둘이', '두 명', '두명', '두 사람', '두사람', '커플', '연인', '부부', '남친', '여친', '남자친구', '여자친구'), 2),
+    (('셋이', '세 명', '세명', '세 사람'), 3),
+    (('넷이', '네 명', '네명', '네 사람'), 4),
+    (('다섯 명', '다섯명', '다섯이'), 5),
+    (('여섯 명', '여섯명', '여섯이'), 6),
+)
+
+
+def guess_people(text):
+    """사용자 문장에서 여행 인원 수를 읽는다. 없으면 None."""
+    text = text or ''
+    m = _PEOPLE_NUM_RE.search(text)
+    if m and 1 <= int(m.group(1)) <= 30:
+        return int(m.group(1))
+    # 숫자가 큰 쪽(셋이 > 둘이)부터 보면 '둘이서 … 셋이'처럼 섞여도 마지막 말과 상관없이 하나로 정해짐
+    for words, count in reversed(_PEOPLE_KO):
+        if any(w in text for w in words):
+            return count
+    return None
+
 
 def guess_categories(text, category_names):
     """사용자 문장에 컨셉 이름(예: 랜드마크, 역사)이 그대로 있으면 그 이름들을 돌려준다.
@@ -471,6 +496,12 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
             draft['title'] = '%s 당일치기 여행' % draft['place']
         else:
             draft['title'] = '%s %d박 %d일 여행' % (draft['place'], nights, nights + 1)
+
+    # 제목에 적힌 기간이 날짜와 다르면 맞춘다 ('수원 1박 2일 여행'인데 2박 3일로 바꾼 경우)
+    if draft['title'] and start and end:
+        nights = (end - start).days
+        right = '당일치기' if nights == 0 else '%d박 %d일' % (nights, nights + 1)
+        draft['title'] = re.sub(r'\d{1,2}\s*박\s*\d{1,2}\s*일|당일치기', right, draft['title'], count=1)
 
     return draft
 
@@ -1081,6 +1112,7 @@ def search_recommendations(rec, draft, size=4):
             # 실내 true / 야외 false / 모름 null (비 오는 날 실내를 앞에 둘 때 씀)
             'indoor': is_indoor(doc.get('category_name'), doc.get('category_group_code'), name),
             'pick': None,   # 팀이 고른 부산 장소면 표의 정보 (_with_picks)
+            '_category': doc.get('category_name'),   # 가격 짐작용 (attach_costs가 쓰고 지움)
         }
 
         if anchor:
@@ -1096,6 +1128,9 @@ def search_recommendations(rec, draft, size=4):
 
     # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
     attach_photos(items)
+
+    # 카드마다 예상 비용 (관광공사 요금 또는 보통 가격 × 인원) — 🟦 budget_service
+    attach_costs(items, draft.get('people'))
 
     return anchor_name, items
 
@@ -1257,7 +1292,8 @@ def build_system_prompt(draft, category_names, today):
         "예) '수원 랜드마크 1박2일' → place='수원', categories=['랜드마크']. 컨셉 질문에 '역사'라고만 답해도 categories=['역사'].\n"
         "5. transport는 car(자동차), walk(도보), public_transport(대중교통), bike(자전거) 중 하나입니다.\n"
         "6. budget_style은 쓰지 않으므로 항상 null로 둡니다. 가성비·프리미엄·비싸도 괜찮음 같은 예산 성향은 묻지 마세요. "
-        "예산을 물을 때는 '총예산이 얼마인지'만 묻고, 금액을 말하면 budget_total에 전체 여행 총예산을 원 단위 정수로 적습니다.\n"
+        "예산을 물을 때는 '총예산이 얼마인지'만 묻고, 금액을 말하면 budget_total에 전체 여행 총예산을 원 단위 정수로 적습니다. "
+        "people은 여행 가는 사람 수(숫자)입니다. '혼자'는 1, '둘이서'·'커플'은 2입니다. 인원은 예상 비용을 1인 기준×인원으로 계산하는 데 쓰입니다.\n"
         "7. 숙소는 사용자가 알려준 것만 stays에 넣습니다. 숙소는 잠자는 밤마다 하나이고, 마지막 날은 집으로 돌아가므로 마지막 날에는 숙소를 넣지 않습니다(1박 2일이면 첫날 밤 숙소 하나만). date는 YYYY-MM-DD, query는 숙소 이름 또는 동네, "
         "arrival_time/departure_time은 HH:MM(모르면 null)입니다. 날짜가 정해진 뒤에만 넣을 수 있습니다. "
         "사용자가 숙소를 추천해 달라고 하면 동네를 되묻지 말고 recommend의 query를 '숙소'로 채우세요(동네를 말했으면 near). "
@@ -1508,6 +1544,12 @@ def _keep_previous(ai_draft, prev):
 
 _WEEKDAY_INDEX = {name: i for i, name in enumerate(WEEKDAYS)}
 _NIGHTS_RE = re.compile(r'(\d{1,2})\s*박(?:\s*(\d{1,2})\s*일)?')
+_KO_NUMBERS = {'일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '칠': 7, '팔': 8, '구': 9}
+_KO_NIGHTS_RE = re.compile(r'([일이삼사오육칠팔구])\s*박\s*[이삼사오육칠팔구십]\s*일')          # '이박삼일'
+_DAYS_ONLY_RE = re.compile(r'(?<!\d)(\d{1,2})\s*일\s*(?:로|으로|짜리|간|동안|일정|여행|코스)')   # '3일로', '3일 일정'
+# '하루 더 늘려줘', '하루 줄여줘'
+_LONGER_WORDS = ('늘려', '늘리', '더', '연장', '추가')
+_SHORTER_WORDS = ('줄여', '줄이', '빼', '덜', '단축')
 _MONTH_DAY_RE = re.compile(r'(?:(\d{4})\s*[년.\-/]\s*)?(\d{1,2})\s*(?:월|[./])\s*(\d{1,2})\s*일?')
 _UNTIL_DAY_RE = re.compile(r'(?:부터|~|-)\s*(\d{1,2})\s*일')
 _WEEK_DAY_RE = re.compile(r'(이번\s*주|금주|다음\s*주|담주|다다음\s*주)?\s*(?:의\s*)?([월화수목금토일])요일')
@@ -1571,7 +1613,34 @@ def guess_nights(text):
         return 0
 
     match = _NIGHTS_RE.search(text)
-    return int(match.group(1)) if match else None
+    if match:
+        return int(match.group(1))
+
+    match = _KO_NIGHTS_RE.search(text)
+    if match:
+        return _KO_NUMBERS[match.group(1)]
+
+    # '3일로 해줘' → 2박 (단 '11월 3일로'처럼 날짜면 기간이 아님)
+    match = _DAYS_ONLY_RE.search(text)
+    if match and not _MONTH_DAY_RE.search(text) and int(match.group(1)) >= 1:
+        return int(match.group(1)) - 1
+
+    return None
+
+
+def _relative_nights(text, prev):
+    """'하루 더 늘려줘' → 이전 박 수 + 1, '하루 줄여줘' → - 1. 해당 없으면 None."""
+    if not isinstance(text, str) or '하루' not in text:
+        return None
+    p_start, p_end = _parse_date(prev.get('start')), _parse_date(prev.get('end'))
+    if not p_start or not p_end:
+        return None
+    nights = (p_end - p_start).days
+    if any(w in text for w in _SHORTER_WORDS):
+        return max(0, nights - 1)
+    if any(w in text for w in _LONGER_WORDS):
+        return nights + 1
+    return None
 
 
 def guess_dates(text, today):
@@ -1664,6 +1733,9 @@ def _apply_guessed_dates(ai_draft, prev, messages, today):
 
     nights = guessed['nights']
 
+    if nights is None and not new_start:
+        nights = _relative_nights(text, prev)
+
     if nights is None and new_start:
         for message in reversed(messages[:-1]):
             if message.get('role') == 'user':
@@ -1744,6 +1816,9 @@ def next_question(draft, category_names):
     if not draft.get('categories'):
         examples = ', '.join(list(category_names)[:4])
         return '이번 여행은 어떤 컨셉으로 할까요?%s' % (' (예: %s)' % examples if examples else '')
+
+    if not draft.get('people'):
+        return '몇 분이서 가시나요? 인원에 맞춰 예상 비용을 계산해 드릴게요.'
 
     start = _parse_date(draft.get('start'))
     end = _parse_date(draft.get('end'))
@@ -1920,6 +1995,11 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         guessed_time = guess_start_time(messages[-1]['content'], new_start_place)
         if guessed_time:
             ai_draft['start_time'] = guessed_time
+
+    # 인원은 사용자 문장에서 코드로 읽은 값을 먼저 쓴다 ('혼자 가', '둘이서', '4명')
+    guessed_people = guess_people(messages[-1]['content'])
+    if guessed_people:
+        ai_draft['people'] = guessed_people
 
     # 날짜는 사용자 문장에서 코드로 계산한 값을 먼저 쓴다 ('이번주 토요일', '2박 3일')
     ai_dates = (ai_draft.get('start'), ai_draft.get('end'))

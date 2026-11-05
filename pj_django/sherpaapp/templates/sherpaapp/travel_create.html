@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRIPA - 여행 만들기</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261064">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261066">
 
     <style>
         .search-input-row {
@@ -399,6 +399,7 @@
              data-apply-url="{% url 'travel_chat_apply' %}"
              data-add-url="{% url 'schedule_place_add' %}"
              data-preview-url="{% url 'travel_chat_preview' %}"
+             data-estimate-url="{% url 'budget_estimate' %}"
              data-login-url="{% url 'login' %}"
              data-member="{{ member.m_id|default:'guest' }}"
              data-odsay-key="{{ ODSAY_WEB_API_KEY|default:'' }}"
@@ -468,6 +469,10 @@
                             <dt>{% include "_icon.html" with name="wallet" %}<span>예산</span></dt>
                             <dd class="tc-val"></dd>
                         </div>
+                        <div class="tc-row" data-row="estimate" hidden>
+                            <dt>{% include "_icon.html" with name="wallet" %}<span>예상 비용</span></dt>
+                            <dd class="tc-val"></dd>
+                        </div>
                         <div class="tc-row is-empty" data-row="concept">
                             <dt>{% include "_icon.html" with name="tag" %}<span>컨셉</span></dt>
                             <dd class="tc-val"></dd>
@@ -517,6 +522,6 @@
 </div>
 
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
-<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261046"></script>
+<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261048"></script>
 </body>
 </html>

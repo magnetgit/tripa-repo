@@ -4414,6 +4414,14 @@ button.preview-day {
     word-break: keep-all;
 }
 .tc-card__extra { margin: 0; font-size: 12px; font-weight: 700; color: #e08a00; }
+/* 예상 비용 (인원 기준) */
+.tc-card__cost { margin: 0; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: #1f8a6e; word-break: keep-all; }
+.tc-card__cost svg { width: 13px; height: 13px; flex: none; }
+.tc-estimate { display: flex; flex-direction: column; gap: 6px; }
+.tc-estimate strong { font-size: 15px; color: #1f2d4a; }
+.tc-estimate__note { font-size: 11px; }
+.tc-row[hidden] { display: none; }
+.tc-tl__cost { margin-top: 2px; font-size: 11.5px; }
 
 .tc-card__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .tc-card__head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
@@ -4601,6 +4609,26 @@ button.preview-day {
 .bg-cats strong { font-variant-numeric: tabular-nums; }
 .bg-cats em { width: 40px; text-align: right; font-style: normal; font-size: 12px; color: #7b88a1; }
 .bg-cats .bg-cats__empty { color: #98a3b8; justify-content: center; padding: 18px 0; }
+
+/* 비용 관리 · AI 예상 예산 (여행 만들 때 계산한 분류별 예산 대비 사용) */
+.bg-ai { margin-top: 18px; padding: 14px; border-radius: 12px; background: #f4f7fd; border: 1px solid #e3eaf7; }
+.bg-ai__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: #1f2d4a; }
+.bg-ai__head strong { display: inline-flex; align-items: center; gap: 6px; }
+.bg-ai__head .tp-icon { width: 15px; height: 15px; color: #2d6cdf; }
+.bg-ai__head span { font-size: 12px; color: #2d6cdf; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bg-ai__list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.bg-ai__line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #1f2d4a; }
+.bg-ai__money { font-size: 12px; color: #7b88a1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bg-ai__money strong { color: #1f2d4a; }
+.bg-ai__bar { margin-top: 5px; height: 5px; border-radius: 3px; background: #e3eaf7; overflow: hidden; }
+.bg-ai__bar span { display: block; height: 100%; border-radius: 3px; }
+.bg-ai__list li.is-over .bg-ai__money { color: #d64545; }
+.bg-ai__empty { margin: 10px 0 0; font-size: 12px; color: #7b88a1; line-height: 1.5; }
+.bg-ai__form { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; color: #7b88a1; }
+.bg-ai__form input { width: 56px; padding: 6px 8px; border: 1px solid #dfe6f2; border-radius: 8px; font-size: 13px; }
+.bg-ai__btn { margin-left: auto; padding: 7px 12px; border: 0; border-radius: 8px; background: #2d6cdf; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.bg-ai__btn:hover { background: #2459b8; }
+.bg-ai__note { margin: 8px 0 0; font-size: 11px; color: #98a3b8; }
 
 .bg-note {
     display: flex;

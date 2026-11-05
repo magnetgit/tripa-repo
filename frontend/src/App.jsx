@@ -7,7 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import ChatPanel from './components/ChatPanel.jsx';
 import DraftPanel from './components/DraftPanel.jsx';
 import MapPanel from './components/MapPanel.jsx';
-import { addPlaceToSchedule, applyPlan, fetchPreview, sendChat } from './lib/api.js';
+import { addPlaceToSchedule, applyPlan, fetchEstimate, fetchPreview, sendChat } from './lib/api.js';
 import { isPlanFresh, orderList, planSig, removedKey, isGone, dayItems } from './lib/plan.js';
 import { clearChat, loadChat, saveChat } from './lib/storage.js';
 import { MAX_PINS, MAX_SEND, REQUIRED, WELCOME, dayToIso, emptyDraft, tripDays } from './lib/util.js';
@@ -153,6 +153,32 @@ export default function App({ cfg }) {
     const t = setTimeout(fetchPlan, 900);
     return () => clearTimeout(t);
   }, [rkey, state.ready, fresh, state.planBusy, state.plan, fetchPlan]);
+
+  /* ---------- 예상 비용 (담은 장소·숙소 × 인원) ---------- */
+
+  const [estimate, setEstimate] = useState(null);
+  const costDraft = state.draft;
+  const costKey = JSON.stringify([
+    costDraft.people || 1,
+    (costDraft.pins || []).map((p) => [p.day, p.name, p.kakao_id]),
+    (costDraft.stays || []).map((s) => [s.date, s.name || s.query]),
+  ]);
+  useEffect(() => {
+    const cur = stateRef.current.draft;
+    if (cfg.member === 'guest' || (!(cur.pins || []).length && !(cur.stays || []).length)) {
+      setEstimate(null);
+      return undefined;
+    }
+    // 장소를 연달아 담을 수 있으니 0.6초 기다렸다가 한 번만
+    let alive = true;
+    const t = setTimeout(() => {
+      fetchEstimate(cfg, stateRef.current.draft).then(
+        (data) => { if (alive) setEstimate(data.success ? data : null); },
+        () => { if (alive) setEstimate(null); },
+      );
+    }, 600);
+    return () => { alive = false; clearTimeout(t); };
+  }, [costKey, cfg]);
 
   // 처음 일정이 나오면 일정 미리보기가 보이도록 초안 칸을 아래로 내려 준다
   useEffect(() => {
@@ -308,7 +334,7 @@ export default function App({ cfg }) {
       />
       <DraftPanel
         ref={draftBodyRef}
-        state={state} sprite={cfg.sprite} manualUrl={cfg.manualUrl}
+        state={state} sprite={cfg.sprite} manualUrl={cfg.manualUrl} estimate={estimate}
         applyLabel={applyLabel} applyLink={applyLink}
         onRemoveStay={removeStay} onRemovePin={removePin} onApply={apply} onEdit={onEdit}
         plan={{

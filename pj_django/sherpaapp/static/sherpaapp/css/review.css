@@ -757,3 +757,33 @@
 
 /* 하늘 배경 안에서는 모든 칸이 같은 층(z-index 1)이라, 제목 줄의 펼침 메뉴가 아래 칸에 가려짐 → 제목 줄만 위층으로 */
 .trip-sky > .rv-title { z-index: 30; }
+
+/* =========================================================
+   내 글 고치기·지우기 (리뷰 게시판, 내 글에만 보임)
+========================================================= */
+.rt-item { position: relative; display: flex; flex-direction: column; }
+.rt-item > .rt-card { flex: 1; }
+/* 표지 사진 아래쪽 오른편에 작은 버튼 두 개 */
+.rt-mine { position: absolute; top: 104px; right: 10px; z-index: 2; display: flex; gap: 6px; }
+.rt-mine__btn, .rv-mine__btn { padding: 4px 10px; border: 1px solid #dbe4f3; border-radius: 999px; background: rgba(255, 255, 255, .95); color: #2d6cdf; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(30, 64, 175, .12); }
+.rt-mine__btn:hover, .rv-mine__btn:hover { border-color: #2d6cdf; }
+.rt-mine__btn.is-danger, .rv-mine__btn.is-danger { color: #d64545; }
+.rt-mine__btn.is-danger:hover, .rv-mine__btn.is-danger:hover { border-color: #d64545; }
+.rt-mine__btn:disabled { opacity: .6; cursor: default; }
+
+.rv-card__foot { align-items: center; gap: 8px; }
+.rv-mine__btn { box-shadow: none; }
+.rv-mine__del { display: inline; margin: 0; }
+
+.rv-dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 16px; box-shadow: 0 20px 50px rgba(15, 30, 60, .25); }
+.rv-dialog::backdrop { background: rgba(15, 30, 60, .35); }
+.rv-dialog__form { display: flex; flex-direction: column; gap: 8px; padding: 22px; }
+.rv-dialog__form h2 { margin: 0; font-size: 17px; color: #1f2d4a; }
+.rv-dialog__sub { margin: 0 0 6px; font-size: 13px; color: #6b7a93; }
+.rv-dialog__form label { font-size: 12.5px; color: #6b7a93; }
+.rv-dialog__form select, .rv-dialog__form textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid #dfe6f2; border-radius: 10px; font: inherit; font-size: 14px; resize: vertical; }
+.rv-dialog__form select:focus, .rv-dialog__form textarea:focus { outline: 0; border-color: #2d6cdf; }
+.rv-dialog__tags { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 4px; }
+.rv-dialog__tags label { display: inline-flex; align-items: center; gap: 4px; color: #4a5b78; cursor: pointer; }
+.rv-dialog__err { margin: 0; min-height: 1em; font-size: 12.5px; color: #d64545; }
+.rv-dialog__btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }

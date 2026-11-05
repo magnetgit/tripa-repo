@@ -16,7 +16,7 @@
 
     <link
         rel="stylesheet"
-        href="{% static 'sherpaapp/css/style.css' %}?v=20261065"
+        href="{% static 'sherpaapp/css/style.css' %}?v=20261067"
     >
 
 </head>
@@ -335,6 +335,60 @@
                     </div>
 
                 </form>
+
+
+                <!-- AI 예상 예산: 여행 만들 때 일정 장소 가격 × 인원으로 계산한 분류별 예산 -->
+
+                <div class="bg-ai">
+
+                    <div class="bg-ai__head">
+                        <strong>{% include "_icon.html" with name="bulb" %} AI 예상 예산</strong>
+                        {% if ai_budget.rows %}
+                            <span>합계 {{ ai_budget.total|floatformat:"0g" }}원</span>
+                        {% endif %}
+                    </div>
+
+                    {% if ai_budget.rows %}
+
+                        <ul class="bg-ai__list">
+                            {% for row in ai_budget.rows %}
+                                <li class="{% if row.over %}is-over{% endif %}">
+                                    <div class="bg-ai__line">
+                                        <span class="bg-dot" style="background: {{ row.color }};"></span>
+                                        <span class="bg-cats__icon">{% include "_icon.html" with name=row.icon %}</span>
+                                        <span class="bg-cats__name">{{ row.name }}</span>
+                                        <span class="bg-ai__money">
+                                            {{ row.used|floatformat:"0g" }} / <strong>{{ row.limit|floatformat:"0g" }}원</strong>
+                                        </span>
+                                    </div>
+                                    <div class="bg-ai__bar"><span style="width: {{ row.width }}%; background: {{ row.color }};"></span></div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                    {% else %}
+
+                        <p class="bg-ai__empty">아직 AI 예상 예산이 없어요. 일정에 들어간 장소 가격으로 계산해 드릴게요.</p>
+
+                    {% endif %}
+
+                    <form
+                        class="bg-ai__form"
+                        method="post"
+                        action="{% url 'budget_ai_fill' travel_id=travel.t_id %}"
+                    >
+                        {% csrf_token %}
+                        <label for="aiPeopleInput">인원</label>
+                        <input type="number" name="people" id="aiPeopleInput" min="1" max="30" value="{{ ai_people }}" required>
+                        <span>명</span>
+                        <button type="submit" class="bg-ai__btn">
+                            {% if ai_budget.rows %}다시 계산{% else %}AI 예산 계산{% endif %}
+                        </button>
+                    </form>
+
+                    <p class="bg-ai__note">계산하면 총 예산도 AI 예상 합계로 바뀌어요.</p>
+
+                </div>
 
 
                 <!-- 분류별 -->

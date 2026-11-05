@@ -47,3 +47,8 @@ export function addPlaceToSchedule(cfg, fields) {
     () => false,
   );
 }
+
+// 예상 비용: 초안의 담은 장소·숙소 × 인원 → {success, people, planned, by: {분류: 금액}, items, unknown}
+export function fetchEstimate(cfg, draft) {
+  return postJson(cfg.estimateUrl, { draft }, cfg.csrf);
+}

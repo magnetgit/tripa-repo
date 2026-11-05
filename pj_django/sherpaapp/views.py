@@ -39,6 +39,7 @@ from .services.photo_service import attach_photos, place_photo_url
 from .services import festival_service
 from .services import region_photo_service
 from .services import hours_service
+from .services import budget_service
 
 logger = logging.getLogger(__name__)
 from .services.route_service import get_kakao_route, get_travel_time
@@ -588,6 +589,7 @@ def review_board(request):
         'review_total': page.paginator.count,
         'message': request.session.pop('review_message', ''),
         'tab': 'places',
+        'tags': REVIEW_TAGS,   # 내 리뷰 고치기 창의 태그
     })
 
 
@@ -953,6 +955,65 @@ def review_write(request):
         'form': form,
         'error': error,
     })
+
+
+def _review_back(request):
+    """장소 리뷰 탭의 보던 페이지로 돌아가는 주소"""
+    url = reverse('review_board') + '?tab=places'
+    page = (request.POST.get('page') or '').strip()
+    return url + ('&page=%s' % page if page.isdigit() else '')
+
+
+# 내 장소 리뷰 고치기 (폼 POST → 게시판으로). 남의 리뷰는 고칠 수 없음
+@require_POST
+def review_update(request, rv_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    review = get_object_or_404(Review, rv_id=rv_id)
+    if review.member_id != member.m_id:
+        return HttpResponseForbidden('내 리뷰만 고칠 수 있어요.')
+
+    try:
+        rating = int(request.POST.get('rating') or 0)
+    except ValueError:
+        rating = 0
+    content = (request.POST.get('content') or '').strip()
+    tags = [t for t in request.POST.getlist('tags') if t in REVIEW_TAGS]
+
+    if not 1 <= rating <= 5:
+        message = '별점을 1~5개 중에서 골라 주세요.'
+    elif not content:
+        message = '리뷰 내용을 적어 주세요.'
+    elif len(content) > 100:
+        message = '리뷰는 100자까지 쓸 수 있어요.'
+    else:
+        review.rating = rating
+        review.content = content
+        review.tags = tags
+        review.save(update_fields=['rating', 'content', 'tags'])
+        message = "'%s' 리뷰를 고쳤어요." % review.place_name
+
+    request.session['review_message'] = message
+    return redirect(_review_back(request))
+
+
+# 내 장소 리뷰 지우기 (추천도 같이 지워짐). 남의 리뷰는 지울 수 없음
+@require_POST
+def review_delete(request, rv_id):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
+
+    review = get_object_or_404(Review, rv_id=rv_id)
+    if review.member_id != member.m_id:
+        return HttpResponseForbidden('내 리뷰만 지울 수 있어요.')
+
+    name = review.place_name
+    review.delete()
+    request.session['review_message'] = "'%s' 리뷰를 지웠어요." % name
+    return redirect(_review_back(request))
 
 
 # 홈 '여행 리뷰 추천' 카드: 지역별로 묶어 평점 높고 리뷰 많은 순
@@ -1557,6 +1618,54 @@ def travel_hours(request, travel_id, day):
     })
 
 
+# 여행 상세: 그날 장소마다 AI 예상 비용 (여행 만들 때와 같은 가격 × 비용 관리에서 계산한 인원) — 🟦 예산 AI
+# GET → {success, day, people, places: {sp_id: cost}, planned, by}  (cost 모양은 mock.json places.items[].cost)
+def travel_costs(request, travel_id, day):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    schedules = list(Schedule.objects.filter(travel=travel).order_by('s_day'))
+    if day < 1 or day > len(schedules):
+        return JsonResponse({'success': False, 'message': '존재하지 않는 DAY입니다.'}, status=404)
+
+    sps = (
+        SchedulePlace.objects.filter(schedule=schedules[day - 1])
+        .select_related('place').order_by('visit_order', 'sp_id')
+    )
+    items = [{
+        'sp_id': sp.sp_id,
+        'name': sp.place.p_name,
+        'kind': sp.place.p_kind or '',
+        'lat': _float_or_none(sp.place.p_lat),
+        'lon': _float_or_none(sp.place.p_lon),
+        'kakao_id': sp.place.p_kakao_id or None,
+        'is_stay': '숙' in (sp.place.p_kind or ''),
+    } for sp in sps]
+
+    people = _budget_people(request, travel.t_id)
+    try:
+        estimate = budget_service.plan_budget([{'day': day, 'items': items}], people)
+    except Exception:
+        logger.exception('예상 비용 실패 travel=%s day=%s', travel_id, day)
+        estimate = {'planned': 0, 'by': {}}
+
+    return JsonResponse({
+        'success': True,
+        'day': day,
+        'people': people,
+        'places': {str(it['sp_id']): it['cost'] for it in items if it.get('cost')},
+        'planned': estimate['planned'],
+        'by': estimate['by'],
+    })
+
+
 TRAVEL_MAX_DAYS = 30
 
 
@@ -2034,6 +2143,45 @@ def _budget_chart(travel, pays, total_budget):
     }
 
 
+# AI 예상 예산을 계산한 인원 (DB 칸이 없어서 로그인 세션에 여행별로 기억)
+BUDGET_PEOPLE_DEFAULT = 2
+
+
+def _budget_people(request, travel_id):
+    saved = (request.session.get('budget_people') or {}).get(str(travel_id))
+    return saved or BUDGET_PEOPLE_DEFAULT
+
+
+def _remember_budget_people(request, travel_id, people):
+    saved = dict(request.session.get('budget_people') or {})
+    saved[str(travel_id)] = people
+    request.session['budget_people'] = saved   # 새 dict로 넣어야 세션이 저장됨
+
+
+def _budget_ai_rows(travel, pays):
+    """여행 만들 때 AI가 계산해 둔 분류별 예산(travel_budget 표)과 지금까지 쓴 돈을 나란히 (🟦 예산 AI)."""
+    limits = budget_service.load_limits(travel)
+    used = {cat[1]: 0 for cat in BUDGET_CATEGORIES}
+
+    for pay in pays:
+        used[_budget_category(pay)[1]] += pay.pay_pay or 0
+
+    rows = []
+    for name, key, color, icon, _ in BUDGET_CATEGORIES:
+        limit = limits.get(key) or 0
+        if limit <= 0:
+            continue
+        spent = used[key]
+        rows.append({
+            'name': name, 'key': key, 'color': color, 'icon': icon,
+            'limit': limit, 'used': spent,
+            'left': limit - spent, 'over': spent > limit,
+            'width': min(100, round(spent / limit * 100)),
+        })
+
+    return {'rows': rows, 'total': sum(r['limit'] for r in rows)}
+
+
 def budget(
     request,
     travel_id=None
@@ -2247,6 +2395,20 @@ def budget(
                 total_budget,
                 used_money
             ),
+
+            # AI 예상 예산 (분류별 예산 대비 사용)
+            'ai_budget':
+                _budget_ai_rows(
+                    travel,
+                    pays
+                ),
+
+            # AI 예산을 계산한 인원 (인원 칸에 그대로 보임)
+            'ai_people':
+                _budget_people(
+                    request,
+                    travel.t_id
+                ),
 
             # 아래쪽 지출 차트
             'chart_data':
@@ -5803,6 +5965,21 @@ def travel_chat_apply(request):
             chat_logger.exception('AI 대화 일정에 담은 장소/삭제/순서 반영 실패 (t_id=%s)', travel.t_id)
             warning = '여행은 만들어졌지만 담은 장소나 순서를 일정에 반영하지 못했어요. 상세 화면에서 확인해 주세요.'
 
+    # 만들어진 일정 전체(자동으로 들어간 식당·카페 포함)의 예상 비용을 분류별 예산으로 저장 (🟦 budget_service)
+    try:
+        estimate = budget_service.plan_budget(_chat_preview_days(travel, draft), draft.get('people'))
+        if not estimate['items']:
+            estimate = budget_service.draft_budget(draft)   # 일정 생성이 실패했으면 담은 장소·숙소만
+        budget_service.save_limits(travel, estimate['by'])
+        _remember_budget_people(request, travel.t_id, estimate['people'])   # 비용 관리 인원 칸에 같은 인원
+
+        # 대화에서 총예산을 따로 말하지 않았으면 AI 예상 합계를 총 예산으로 (비용 관리 화면에 그대로 보임)
+        if not draft.get('budget_total') and estimate['planned'] > 0:
+            travel.t_budget = estimate['planned']
+            travel.save(update_fields=['t_budget'])
+    except Exception:
+        chat_logger.exception('AI 대화 분류별 예산 저장 실패 (t_id=%s)', travel.t_id)
+
     return JsonResponse({
         'ok': True,
         'url': detail_url,
@@ -6286,12 +6463,20 @@ def travel_chat_preview(request):
     # 새로 찾는 건 한 번에 PREVIEW_PHOTO_NEW곳까지 (응답이 늦어지지 않게)
     attach_photos([item for day in days for item in day['items']], max_new=PREVIEW_PHOTO_NEW)
 
+    # 장소마다 예상 비용(cost) + 일정 전체 예상 예산(budget) — 자동으로 들어간 식당·카페도 포함 (🟦 budget_service)
+    try:
+        plan_budget = budget_service.plan_budget(days, draft.get('people'))
+    except Exception:
+        chat_logger.exception('AI 대화 미리보기 예상 비용 실패')
+        plan_budget = None
+
     transport = (draft.get('transport') or '').strip()
 
     result = {
         'ok': True,
         'days': days,
         'transport': PREVIEW_TRANSPORT_LABEL.get(transport, ''),
+        'budget': plan_budget,
     }
     cache.set(cache_key, result, PREVIEW_CACHE_SECONDS)
 
@@ -6400,3 +6585,109 @@ def review_keywords(request):
             'summary': result['summary'],
             'count': result['count']
         })
+
+
+# =========================================================
+# 예산 AI (🟦): 초안 예상 비용 / 카테고리 예산 저장
+# =========================================================
+
+@require_POST
+def budget_estimate(request):
+    """AI 대화 초안의 담은 장소·숙소 → 인원 기준 예상 비용
+    POST JSON {draft} → {success, people, planned, by: {분류: 금액}, items: [...], unknown: [이름]}
+    """
+    if not _chat_member(request):
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    body = _chat_json_body(request)
+    if body is None:
+        return JsonResponse({'success': False, 'message': '요청 형식이 올바르지 않아요.'}, status=400)
+
+    category_names = list(Category.objects.order_by('c_id').values_list('c_name', flat=True))
+    draft = chat_service.normalize_draft(body.get('draft'), None, category_names, date.today(), resolve=False)
+
+    try:
+        estimate = budget_service.draft_budget(draft)
+    except Exception:
+        logger.exception('예상 비용 계산 실패')
+        return JsonResponse({'success': False, 'message': '예상 비용을 계산하지 못했어요.'}, status=500)
+
+    return JsonResponse({'success': True, **estimate})
+
+
+def budget_category(request, travel_id):
+    """여행의 카테고리(분류별) 예산
+    GET  → {success, budget: {total, limit: {분류: 예산}, by: {분류: 쓴 돈}}}
+    POST JSON {limit: {sight: 30000, food: 150000, ...}} (보낸 분류만 저장) → 같은 모양
+    분류 키: sight·food·cafe·move·stay·shop·etc (mock.json budget 키)
+    """
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    if request.method == 'POST':
+        body = _chat_json_body(request)
+        if body is None or not isinstance(body.get('limit'), dict):
+            return JsonResponse({'success': False, 'message': 'limit 값이 필요해요.'}, status=400)
+        if not budget_service.clean_limits(body['limit']):
+            return JsonResponse({'success': False, 'message': '저장할 분류 금액이 없어요.'}, status=400)
+        limits = budget_service.save_limits(travel, body['limit'])
+    elif request.method == 'GET':
+        limits = budget_service.load_limits(travel)
+    else:
+        return JsonResponse({'success': False, 'message': '허용되지 않는 요청입니다.'}, status=405)
+
+    used = {c: 0 for c in budget_service.CATEGORIES}
+    for pay in Pay.objects.filter(schedule__travel=travel).select_related('place'):
+        cat = _budget_category(pay)[1]
+        if cat in used:
+            used[cat] += pay.pay_pay or 0
+
+    return JsonResponse({
+        'success': True,
+        'budget': {'total': travel.t_budget or 0, 'limit': limits, 'by': used},
+    })
+
+
+# ==============================================
+# 비용 관리 - AI 예상 예산 다시 계산 (🟦 예산 AI)
+# 저장된 일정의 장소 가격 × 인원으로 분류별 예산과 총 예산을 채운다.
+# AI 대화로 만들지 않은 여행이나, 인원이 바뀐 여행도 이 버튼으로 채울 수 있다.
+# ==============================================
+
+@require_POST
+def budget_ai_fill(request, travel_id):
+    member = _chat_member(request)
+
+    if not member:
+        return redirect('login')
+
+    travel = get_object_or_404(Travel, t_id=travel_id, member=member)
+    people = budget_service.clean_people(request.POST.get('people'))
+
+    try:
+        estimate = budget_service.plan_budget(_chat_preview_days(travel, {}), people)
+    except Exception:
+        chat_logger.exception('비용 관리 AI 예산 계산 실패 (t_id=%s)', travel.t_id)
+        estimate = {'items': [], 'planned': 0, 'by': {}}
+
+    if not estimate['items']:
+        return HttpResponse("""
+            <script>
+                alert('일정에 가격을 알 수 있는 장소가 없어 예산을 계산하지 못했어요.');
+                history.back();
+            </script>
+        """)
+
+    budget_service.save_limits(travel, estimate['by'])
+    _remember_budget_people(request, travel.t_id, people)   # 다시 열어도 인원 칸이 이 숫자로
+    travel.t_budget = estimate['planned']
+    travel.save(update_fields=['t_budget'])
+
+    return redirect('budget_travel', travel_id=travel.t_id)

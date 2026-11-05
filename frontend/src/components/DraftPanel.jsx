@@ -2,6 +2,8 @@
 import { forwardRef } from 'react';
 import Icon from './Icon.jsx';
 import PlanPreview from './PlanPreview.jsx';
+import { costAmount } from './RecCards.jsx';
+import { isGone, isPlanFresh } from '../lib/plan.js';
 import { TRANSPORT, dateText, dayToIso, shortDate, tripDays, won } from '../lib/util.js';
 
 // 한 줄. 이번 대화로 바뀐 칸은 is-new 로 잠깐 반짝임 (tick 이 바뀌면 다시 반짝이도록 key 에 넣음)
@@ -17,8 +19,11 @@ function Row({ rowKey, icon, label, filled, isNew, sprite, children }) {
   );
 }
 
+// 예상 비용 분류 (travel_budget 분류 키 · 비용 관리 화면 이름)
+const COST_CAT = { sight: '관광지', food: '식비', cafe: '카페', move: '교통', stay: '숙박', shop: '쇼핑', etc: '기타' };
+
 const DraftPanel = forwardRef(function DraftPanel(
-  { state, sprite, manualUrl, applyLabel, applyLink, onRemoveStay, onRemovePin, onApply, onEdit, plan },
+  { state, sprite, manualUrl, estimate, applyLabel, applyLink, onRemoveStay, onRemovePin, onApply, onEdit, plan },
   bodyRef,
 ) {
   const d = state.draft;
@@ -44,6 +49,25 @@ const DraftPanel = forwardRef(function DraftPanel(
       if (!booked[iso]) open.push(shortDate(iso));
     }
     if (open.length) stayNote = <span className="tc-sub tc-stays__open">{open.join(', ')} 숙소는 아직 미정</span>;
+  }
+
+  // 예상 비용: 일정 미리보기가 있으면 미리보기 전체(자동으로 넣은 식당·카페 포함, 지운 장소 제외), 없으면 담은 장소·숙소
+  let shown = estimate;
+  if (isPlanFresh(state)) {
+    const n = Math.max(1, Number(d.people) || 1);
+    const by = {};
+    const unknown = [];
+    let planned = 0;
+    let counted = 0;
+    state.plan.days.forEach((day) => (day.items || []).forEach((it) => {
+      if (isGone(state.removed || [], day, it)) return;
+      if (!it.cost) { unknown.push(it.name); return; }
+      const amount = costAmount(it.cost, n);
+      by[it.cost.cat] = (by[it.cost.cat] || 0) + amount;
+      planned += amount;
+      counted += 1;
+    }));
+    if (counted) shown = { people: n, planned, by, unknown, plan: true };
   }
 
   const sp = d.start_place;
@@ -112,6 +136,26 @@ const DraftPanel = forwardRef(function DraftPanel(
           <Row key={rk('budget', '예산')} rowKey="budget" icon="wallet" label="예산" filled={!!budgetText} isNew={isNew('예산')} sprite={sprite}>
             {budgetText}
           </Row>
+          {shown && (
+            <Row rowKey="estimate" icon="wallet" label="예상 비용" filled sprite={sprite}>
+              <span className="tc-estimate">
+                <strong>약 {won(shown.planned)}</strong>
+                <span className="tc-sub"> · {shown.people}명 기준{d.people ? '' : ' (인원 미정)'}</span>
+                {d.budget_total > 0 && shown.planned > d.budget_total && (
+                  <span className="tc-warn"> · 총예산보다 {won(shown.planned - d.budget_total)} 많아요</span>
+                )}
+                <span className="tc-chips">
+                  {Object.keys(COST_CAT).filter((k) => shown.by[k] > 0).map((k) => (
+                    <span className="tc-chip" key={k}>{COST_CAT[k]} {won(shown.by[k])}</span>
+                  ))}
+                </span>
+                {shown.unknown.length > 0 && (
+                  <span className="tc-sub tc-estimate__note">가격 정보 없음: {shown.unknown.slice(0, 3).join(', ')}{shown.unknown.length > 3 ? ' 외' : ''}</span>
+                )}
+                <span className="tc-sub tc-estimate__note">{shown.plan ? '일정 미리보기 전체 기준 (자동으로 넣은 식당·카페 포함)' : '담은 장소·숙소 기준'}, 일정 적용 때 분류별 예산으로 저장돼요</span>
+              </span>
+            </Row>
+          )}
           <Row key={rk('concept', '컨셉')} rowKey="concept" icon="tag" label="컨셉" filled={(d.categories || []).length > 0} isNew={isNew('컨셉')} sprite={sprite}>
             <span className="tc-chips">
               {(d.categories || []).map((c) => <span className="tc-chip" key={c}>{c}</span>)}

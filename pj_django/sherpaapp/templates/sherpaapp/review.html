@@ -6,7 +6,7 @@
     <title>TRIPA - 리뷰 게시판</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=6">
     </head>
 <body>
 <div class="detail-container">        <!-- 전체 틀: 왼쪽 메뉴 + 오른쪽 본문 -->
@@ -105,6 +105,18 @@
             {% if route_cards %}
             <div class="rt-grid">
                 {% for c in route_cards %}
+                <div class="rt-item">
+                {% if c.route.member_id == member.m_id %}
+                {# 내가 공유한 루트만: 소개 고치기 / 게시판에서 내리기 (남의 루트에는 버튼이 없고 서버도 막음) #}
+                <div class="rt-mine">
+                    <button type="button" class="rt-mine__btn" data-route-edit
+                            data-url="{% url 'route_share' c.travel.t_id %}"
+                            data-title="{{ c.travel.t_title }}" data-intro="{{ c.route.intro }}">수정</button>
+                    <button type="button" class="rt-mine__btn is-danger" data-route-del
+                            data-url="{% url 'route_share' c.travel.t_id %}"
+                            data-title="{{ c.travel.t_title }}">삭제</button>
+                </div>
+                {% endif %}
                 <a class="rt-card" href="{% url 'route_detail' c.route.sr_id %}">
                     <div class="rt-card__cover{% if not c.cover %} is-empty{% endif %}">
                         {% if c.cover %}<img src="{{ c.cover }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove(); this.parentNode && this.parentNode.classList.add('is-empty');">{% endif %}
@@ -131,6 +143,7 @@
                         </div>
                     </div>
                 </a>
+                </div>
                 {% endfor %}
             </div>
 
@@ -187,6 +200,17 @@
                     <footer class="rv-card__foot">
                         {% if r.member_id == member.m_id %}
                             <span class="rv-mine">내 리뷰 · 추천 {{ r.helpful_count }}</span>
+                            {# 내 리뷰만 고치기·지우기 (남의 리뷰는 추천 버튼만) #}
+                            <button type="button" class="rv-mine__btn" data-review-edit
+                                    data-url="{% url 'review_update' r.rv_id %}"
+                                    data-place="{{ r.place_name }}" data-rating="{{ r.rating }}"
+                                    data-content="{{ r.content }}" data-tags="{{ r.tags|join:'|' }}">수정</button>
+                            <form method="post" action="{% url 'review_delete' r.rv_id %}" class="rv-mine__del"
+                                  onsubmit="return confirm('\'{{ r.place_name|escapejs }}\' 리뷰를 지울까요? 받은 추천도 함께 사라져요.');">
+                                {% csrf_token %}
+                                <input type="hidden" name="page" value="{{ page.number }}">
+                                <button type="submit" class="rv-mine__btn is-danger">삭제</button>
+                            </form>
                         {% else %}
                             <button type="button" class="rv-helpful{% if r.is_helped %} is-on{% endif %}"
                                     data-url="{% url 'review_helpful' rv_id=r.rv_id %}"
@@ -237,9 +261,122 @@
 
         </div>
         {% endif %}
+        {# 내 루트 소개 고치기 창 #}
+        <dialog class="rv-dialog" id="routeEditDialog" aria-labelledby="routeEditTitle">
+            <form method="dialog" class="rv-dialog__form" id="routeEditForm">
+                <h2 id="routeEditTitle">루트 소개 고치기</h2>
+                <p class="rv-dialog__sub" data-name></p>
+                <label for="routeEditIntro">한 줄 소개 (200자까지)</label>
+                <textarea id="routeEditIntro" name="intro" maxlength="200" rows="3"></textarea>
+                <p class="rv-dialog__err" data-err aria-live="polite"></p>
+                <div class="rv-dialog__btns">
+                    <button type="button" class="btn btn-secondary" data-close>취소</button>
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </dialog>
+
+        {% if tab == 'places' %}
+        {# 내 장소 리뷰 고치기 창 #}
+        <dialog class="rv-dialog" id="reviewEditDialog" aria-labelledby="reviewEditTitle">
+            <form method="post" class="rv-dialog__form" id="reviewEditForm">
+                {% csrf_token %}
+                <input type="hidden" name="page" value="{{ page.number }}">
+                <h2 id="reviewEditTitle">리뷰 고치기</h2>
+                <p class="rv-dialog__sub" data-name></p>
+                <label for="reviewEditRating">별점</label>
+                <select id="reviewEditRating" name="rating" required>
+                    <option value="5">★★★★★ 5점</option>
+                    <option value="4">★★★★☆ 4점</option>
+                    <option value="3">★★★☆☆ 3점</option>
+                    <option value="2">★★☆☆☆ 2점</option>
+                    <option value="1">★☆☆☆☆ 1점</option>
+                </select>
+                <label for="reviewEditContent">리뷰 (100자까지)</label>
+                <textarea id="reviewEditContent" name="content" maxlength="100" rows="3" required></textarea>
+                <div class="rv-dialog__tags">
+                    {% for t in tags %}
+                    <label><input type="checkbox" name="tags" value="{{ t }}"> #{{ t }}</label>
+                    {% endfor %}
+                </div>
+                <div class="rv-dialog__btns">
+                    <button type="button" class="btn btn-secondary" data-close>취소</button>
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </dialog>
+        {% endif %}
     </main>
 
 </div>
+
+<script>
+    // 내 글 고치기·지우기 (버튼은 내 글에만 있고, 서버도 남의 글이면 막는다)
+    (function () {
+        var token = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        document.querySelectorAll('.rv-dialog [data-close]').forEach(function (btn) {
+            btn.addEventListener('click', function () { btn.closest('dialog').close(); });
+        });
+
+        // 여행 루트: 소개 고치기 → route_share (intro), 삭제 → route_share (action=unshare)
+        function postRoute(url, data) {
+            var body = new FormData();
+            Object.keys(data).forEach(function (k) { body.append(k, data[k]); });
+            return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': token }, body: body })
+                .then(function (res) { return res.json(); });
+        }
+
+        var routeDialog = document.getElementById('routeEditDialog');
+        var routeForm = document.getElementById('routeEditForm');
+        var routeUrl = '';
+        document.querySelectorAll('[data-route-edit]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                routeUrl = btn.dataset.url;
+                routeDialog.querySelector('[data-name]').textContent = btn.dataset.title;
+                routeDialog.querySelector('[data-err]').textContent = '';
+                routeForm.intro.value = btn.dataset.intro || '';
+                routeDialog.showModal();
+            });
+        });
+        if (routeForm) routeForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            postRoute(routeUrl, { intro: routeForm.intro.value.trim() })
+                .then(function (data) {
+                    if (!data.success) { routeDialog.querySelector('[data-err]').textContent = data.message || '저장하지 못했어요.'; return; }
+                    location.reload();
+                })
+                .catch(function () { routeDialog.querySelector('[data-err]').textContent = '저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'; });
+        });
+        document.querySelectorAll('[data-route-del]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!confirm("'" + btn.dataset.title + "' 루트를 게시판에서 내릴까요?\n받은 별점·댓글은 사라지고, 내 여행 일정은 그대로 남아요.")) return;
+                btn.disabled = true;
+                postRoute(btn.dataset.url, { action: 'unshare' })
+                    .then(function (data) {
+                        if (!data.success) { alert(data.message || '지우지 못했어요.'); btn.disabled = false; return; }
+                        location.reload();
+                    })
+                    .catch(function () { alert('지우지 못했어요. 잠시 뒤 다시 시도해 주세요.'); btn.disabled = false; });
+            });
+        });
+
+        // 장소 리뷰: 고치기 창에 지금 값을 채워서 연다 (저장은 폼 POST → review_update)
+        var reviewDialog = document.getElementById('reviewEditDialog');
+        var reviewForm = document.getElementById('reviewEditForm');
+        document.querySelectorAll('[data-review-edit]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var tags = (btn.dataset.tags || '').split('|');
+                reviewForm.action = btn.dataset.url;
+                reviewDialog.querySelector('[data-name]').textContent = btn.dataset.place;
+                reviewForm.rating.value = btn.dataset.rating;
+                reviewForm.content.value = btn.dataset.content;
+                reviewForm.querySelectorAll('[name=tags]').forEach(function (box) { box.checked = tags.indexOf(box.value) >= 0; });
+                reviewDialog.showModal();
+            });
+        });
+    })();
+</script>
 
 <script>
     // '내 여행 공유하기': 내 여행 목록 펼치기

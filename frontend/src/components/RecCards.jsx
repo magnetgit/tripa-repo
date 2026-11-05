@@ -34,14 +34,35 @@ function CardPhoto({ item, sprite }) {
   );
 }
 
-// 평점(review)·예상 비용(cost)은 값이 올 때만 (mock.json 키)
+const wonText = (n) => `${Number(n).toLocaleString('ko-KR')}원`;
+
+// 인원 기준 금액 (가격 모르면 0) — 일정 미리보기 합계에도 씀
+export function costAmount(cost, people) {
+  if (!cost || cost.per == null) return 0;
+  const n = Math.max(1, Number(people) || 1);
+  return cost.unit === 'room' ? cost.per * Math.ceil(n / Math.max(1, cost.cap || 2)) : cost.per * n;
+}
+
+// 예상 비용: 1인 요금 × 인원, 방 요금 × 방 개수(인원 ÷ 방 기준 인원). 인원은 지금 초안 값으로 다시 계산
+export function costText(cost, people) {
+  if (!cost || cost.per == null) return '';
+  const n = Math.max(1, Number(people) || 1);
+  const tag = cost.source === 'tour' ? '관광공사 요금' : '보통 가격 예상';
+  if (cost.unit === 'room') {
+    const rooms = Math.ceil(n / Math.max(1, cost.cap || 2));
+    return `1박 방 ${wonText(cost.per)}${rooms > 1 ? ` × ${rooms}개` : ''} = ${n}명 ${wonText(cost.per * rooms)} (${tag})`;
+  }
+  if (!cost.per) return `무료 (${tag})`;
+  return n > 1
+    ? `1인 ${wonText(cost.per)} · ${n}명 ${wonText(cost.per * n)} (${tag})`
+    : `1인 ${wonText(cost.per)} (${tag})`;
+}
+
+// 평점(review)은 값이 올 때만 (mock.json 키)
 function cardExtra(item) {
   const parts = [];
   if (item.review && item.review.count) {
     parts.push(`★ ${Number(item.review.rating).toFixed(1)} · 리뷰 ${item.review.count}개`);
-  }
-  if (item.cost && item.cost.amount) {
-    parts.push(`예상 ${Number(item.cost.amount).toLocaleString('ko-KR')}원`);
   }
   return parts.join(' · ');
 }
@@ -116,6 +137,11 @@ export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay }) {
               )}
 
               {cardExtra(item) && <p className="tc-card__extra">{cardExtra(item)}</p>}
+              {costText(item.cost, draft.people) && (
+                <p className="tc-card__cost" title={item.cost.text || ''}>
+                  <Icon name="wallet" sprite={sprite} /> {costText(item.cost, draft.people)}
+                </p>
+              )}
 
               <div className="tc-card__actions">
                 {!days.length && (

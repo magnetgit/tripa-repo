@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Icon from './Icon.jsx';
 import { dayItems, isPlanFresh, removedKey } from '../lib/plan.js';
+import { costText } from './RecCards.jsx';
 
 function Msg({ text, loading, error }) {
   return (
@@ -136,6 +137,12 @@ export default function PlanPreview({ state, sprite, onTab, onMove, onRemove, on
                   </div>
                   {sub.length > 0 && (
                     <p className="tc-tl__meta"><Icon name="route" sprite={sprite} /> {sub.join(' · ')}</p>
+                  )}
+                  {/* 예상 비용 (인원 기준, 자동으로 들어간 식당·카페 포함) */}
+                  {costText(it.cost, state.draft.people) && (
+                    <p className="tc-card__cost tc-tl__cost" title={it.cost.text || ''}>
+                      <Icon name="wallet" sprite={sprite} /> {costText(it.cost, state.draft.people)}
+                    </p>
                   )}
                 </div>
               </li>
