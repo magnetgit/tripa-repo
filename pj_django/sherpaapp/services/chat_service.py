@@ -667,6 +667,24 @@ def guess_trip_day(text):
     return _clean_int(day, 1, MAX_TRIP_DAYS)
 
 
+# 장소를 찾아 달라는 말
+_ASK_PLACE_WORDS = ('추천', '찾아', '알려', '골라', '어디', '갈만', '가볼만', '갈 만', '가볼 만',
+                    '있어', '있을까', '보여', '괜찮은', '좋은 곳', '좋은 데', '어때')
+# 앞 AI 답이 추천을 제안했으면 '응', '좋아'만으로도 추천 요청
+_OFFER_ASK_RE = re.compile(r'(추천|찾아|알려)\s*(해\s*)?(드릴까요|드릴게요|드려도|줄까)')
+
+
+def asks_for_places(messages):
+    """이번 사용자 말이 장소 추천을 바라는 말인지. (AI가 보낸 recommend를 쓸지 정할 때)"""
+    text = messages[-1]['content'] if messages else ''
+
+    if any(w in text for w in _ASK_PLACE_WORDS + _RECO_KEYWORDS + tuple(QUERY_CONCEPTS)):
+        return True
+
+    last_ai = next((m['content'] for m in reversed(messages[:-1]) if m['role'] == 'assistant'), '')
+    return bool(_OFFER_ASK_RE.search(last_ai))
+
+
 def _guess_recommend(text):
     """'2일차 오후에 해운대 근처 카페 추천해줘' 같은 말에서 추천 조건을 읽는다. 추천 요청이 아니면 None."""
     text = text or ''
@@ -2083,6 +2101,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
     recommendation = None
     rec = _clean_recommend(result.get('recommend'), new_draft)
     guessed = False
+
+    if rec and not asks_for_places(messages):
+        # 장소 이야기가 없는 말에도 AI가 앞의 추천을 다시 보내는 경우가 있었음 ("계산기 코드 짜줘" → 카페 카드)
+        rec = None
 
     if not rec:
         # AI가 추천 신호를 빠뜨렸어도, 사용자가 추천을 요청했다면 직접 조건을 읽는다
