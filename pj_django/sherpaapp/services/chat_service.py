@@ -214,6 +214,8 @@ def kakao_first_place(query, near=None):
         ),
         'lat': coord[0],
         'lon': coord[1],
+        # 사진·리뷰를 붙이는 열쇠 (숙소가 일정에 들어갈 때 Place.p_kakao_id로 저장됨)
+        'kakao_id': _clean_kakao_id(item.get('id')),
     }
 
 
@@ -229,7 +231,7 @@ def _find_start_place(query, region):
 
 def _resolved_or_empty(query, found):
     """검색 결과(또는 못 찾음)를 초안에 넣는 모양으로 만든다."""
-    base = {'query': query, 'name': None, 'addr': None, 'lat': None, 'lon': None}
+    base = {'query': query, 'name': None, 'addr': None, 'lat': None, 'lon': None, 'kakao_id': None}
 
     if found:
         base.update(found)
@@ -247,6 +249,7 @@ def _from_client_place(query, data):
         'addr': _clean_text(data.get('addr'), 255),
         'lat': coord[0] if coord else None,
         'lon': coord[1] if coord else None,
+        'kakao_id': _clean_kakao_id(data.get('kakao_id')),
     } if coord else None)
 
 
@@ -288,30 +291,6 @@ def match_categories(raw, category_names):
 
 
 _NOT_CONCEPT_WORDS = ('추천', '빼', '제외', '말고', '싫', '별로')
-
-# 인원: '혼자', '둘이서', '4명', '3인', '가족 다섯 명' (AI가 '혼자 → 1'을 자주 놓쳐서 코드가 읽음)
-_PEOPLE_NUM_RE = re.compile(r'(?<![\d.])(\d{1,2})\s*(?:명|인(?!분|실|용|승)|사람)')
-_PEOPLE_KO = (
-    (('혼자', '나홀로', '홀로', '솔로'), 1),
-    (('둘이', '두 명', '두명', '두 사람', '두사람', '커플', '연인', '부부', '남친', '여친', '남자친구', '여자친구'), 2),
-    (('셋이', '세 명', '세명', '세 사람'), 3),
-    (('넷이', '네 명', '네명', '네 사람'), 4),
-    (('다섯 명', '다섯명', '다섯이'), 5),
-    (('여섯 명', '여섯명', '여섯이'), 6),
-)
-
-
-def guess_people(text):
-    """사용자 문장에서 여행 인원 수를 읽는다. 없으면 None."""
-    text = text or ''
-    m = _PEOPLE_NUM_RE.search(text)
-    if m and 1 <= int(m.group(1)) <= 30:
-        return int(m.group(1))
-    # 숫자가 큰 쪽(셋이 > 둘이)부터 보면 '둘이서 … 셋이'처럼 섞여도 마지막 말과 상관없이 하나로 정해짐
-    for words, count in reversed(_PEOPLE_KO):
-        if any(w in text for w in words):
-            return count
-    return None
 
 
 def guess_categories(text, category_names):
@@ -698,6 +677,24 @@ def guess_trip_day(text):
     return _clean_int(day, 1, MAX_TRIP_DAYS)
 
 
+# 장소를 찾아 달라는 말
+_ASK_PLACE_WORDS = ('추천', '찾아', '알려', '골라', '어디', '갈만', '가볼만', '갈 만', '가볼 만',
+                    '있어', '있을까', '보여', '괜찮은', '좋은 곳', '좋은 데', '어때')
+# 앞 AI 답이 추천을 제안했으면 '응', '좋아'만으로도 추천 요청
+_OFFER_ASK_RE = re.compile(r'(추천|찾아|알려)\s*(해\s*)?(드릴까요|드릴게요|드려도|줄까)')
+
+
+def asks_for_places(messages):
+    """이번 사용자 말이 장소 추천을 바라는 말인지. (AI가 보낸 recommend를 쓸지 정할 때)"""
+    text = messages[-1]['content'] if messages else ''
+
+    if any(w in text for w in _ASK_PLACE_WORDS + _RECO_KEYWORDS + tuple(QUERY_CONCEPTS)):
+        return True
+
+    last_ai = next((m['content'] for m in reversed(messages[:-1]) if m['role'] == 'assistant'), '')
+    return bool(_OFFER_ASK_RE.search(last_ai))
+
+
 def _guess_recommend(text):
     """'2일차 오후에 해운대 근처 카페 추천해줘' 같은 말에서 추천 조건을 읽는다. 추천 요청이 아니면 None."""
     text = text or ''
@@ -1012,8 +1009,16 @@ def _with_picks(items, rec, draft, anchor, near_found, exclude, size):
     return picks + rest[:total - len(picks)]
 
 
-def search_recommendations(rec, draft, size=4):
-    """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다."""
+CARD_SIZE = 4       # 추천 카드 수
+SPARE_CARDS = 3     # 쉬는 곳을 빼도 카드가 줄지 않게 더 받아 두는 후보 수
+
+
+def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True):
+    """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다.
+
+    spare: 여분 후보 수. 여분은 목록 맨 뒤에 붙는다 (쉬는 곳을 뺀 뒤 앞에서 size장을 쓰면 됨)
+    photos: False면 사진을 붙이지 않는다 (카드를 고른 뒤 attach_photos로 붙일 때)
+    """
     key = getattr(settings, 'KAKAO_REST_API_KEY', '')
 
     if not key:
@@ -1042,6 +1047,7 @@ def search_recommendations(rec, draft, size=4):
         plan = [(rec['query'], KIND_GROUPS.get((rec['query'] or '').strip(), ''), None, size)]
 
     documents = []
+    spares = []
     seen = set()
 
     for query, group, allow, count in plan:
@@ -1084,15 +1090,18 @@ def search_recommendations(rec, draft, size=4):
                 continue
 
             seen.add(ident)
-            documents.append(doc)
-            added += 1
 
-            if added >= count:
+            if added < count:
+                documents.append(doc)
+                added += 1
+            elif len(spares) < spare:
+                spares.append(doc)
+            else:
                 break
 
     items = []
 
-    for doc in documents:
+    for doc in documents + spares:
         coord = _clean_coord(doc.get('y'), doc.get('x'))
         name = _clean_text(doc.get('place_name'), 100)
 
@@ -1127,7 +1136,8 @@ def search_recommendations(rec, draft, size=4):
     items = rank_by_reviews(items, keep_first=sum(1 for item in items if item.get('pick')))
 
     # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
-    attach_photos(items)
+    if photos:
+        attach_photos(items)
 
     # 카드마다 예상 비용 (관광공사 요금 또는 보통 가격 × 인원) — 🟦 budget_service
     attach_costs(items, draft.get('people'))
@@ -1359,8 +1369,17 @@ def _model_list():
     return models
 
 
+# 답하기 전에 길게 '생각'하는 모델. 생각 모드를 끄지 않으면 한 번에 20~40초 걸린다 (11/05 시험)
+NO_THINK_MODELS = ('qwen3',)
+
+
 def _chat_model(base, api_key, model, timeout, json_mode=True):
     """LangChain 모델 객체를 만든다. (OpenAI 호환 API면 무엇이든 가능)"""
+    extra = {}
+
+    if str(model).startswith(NO_THINK_MODELS):
+        extra['reasoning_effort'] = 'none'   # Ollama: 생각 모드 끔
+
     llm = ChatOpenAI(
         model=model,
         base_url=base,
@@ -1368,6 +1387,7 @@ def _chat_model(base, api_key, model, timeout, json_mode=True):
         temperature=0.3,
         timeout=timeout,
         max_retries=0,  # 재시도는 call_llm이 예비 모델로 직접 한다
+        **extra,
     )
 
     if json_mode:
@@ -1425,23 +1445,16 @@ def _invoke(base, api_key, model, timeout, messages, tools=None, tool_log=None):
     return plain.bind_tools(tools, tool_choice='none', strict=True).bind(response_format=json_format).invoke(convo)
 
 
-def call_llm(messages, tools=None, tool_log=None):
-    """OpenAI 호환 chat/completions 호출 (LangChain 사용). 답변 문자열을 돌려준다.
+class _Unavailable(Exception):
+    """모델들이 모두 바쁘거나 연결이 안 됨 (status: 'timeout' 또는 상태 코드)."""
 
-    모델이 바쁘거나(503/429) 시간이 오래 걸리면 예비 모델로 자동으로 넘어간다.
-    tools를 주면 AI가 도구(agent_tools.py)를 부를 수 있다. 도구를 못 쓰는 모델이면 도구 없이 답을 받는다.
-    """
-    base = (getattr(settings, 'AI_BASE_URL', '') or '').rstrip('/')
-    api_key = getattr(settings, 'AI_API_KEY', '') or ''
-    models = _model_list()
-    timeout = getattr(settings, 'AI_TIMEOUT', 40)
+    def __init__(self, status):
+        super().__init__(status)
+        self.status = status
 
-    if not base or not models:
-        raise ChatError('AI 설정이 비어 있어요. .env에 AI_BASE_URL / AI_MODEL을 넣어주세요.')
 
-    if 'openai.com' in base and not api_key:
-        raise ChatError('AI 키가 비어 있어요. .env에 AI_API_KEY를 넣어주세요.')
-
+def _call_models(base, api_key, models, timeout, messages, tools=None, tool_log=None):
+    """한 AI 주소의 모델들을 차례로 불러 답 문자열을 돌려준다. 모두 바쁘거나 연결이 안 되면 _Unavailable."""
     # 예비 모델이 있으면 한 모델에 오래 매달리지 않는다.
     per_try = min(timeout, 25) if len(models) > 1 else timeout
     last_status = None
@@ -1474,10 +1487,61 @@ def call_llm(messages, tools=None, tool_log=None):
 
         return answer.content
 
+    raise _Unavailable(last_status)
+
+
+def _backup_route():
+    """기본 AI(예: 이 PC의 Ollama)가 꺼졌을 때 쓸 곳 (예: OpenAI). 설정이 없으면 None."""
+    base = (getattr(settings, 'AI_BACKUP_BASE_URL', '') or '').rstrip('/')
+    model = (getattr(settings, 'AI_BACKUP_MODEL', '') or '').strip()
+
+    if not base or not model:
+        return None
+
+    return base, getattr(settings, 'AI_BACKUP_API_KEY', '') or '', model
+
+
+def call_llm(messages, tools=None, tool_log=None):
+    """OpenAI 호환 chat/completions 호출 (LangChain 사용). 답변 문자열을 돌려준다.
+
+    모델이 바쁘거나(503/429) 시간이 오래 걸리면 예비 모델로 자동으로 넘어간다.
+    그래도 안 되면(Ollama가 꺼짐 등) AI_BACKUP_* 설정의 다른 AI(예: OpenAI)로 한 번 더 시도한다.
+    tools를 주면 AI가 도구(agent_tools.py)를 부를 수 있다. 도구를 못 쓰는 모델이면 도구 없이 답을 받는다.
+    """
+    base = (getattr(settings, 'AI_BASE_URL', '') or '').rstrip('/')
+    api_key = getattr(settings, 'AI_API_KEY', '') or ''
+    models = _model_list()
+    timeout = getattr(settings, 'AI_TIMEOUT', 40)
+
+    if not base or not models:
+        raise ChatError('AI 설정이 비어 있어요. .env에 AI_BASE_URL / AI_MODEL을 넣어주세요.')
+
+    if 'openai.com' in base and not api_key:
+        raise ChatError('AI 키가 비어 있어요. .env에 AI_API_KEY를 넣어주세요.')
+
+    try:
+        return _call_models(base, api_key, models, timeout, messages, tools, tool_log)
+    except _Unavailable as e:
+        last_status = e.status
+
+    backup = _backup_route()
+
+    if backup and backup[0] != base:
+        backup_base, backup_key, backup_model = backup
+        logger.warning('기본 AI(%s)를 쓸 수 없어 예비 AI(%s)로 넘어가요', base, backup_base)
+
+        if tool_log is not None:
+            tool_log.clear()   # 기본 AI에서 반쯤 돌린 도구 기록은 버린다
+
+        try:
+            return _call_models(backup_base, backup_key, [backup_model], min(timeout, 40), messages, tools, tool_log)
+        except _Unavailable as e:
+            last_status = e.status
+
     if last_status == 'timeout':
         raise ChatError('AI가 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.')
 
-    raise ChatError('AI가 지금 많이 바빠요. 잠시 후 다시 보내 주세요. (오류 %s)' % last_status)                                                                       
+    raise ChatError('AI가 지금 많이 바빠요. 잠시 후 다시 보내 주세요. (오류 %s)' % last_status)
 
 
 def _parse_json(text):
@@ -1772,6 +1836,42 @@ _SPOKEN_TIME_RE = re.compile(
 )
 
 
+# '혼자', '둘이서', '셋이' → 인원
+_PEOPLE_WORDS = (('혼자', 1), ('나홀로', 1), ('둘이', 2), ('셋이', 3), ('넷이', 4), ('다섯이', 5))
+_KOREAN_COUNTS = {'한': 1, '두': 2, '세': 3, '석': 3, '네': 4, '넉': 4, '다섯': 5, '여섯': 6,
+                  '일곱': 7, '여덟': 8, '아홉': 9, '열': 10}
+# '2명', '3-4명', '두 명' ('명소'·'명동'처럼 이어지는 말은 빼고)
+_PEOPLE_RE = re.compile(r'(\d{1,2})\s*(?:[-~]\s*(\d{1,2})\s*)?명(?![소동란물])')
+_KOREAN_PEOPLE_RE = re.compile(r'(한|두|세|석|네|넉|다섯|여섯|일곱|여덟|아홉|열)\s*(?:명|사람)(?![소동란물])')
+
+
+def guess_people(text):
+    """사용자 문장에서 인원을 직접 읽는다. 없으면 None. (로컬 모델이 '혼자'를 자주 놓침)
+
+    '성인 2명 아이 1명'처럼 여러 개면 더하고, '3-4명'이면 많은 쪽.
+    """
+    if not isinstance(text, str):
+        return None
+
+    counts = []
+
+    for match in _PEOPLE_RE.finditer(text):
+        counts.append(int(match.group(2) or match.group(1)))
+
+    for match in _KOREAN_PEOPLE_RE.finditer(text):
+        counts.append(_KOREAN_COUNTS[match.group(1)])
+
+    if counts:
+        total = sum(counts)
+        return total if 1 <= total <= 30 else None
+
+    for word, count in _PEOPLE_WORDS:
+        if word in text:
+            return count
+
+    return None
+
+
 def guess_start_time(text, has_start_place=False):
     """'아침8시', '오후 2시 반' 같은 말에서 출발 시각(HH:MM)을 읽는다. 못 읽으면 None.
 
@@ -1887,6 +1987,15 @@ def visit_weather(visit, draft, tool_log):
         draft.get('place'), visit.isoformat(), visit.isoformat(), draft.get('center')) or []
 
     return next((d for d in days if d.get('date') == visit.isoformat()), None)
+
+
+_OFFER_RE = re.compile(r'(추천|찾아|알려)\s*(해\s*)?(드릴|줄)까요|추천받으시겠|원하시면\s*추천')
+
+
+def drop_offer_questions(reply):
+    """추천 카드를 보여 주는 답에서 '추천해 드릴까요?' 같은 되묻는 문장을 뺀다."""
+    sentences = re.split(r'(?<=[.?!])\s+', reply or '')
+    return ' '.join(x for x in sentences if not _OFFER_RE.search(x)).strip()
 
 
 def rain_first(items, rec, visit, draft, tool_log, notes):
@@ -2047,6 +2156,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
     rec = _clean_recommend(result.get('recommend'), new_draft)
     guessed = False
 
+    if rec and not asks_for_places(messages):
+        # 장소 이야기가 없는 말에도 AI가 앞의 추천을 다시 보내는 경우가 있었음 ("계산기 코드 짜줘" → 카페 카드)
+        rec = None
+
     if not rec:
         # AI가 추천 신호를 빠뜨렸어도, 사용자가 추천을 요청했다면 직접 조건을 읽는다
         rec = _guess_recommend(messages[-1]['content'])
@@ -2083,7 +2196,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         elif not getattr(settings, 'KAKAO_REST_API_KEY', ''):
             notes.append('카카오 REST API 키(KAKAO_REST_API_KEY)가 없어서 장소를 찾지 못했어요.')
         else:
-            anchor_name, items = search_recommendations(rec, new_draft)
+            anchor_name, items = search_recommendations(rec, new_draft, spare=SPARE_CARDS, photos=False)
 
             # 방문하는 날 쉬는 곳은 빼고 알려 준다 (관광공사에 쉬는 날이 있는 곳만 알 수 있음)
             visit = visit_date(rec, new_draft)
@@ -2096,6 +2209,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
 
             # 비·눈 오는 날이면 실내 장소를 앞에 둔다 ('실내 추천'이면 야외는 뺌)
             items = rain_first(items, rec, visit, new_draft, tool_log, notes)
+
+            # 여분까지 받아 두었으니 앞에서 카드 수만큼만 쓰고, 고른 카드에만 사진을 붙인다
+            items = items[:CARD_SIZE]
+            attach_photos(items)
 
             if items:
                 title_place = rec.get('near') or new_draft['place']
@@ -2116,6 +2233,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
                 elif guessed:
                     # AI의 답변은 추천과 상관없는 안내문일 수 있어서 서버가 직접 안내한다
                     reply = "'%s' 조건으로 찾아봤어요. 마음에 드는 곳을 일정에 넣어 보세요." % recommendation['title']
+                else:
+                    # 카드를 이미 보여 주는데 "다른 곳을 추천해 드릴까요?"라고 되묻는 문장은 뺀다
+                    reply = drop_offer_questions(reply) or (
+                        "'%s' 조건으로 찾아봤어요. 마음에 드는 곳을 일정에 넣어 보세요." % recommendation['title'])
             elif not closed:
                 notes.append("'%s' 조건에 맞는 장소를 찾지 못했어요. 다른 말로 다시 물어봐 주세요." % rec['query'])
 
