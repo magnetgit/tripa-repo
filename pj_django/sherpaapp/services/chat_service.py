@@ -1013,11 +1013,12 @@ CARD_SIZE = 4       # 추천 카드 수
 SPARE_CARDS = 3     # 쉬는 곳을 빼도 카드가 줄지 않게 더 받아 두는 후보 수
 
 
-def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True):
+def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True, costs=True):
     """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다.
 
     spare: 여분 후보 수. 여분은 목록 맨 뒤에 붙는다 (쉬는 곳을 뺀 뒤 앞에서 size장을 쓰면 됨)
     photos: False면 사진을 붙이지 않는다 (카드를 고른 뒤 attach_photos로 붙일 때)
+    costs: False면 예상 비용을 붙이지 않는다 (카드를 고른 뒤 attach_costs로 붙일 때)
     """
     key = getattr(settings, 'KAKAO_REST_API_KEY', '')
 
@@ -1140,7 +1141,8 @@ def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True):
         attach_photos(items)
 
     # 카드마다 예상 비용 (관광공사 요금 또는 보통 가격 × 인원) — 🟦 budget_service
-    attach_costs(items, draft.get('people'))
+    if costs:
+        attach_costs(items, draft.get('people'))
 
     return anchor_name, items
 
@@ -1614,6 +1616,8 @@ _DAYS_ONLY_RE = re.compile(r'(?<!\d)(\d{1,2})\s*일\s*(?:로|으로|짜리|간|�
 # '하루 더 늘려줘', '하루 줄여줘'
 _LONGER_WORDS = ('늘려', '늘리', '더', '연장', '추가')
 _SHORTER_WORDS = ('줄여', '줄이', '빼', '덜', '단축')
+# 장소를 넣거나 찾는 말 (이런 말과 같이 오면 '하루 더'를 기간으로 보지 않음)
+_PLACE_TALK_WORDS = ('넣어', '넣자', '담아', '추천', '찾아', '코스', '갈만', '가볼만', '일차', '째 날', '째날')
 _MONTH_DAY_RE = re.compile(r'(?:(\d{4})\s*[년.\-/]\s*)?(\d{1,2})\s*(?:월|[./])\s*(\d{1,2})\s*일?')
 _UNTIL_DAY_RE = re.compile(r'(?:부터|~|-)\s*(\d{1,2})\s*일')
 _WEEK_DAY_RE = re.compile(r'(이번\s*주|금주|다음\s*주|담주|다다음\s*주)?\s*(?:의\s*)?([월화수목금토일])요일')
@@ -1695,6 +1699,9 @@ def guess_nights(text):
 def _relative_nights(text, prev):
     """'하루 더 늘려줘' → 이전 박 수 + 1, '하루 줄여줘' → - 1. 해당 없으면 None."""
     if not isinstance(text, str) or '하루' not in text:
+        return None
+    # '하루 더 카페 넣어줘', '하루 코스 추천해줘'처럼 장소 이야기면 기간이 아님
+    if any(w in text for w in _PLACE_TALK_WORDS + _RECO_KEYWORDS + tuple(QUERY_CONCEPTS)):
         return None
     p_start, p_end = _parse_date(prev.get('start')), _parse_date(prev.get('end'))
     if not p_start or not p_end:
@@ -1837,7 +1844,8 @@ _SPOKEN_TIME_RE = re.compile(
 
 
 # '혼자', '둘이서', '셋이' → 인원
-_PEOPLE_WORDS = (('혼자', 1), ('나홀로', 1), ('둘이', 2), ('셋이', 3), ('넷이', 4), ('다섯이', 5))
+_PEOPLE_WORDS = (('혼자', 1), ('나홀로', 1), ('둘이', 2), ('커플', 2), ('연인', 2), ('부부', 2),
+                 ('셋이', 3), ('넷이', 4), ('다섯이', 5))
 _KOREAN_COUNTS = {'한': 1, '두': 2, '세': 3, '석': 3, '네': 4, '넉': 4, '다섯': 5, '여섯': 6,
                   '일곱': 7, '여덟': 8, '아홉': 9, '열': 10}
 # '2명', '3-4명', '두 명' ('명소'·'명동'처럼 이어지는 말은 빼고)
@@ -1990,6 +1998,16 @@ def visit_weather(visit, draft, tool_log):
 
 
 _OFFER_RE = re.compile(r'(추천|찾아|알려)\s*(해\s*)?(드릴|줄)까요|추천받으시겠|원하시면\s*추천')
+
+
+_PEOPLE_ASK_RE = re.compile(r'몇\s*(분|명)|인원|혼자|둘이|일행|누구(와|랑)|함께\s*가시')
+
+
+def drop_people_questions(reply):
+    """인원을 이미 아는데 AI가 '혼자 여행하시나요?'처럼 또 묻는 물음 문장을 뺀다."""
+    sentences = re.split(r'(?<=[.?!])\s+', reply or '')
+    return ' '.join(x for x in sentences
+                    if not (x.rstrip().endswith('?') and _PEOPLE_ASK_RE.search(x))).strip()
 
 
 def drop_offer_questions(reply):
@@ -2196,7 +2214,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         elif not getattr(settings, 'KAKAO_REST_API_KEY', ''):
             notes.append('카카오 REST API 키(KAKAO_REST_API_KEY)가 없어서 장소를 찾지 못했어요.')
         else:
-            anchor_name, items = search_recommendations(rec, new_draft, spare=SPARE_CARDS, photos=False)
+            anchor_name, items = search_recommendations(rec, new_draft, spare=SPARE_CARDS, photos=False, costs=False)
 
             # 방문하는 날 쉬는 곳은 빼고 알려 준다 (관광공사에 쉬는 날이 있는 곳만 알 수 있음)
             visit = visit_date(rec, new_draft)
@@ -2213,6 +2231,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
             # 여분까지 받아 두었으니 앞에서 카드 수만큼만 쓰고, 고른 카드에만 사진을 붙인다
             items = items[:CARD_SIZE]
             attach_photos(items)
+            attach_costs(items, new_draft.get('people'))
 
             if items:
                 title_place = rec.get('near') or new_draft['place']
@@ -2242,6 +2261,9 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
 
     # AI가 다음 질문을 빠뜨렸으면 서버가 이어서 묻는다 (대화가 끊기지 않게).
     # 장소 추천 카드를 보여 줄 때는 고르는 게 먼저라 덧붙이지 않는다.
+    if new_draft.get('people'):
+        reply = drop_people_questions(reply) or reply
+
     question = next_question(new_draft, category_names)
     if question and not recommendation and '?' not in reply:
         reply = '%s %s' % (reply, question)
