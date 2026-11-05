@@ -10,6 +10,22 @@
 
 ---
 
+## 2026-11-05 · 🟦 #53(예산 AI·인원 묻기·기간 고치기) 확인 + 작은 수정 4개 — 🟩 서지윤
+DB·응답 키 변경 없음 → 🟦 🟧 고칠 것 없음 (`chat_service.py`만)
+
+### 확인 결과 (아래 🟦 항목의 🟩 확인 부탁 2개)
+- 실제 AI(qwen3:8b) 대화 7턴: 3번 돌려 7/7·7/7·6/7 (틀린 1번은 qwen3가 가끔 거절을 못 하는 것, 이번 변경과 상관없음)
+- 기간 읽기: '2박3일로 수정해줘'·'이박삼일'·'3일로'·'당일치기' 맞음, '11월 3일로'·'3일차'·'3일 뒤에'는 기간으로 안 읽음 ✅
+- 카드 비용: 카페 1인 7,000×2명 = 14,000 / 해수욕장 0 / 호텔 방 120,000 ✅
+
+### 고친 것
+1. **'하루 더 카페 넣어줘'가 기간 늘리기로 읽히던 문제** (`_relative_nights`): 장소를 넣거나 찾는 말(넣어·추천·코스·N일차·카페·바다 등)이 같이 있으면 기간으로 보지 않음. '하루 더 늘려줘'·'하루 더 있고 싶어'·'하루 줄여줘'는 그대로
+2. **인원을 아는데 AI가 또 묻던 문제** ("혼자 가" → "혼자 여행하시나요?"): 초안에 인원이 있으면 인원을 묻는 물음 문장만 뺌 (`drop_people_questions`). 빠지면 서버가 다음 질문(숙소 등)을 이어 물음
+3. **'커플'·'연인'·'부부' → 2명** (`guess_people`)
+4. **비용은 보여 줄 카드 4장에만** (`search_recommendations(..., costs=False)` 뒤 `attach_costs`): 여분 카드 3장 가격은 안 찾음. 다른 곳에서 `search_recommendations`를 기본값으로 부르면 전처럼 비용이 붙음
+
+---
+
 ## 2026-11-05 · 리뷰 게시판: 내 글만 수정·삭제 — 🟦 임영준
 DB·응답 키 변경 없음. 🟧 `views.py`·`urls.py`에 **추가만**.
 
@@ -61,7 +77,7 @@ DB 변경 없음 → `migrate` 필요 없음 (기존 `travel_budget` 표 사용)
 - 시스템 프롬프트 6번에 people 설명 한 줄, 추천 카드 만들 때 `attach_costs(items, people)` 호출, 카드에 `_category`(카카오 분류) 잠깐 붙였다가 지움
 
 ### 확인
-- [ ] 🟩 `chat_service.py`의 `guess_people`·`next_question` 인원 질문·`attach_costs` 호출 확인 부탁
+- [x] 🟩 `chat_service.py`의 `guess_people`·`next_question` 인원 질문·`attach_costs` 호출 확인 부탁 — 11/05 확인, 비용은 고른 카드 4장에만 붙게 고침 (맨 위 항목)
 - [ ] 🟧 `views.py` 맨 아래 `budget_estimate`·`budget_category`, `travel_chat_apply` 끝의 예산 저장 확인 부탁
 - [ ] 🟦 다음: 카테고리 예산 화면(React)에서 `budget_category` 쓰기, 예산 넘으면 같은 분류 더 싼 대안
 
@@ -76,7 +92,7 @@ DB·응답 키 변경 없음.
 - 가짜 AI로 시험: 2박3일로 수정/바꿔/하루 더/3일로/이박삼일/하루 줄여/당일치기/11월 13일로/3박4일/3일 뒤 → 모두 날짜·제목 맞음
 
 ### 🟩 확인
-- [ ] `chat_service.py`의 `guess_nights`·`_relative_nights`·`_apply_guessed_dates`·`normalize_draft` 제목 부분 확인 부탁
+- [x] `chat_service.py`의 `guess_nights`·`_relative_nights`·`_apply_guessed_dates`·`normalize_draft` 제목 부분 확인 부탁 — 11/05 🟩 확인, '하루 더 카페 넣어줘'만 고침 (맨 위 항목)
 
 ---
 
