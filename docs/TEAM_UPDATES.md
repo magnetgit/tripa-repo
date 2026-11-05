@@ -10,6 +10,44 @@
 
 ---
 
+## 2026-11-05 · ✅ 설정 B 확정 (`qwen3:8b` + 예비 `exaone3.5:7.8b`) 반영: 생각 모드 끔, 인원은 코드가 읽음, Ollama 꺼지면 OpenAI로 — 🟩 서지윤
+DB·응답 키 변경 없음. **새 설정 3개 추가** (`settings.py`·`.env.example`, 비워 두면 지금과 같음) → 지금 `.env` 그대로 두면 아무것도 안 바뀜
+
+### 바뀐 것 (`services/chat_service.py`)
+- **qwen3 생각 모드 끔**: 모델 이름이 `qwen3`로 시작하면 `reasoning_effort=none`을 붙임 (`NO_THINK_MODELS`). 켜 두면 한 번에 20~40초
+- **인원은 코드가 읽음** (`guess_people`): '혼자'→1, '둘이서'→2, '3명', '두 명', '네 사람', '성인 2명 아이 1명'→3, '3-4명'→4. '둘째 날'·'명소'·'명동'은 인원으로 안 읽음. 날짜처럼 AI 값보다 먼저 씀 → GPT·로컬 모두
+- **기본 AI가 꺼지면 예비 AI로** (`call_llm`): 기본 주소의 모델들(기본+예비 모델)이 모두 연결 안 되거나 바쁘면 `AI_BACKUP_*`의 다른 AI로 한 번 더 시도. 예비 설정이 비어 있으면 지금처럼 오류 안내
+
+### 새 설정 (`.env`, 모두 선택)
+| 이름 | 예 | 뜻 |
+|---|---|---|
+| `AI_BACKUP_BASE_URL` | `https://api.openai.com/v1` | 기본 AI가 안 될 때 넘어갈 주소 |
+| `AI_BACKUP_API_KEY` | (OpenAI 키) | 그 주소의 키 |
+| `AI_BACKUP_MODEL` | `gpt-4o-mini` | 그 주소의 모델 |
+
+### 시연·포트폴리오 때 `.env` (설정 B, `.env.example` 아래쪽에도 있음)
+```
+AI_BASE_URL=http://127.0.0.1:11434/v1
+AI_MODEL=qwen3:8b
+AI_FALLBACK_MODELS=exaone3.5:7.8b
+AI_TIMEOUT=120
+AI_BACKUP_BASE_URL=https://api.openai.com/v1
+AI_BACKUP_API_KEY=(OpenAI 키)
+AI_BACKUP_MODEL=gpt-4o-mini
+```
+- 먼저 `ollama pull qwen3:8b`, `ollama pull exaone3.5:7.8b`. 바꾼 뒤 runserver 다시 켜기. 평소로 돌아가려면 위 줄을 지우거나 `#`
+
+### 시험
+- 인원 읽기 14개 맞음
+- Ollama가 꺼진 상태(없는 주소)에서 → qwen3·exaone 연결 실패 → OpenAI로 넘어가 5.7초에 답
+- 설정 B로 대화 7턴: **7/7** (전에 매번 놓친 '혼자'도 맞음), 평균 7.9초
+- 설정 A(지금 `.env`, gpt-4o-mini) 대화 7턴: 7/7, 평균 3.7초 → 그대로 동작
+
+### 🟦🟧 참고
+- 리뷰 요약(🟧)·예산 AI(🟦)도 `call_llm`을 쓰므로 Ollama가 꺼지면 같이 OpenAI로 넘어감
+
+---
+
 ## 2026-11-05 · 로컬 LLM 모델 비교 (EXAONE·Llama 각 3번 + Qwen3) → 설정 B 제안: `qwen3:8b` + 예비 `exaone3.5:7.8b` — 🟩 서지윤
 코드·DB 변경 없음 (시험만). 11/05 결정의 "EXAONE·Llama를 각 2번 더 시험해 설정 B 모델 정하기" 결과예요. 8GB 그래픽카드에 맞는 새 후보 **Qwen3 8B**도 같이 시험했어요.
 

@@ -120,6 +120,22 @@ AI_TIMEOUT = env.int(
     default=40,
 )
 
+# 기본 AI(예: 이 PC의 Ollama)가 꺼졌거나 응답이 없을 때 넘어갈 곳 (예: OpenAI). 비우면 안 넘어감
+AI_BACKUP_BASE_URL = env(
+    "AI_BACKUP_BASE_URL",
+    default="",
+)
+
+AI_BACKUP_API_KEY = env(
+    "AI_BACKUP_API_KEY",
+    default="",
+)
+
+AI_BACKUP_MODEL = env(
+    "AI_BACKUP_MODEL",
+    default="",
+)
+
 
 # =========================================================
 # Application definition

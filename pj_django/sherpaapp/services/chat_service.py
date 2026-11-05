@@ -1323,8 +1323,17 @@ def _model_list():
     return models
 
 
+# 답하기 전에 길게 '생각'하는 모델. 생각 모드를 끄지 않으면 한 번에 20~40초 걸린다 (11/05 시험)
+NO_THINK_MODELS = ('qwen3',)
+
+
 def _chat_model(base, api_key, model, timeout, json_mode=True):
     """LangChain 모델 객체를 만든다. (OpenAI 호환 API면 무엇이든 가능)"""
+    extra = {}
+
+    if str(model).startswith(NO_THINK_MODELS):
+        extra['reasoning_effort'] = 'none'   # Ollama: 생각 모드 끔
+
     llm = ChatOpenAI(
         model=model,
         base_url=base,
@@ -1332,6 +1341,7 @@ def _chat_model(base, api_key, model, timeout, json_mode=True):
         temperature=0.3,
         timeout=timeout,
         max_retries=0,  # 재시도는 call_llm이 예비 모델로 직접 한다
+        **extra,
     )
 
     if json_mode:
@@ -1389,23 +1399,16 @@ def _invoke(base, api_key, model, timeout, messages, tools=None, tool_log=None):
     return plain.bind_tools(tools, tool_choice='none', strict=True).bind(response_format=json_format).invoke(convo)
 
 
-def call_llm(messages, tools=None, tool_log=None):
-    """OpenAI 호환 chat/completions 호출 (LangChain 사용). 답변 문자열을 돌려준다.
+class _Unavailable(Exception):
+    """모델들이 모두 바쁘거나 연결이 안 됨 (status: 'timeout' 또는 상태 코드)."""
 
-    모델이 바쁘거나(503/429) 시간이 오래 걸리면 예비 모델로 자동으로 넘어간다.
-    tools를 주면 AI가 도구(agent_tools.py)를 부를 수 있다. 도구를 못 쓰는 모델이면 도구 없이 답을 받는다.
-    """
-    base = (getattr(settings, 'AI_BASE_URL', '') or '').rstrip('/')
-    api_key = getattr(settings, 'AI_API_KEY', '') or ''
-    models = _model_list()
-    timeout = getattr(settings, 'AI_TIMEOUT', 40)
+    def __init__(self, status):
+        super().__init__(status)
+        self.status = status
 
-    if not base or not models:
-        raise ChatError('AI 설정이 비어 있어요. .env에 AI_BASE_URL / AI_MODEL을 넣어주세요.')
 
-    if 'openai.com' in base and not api_key:
-        raise ChatError('AI 키가 비어 있어요. .env에 AI_API_KEY를 넣어주세요.')
-
+def _call_models(base, api_key, models, timeout, messages, tools=None, tool_log=None):
+    """한 AI 주소의 모델들을 차례로 불러 답 문자열을 돌려준다. 모두 바쁘거나 연결이 안 되면 _Unavailable."""
     # 예비 모델이 있으면 한 모델에 오래 매달리지 않는다.
     per_try = min(timeout, 25) if len(models) > 1 else timeout
     last_status = None
@@ -1438,10 +1441,61 @@ def call_llm(messages, tools=None, tool_log=None):
 
         return answer.content
 
+    raise _Unavailable(last_status)
+
+
+def _backup_route():
+    """기본 AI(예: 이 PC의 Ollama)가 꺼졌을 때 쓸 곳 (예: OpenAI). 설정이 없으면 None."""
+    base = (getattr(settings, 'AI_BACKUP_BASE_URL', '') or '').rstrip('/')
+    model = (getattr(settings, 'AI_BACKUP_MODEL', '') or '').strip()
+
+    if not base or not model:
+        return None
+
+    return base, getattr(settings, 'AI_BACKUP_API_KEY', '') or '', model
+
+
+def call_llm(messages, tools=None, tool_log=None):
+    """OpenAI 호환 chat/completions 호출 (LangChain 사용). 답변 문자열을 돌려준다.
+
+    모델이 바쁘거나(503/429) 시간이 오래 걸리면 예비 모델로 자동으로 넘어간다.
+    그래도 안 되면(Ollama가 꺼짐 등) AI_BACKUP_* 설정의 다른 AI(예: OpenAI)로 한 번 더 시도한다.
+    tools를 주면 AI가 도구(agent_tools.py)를 부를 수 있다. 도구를 못 쓰는 모델이면 도구 없이 답을 받는다.
+    """
+    base = (getattr(settings, 'AI_BASE_URL', '') or '').rstrip('/')
+    api_key = getattr(settings, 'AI_API_KEY', '') or ''
+    models = _model_list()
+    timeout = getattr(settings, 'AI_TIMEOUT', 40)
+
+    if not base or not models:
+        raise ChatError('AI 설정이 비어 있어요. .env에 AI_BASE_URL / AI_MODEL을 넣어주세요.')
+
+    if 'openai.com' in base and not api_key:
+        raise ChatError('AI 키가 비어 있어요. .env에 AI_API_KEY를 넣어주세요.')
+
+    try:
+        return _call_models(base, api_key, models, timeout, messages, tools, tool_log)
+    except _Unavailable as e:
+        last_status = e.status
+
+    backup = _backup_route()
+
+    if backup and backup[0] != base:
+        backup_base, backup_key, backup_model = backup
+        logger.warning('기본 AI(%s)를 쓸 수 없어 예비 AI(%s)로 넘어가요', base, backup_base)
+
+        if tool_log is not None:
+            tool_log.clear()   # 기본 AI에서 반쯤 돌린 도구 기록은 버린다
+
+        try:
+            return _call_models(backup_base, backup_key, [backup_model], min(timeout, 40), messages, tools, tool_log)
+        except _Unavailable as e:
+            last_status = e.status
+
     if last_status == 'timeout':
         raise ChatError('AI가 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.')
 
-    raise ChatError('AI가 지금 많이 바빠요. 잠시 후 다시 보내 주세요. (오류 %s)' % last_status)                                                                       
+    raise ChatError('AI가 지금 많이 바빠요. 잠시 후 다시 보내 주세요. (오류 %s)' % last_status)
 
 
 def _parse_json(text):
@@ -1700,6 +1754,42 @@ _SPOKEN_TIME_RE = re.compile(
 )
 
 
+# '혼자', '둘이서', '셋이' → 인원
+_PEOPLE_WORDS = (('혼자', 1), ('나홀로', 1), ('둘이', 2), ('셋이', 3), ('넷이', 4), ('다섯이', 5))
+_KOREAN_COUNTS = {'한': 1, '두': 2, '세': 3, '석': 3, '네': 4, '넉': 4, '다섯': 5, '여섯': 6,
+                  '일곱': 7, '여덟': 8, '아홉': 9, '열': 10}
+# '2명', '3-4명', '두 명' ('명소'·'명동'처럼 이어지는 말은 빼고)
+_PEOPLE_RE = re.compile(r'(\d{1,2})\s*(?:[-~]\s*(\d{1,2})\s*)?명(?![소동란물])')
+_KOREAN_PEOPLE_RE = re.compile(r'(한|두|세|석|네|넉|다섯|여섯|일곱|여덟|아홉|열)\s*(?:명|사람)(?![소동란물])')
+
+
+def guess_people(text):
+    """사용자 문장에서 인원을 직접 읽는다. 없으면 None. (로컬 모델이 '혼자'를 자주 놓침)
+
+    '성인 2명 아이 1명'처럼 여러 개면 더하고, '3-4명'이면 많은 쪽.
+    """
+    if not isinstance(text, str):
+        return None
+
+    counts = []
+
+    for match in _PEOPLE_RE.finditer(text):
+        counts.append(int(match.group(2) or match.group(1)))
+
+    for match in _KOREAN_PEOPLE_RE.finditer(text):
+        counts.append(_KOREAN_COUNTS[match.group(1)])
+
+    if counts:
+        total = sum(counts)
+        return total if 1 <= total <= 30 else None
+
+    for word, count in _PEOPLE_WORDS:
+        if word in text:
+            return count
+
+    return None
+
+
 def guess_start_time(text, has_start_place=False):
     """'아침8시', '오후 2시 반' 같은 말에서 출발 시각(HH:MM)을 읽는다. 못 읽으면 None.
 
@@ -1920,6 +2010,11 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         guessed_time = guess_start_time(messages[-1]['content'], new_start_place)
         if guessed_time:
             ai_draft['start_time'] = guessed_time
+
+    # 인원도 사용자 문장에서 코드로 읽은 값을 먼저 쓴다 ('혼자', '둘이서', '3명')
+    guessed_people = guess_people(messages[-1]['content'])
+    if guessed_people:
+        ai_draft['people'] = guessed_people
 
     # 날짜는 사용자 문장에서 코드로 계산한 값을 먼저 쓴다 ('이번주 토요일', '2박 3일')
     ai_dates = (ai_draft.get('start'), ai_draft.get('end'))
