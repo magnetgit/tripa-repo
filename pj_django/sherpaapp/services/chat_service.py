@@ -981,8 +981,16 @@ def _with_picks(items, rec, draft, anchor, near_found, exclude, size):
     return picks + rest[:total - len(picks)]
 
 
-def search_recommendations(rec, draft, size=4):
-    """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다."""
+CARD_SIZE = 4       # 추천 카드 수
+SPARE_CARDS = 3     # 쉬는 곳을 빼도 카드가 줄지 않게 더 받아 두는 후보 수
+
+
+def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True):
+    """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다.
+
+    spare: 여분 후보 수. 여분은 목록 맨 뒤에 붙는다 (쉬는 곳을 뺀 뒤 앞에서 size장을 쓰면 됨)
+    photos: False면 사진을 붙이지 않는다 (카드를 고른 뒤 attach_photos로 붙일 때)
+    """
     key = getattr(settings, 'KAKAO_REST_API_KEY', '')
 
     if not key:
@@ -1011,6 +1019,7 @@ def search_recommendations(rec, draft, size=4):
         plan = [(rec['query'], KIND_GROUPS.get((rec['query'] or '').strip(), ''), None, size)]
 
     documents = []
+    spares = []
     seen = set()
 
     for query, group, allow, count in plan:
@@ -1053,15 +1062,18 @@ def search_recommendations(rec, draft, size=4):
                 continue
 
             seen.add(ident)
-            documents.append(doc)
-            added += 1
 
-            if added >= count:
+            if added < count:
+                documents.append(doc)
+                added += 1
+            elif len(spares) < spare:
+                spares.append(doc)
+            else:
                 break
 
     items = []
 
-    for doc in documents:
+    for doc in documents + spares:
         coord = _clean_coord(doc.get('y'), doc.get('x'))
         name = _clean_text(doc.get('place_name'), 100)
 
@@ -1095,7 +1107,8 @@ def search_recommendations(rec, draft, size=4):
     items = rank_by_reviews(items, keep_first=sum(1 for item in items if item.get('pick')))
 
     # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
-    attach_photos(items)
+    if photos:
+        attach_photos(items)
 
     return anchor_name, items
 
@@ -1904,6 +1917,15 @@ def visit_weather(visit, draft, tool_log):
     return next((d for d in days if d.get('date') == visit.isoformat()), None)
 
 
+_OFFER_RE = re.compile(r'(추천|찾아|알려)\s*(해\s*)?(드릴|줄)까요|추천받으시겠|원하시면\s*추천')
+
+
+def drop_offer_questions(reply):
+    """추천 카드를 보여 주는 답에서 '추천해 드릴까요?' 같은 되묻는 문장을 뺀다."""
+    sentences = re.split(r'(?<=[.?!])\s+', reply or '')
+    return ' '.join(x for x in sentences if not _OFFER_RE.search(x)).strip()
+
+
 def rain_first(items, rec, visit, draft, tool_log, notes):
     """비·눈 오는 날이면 실내 장소를 앞에 둔다. '실내' 추천이면 야외 장소는 뺀다."""
     indoor_asked = _concept_of(rec.get('query')) == '실내'
@@ -2098,7 +2120,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         elif not getattr(settings, 'KAKAO_REST_API_KEY', ''):
             notes.append('카카오 REST API 키(KAKAO_REST_API_KEY)가 없어서 장소를 찾지 못했어요.')
         else:
-            anchor_name, items = search_recommendations(rec, new_draft)
+            anchor_name, items = search_recommendations(rec, new_draft, spare=SPARE_CARDS, photos=False)
 
             # 방문하는 날 쉬는 곳은 빼고 알려 준다 (관광공사에 쉬는 날이 있는 곳만 알 수 있음)
             visit = visit_date(rec, new_draft)
@@ -2111,6 +2133,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
 
             # 비·눈 오는 날이면 실내 장소를 앞에 둔다 ('실내 추천'이면 야외는 뺌)
             items = rain_first(items, rec, visit, new_draft, tool_log, notes)
+
+            # 여분까지 받아 두었으니 앞에서 카드 수만큼만 쓰고, 고른 카드에만 사진을 붙인다
+            items = items[:CARD_SIZE]
+            attach_photos(items)
 
             if items:
                 title_place = rec.get('near') or new_draft['place']
@@ -2131,6 +2157,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
                 elif guessed:
                     # AI의 답변은 추천과 상관없는 안내문일 수 있어서 서버가 직접 안내한다
                     reply = "'%s' 조건으로 찾아봤어요. 마음에 드는 곳을 일정에 넣어 보세요." % recommendation['title']
+                else:
+                    # 카드를 이미 보여 주는데 "다른 곳을 추천해 드릴까요?"라고 되묻는 문장은 뺀다
+                    reply = drop_offer_questions(reply) or (
+                        "'%s' 조건으로 찾아봤어요. 마음에 드는 곳을 일정에 넣어 보세요." % recommendation['title'])
             elif not closed:
                 notes.append("'%s' 조건에 맞는 장소를 찾지 못했어요. 다른 말로 다시 물어봐 주세요." % rec['query'])
 
