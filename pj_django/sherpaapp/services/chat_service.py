@@ -32,6 +32,7 @@ from .agent_tools import CHAT_TOOLS, rainy_note, trip_weather
 from .tour_service import REASON_LABELS, drop_closed
 from .indoor_service import indoor_first, is_indoor
 from .busan_spots import MAX_PICKS, NEAR_LIMIT_M, QUERY_CONCEPTS, pick_rows
+from .review_rank import rank_by_reviews
 
 logger = logging.getLogger(__name__)
 
@@ -538,7 +539,14 @@ def _clean_pin(item):
         'phone': _clean_text(item.get('phone'), 30),
         'url': _clean_url(item.get('url')),
         'time': _clean_time(item.get('time')),
+        # 카드의 카카오 장소 ID (일정에 저장 → 사진·리뷰 별점). 숫자만 받는다
+        'kakao_id': _clean_kakao_id(item.get('kakao_id')),
     }
+
+
+def _clean_kakao_id(value):
+    value = str(value or '').strip()
+    return value if value.isdigit() and len(value) <= 20 else None
 
 
 def _clean_recommend(raw, draft):
@@ -1082,6 +1090,9 @@ def search_recommendations(rec, draft, size=4):
 
     # 부산이면 팀이 고른 장소(부산 장소 표)를 앞에 둔다
     items = _with_picks(items, rec, draft, anchor, near_found, exclude, size)
+
+    # 게시판 리뷰 별점을 붙이고, 리뷰 좋은 곳을 앞으로 (팀이 고른 곳은 맨 앞 그대로)
+    items = rank_by_reviews(items, keep_first=sum(1 for item in items if item.get('pick')))
 
     # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
     attach_photos(items)
