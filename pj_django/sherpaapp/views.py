@@ -6009,9 +6009,10 @@ def _chat_add_pins(travel, pins, with_images=False):
                 if SchedulePlace.objects.filter(schedule=schedule, place=place).exists():
                     continue
 
-                last = (
+                prev = (
                     SchedulePlace.objects.filter(schedule=schedule)
                     .order_by('-visit_order', '-sp_id')
+                    .exclude(place__p_kind__contains='숙')
                     .first()
                 )
 
@@ -6024,7 +6025,7 @@ def _chat_add_pins(travel, pins, with_images=False):
                         arrival = None
 
                 if arrival is None:
-                    arrival = (last.start_time if last and last.start_time else None) or time(10, 0)
+                    arrival = (prev.start_time if prev and prev.start_time else None) or time(10, 0)
 
                 stay_time = _default_stay_minutes(place.p_kind)
                 start_time = (datetime.combine(schedule.s_day, arrival) + timedelta(minutes=stay_time)).time()
@@ -6032,7 +6033,7 @@ def _chat_add_pins(travel, pins, with_images=False):
                 schedule_place = SchedulePlace.objects.create(
                     schedule=schedule,
                     place=place,
-                    visit_order=(last.visit_order + 1) if last else 1,
+                    visit_order=(prev.visit_order + 1) if prev else 1,
                     stay_time=stay_time,
                     arrive_time=arrival,
                     start_time=start_time,
@@ -6040,6 +6041,22 @@ def _chat_add_pins(travel, pins, with_images=False):
 
                 reorder_schedule_places_by_time(schedule)
                 recalculate_schedule_timeline(schedule, anchor_sp_id=schedule_place.sp_id)
+                # 1) 이 여행에서, 오늘(schedule)이 아닌 날의 일정 줄들
+                dup = SchedulePlace.objects.filter(schedule__travel=travel).exclude(schedule=schedule)
+                # 2) 그중 같은 장소만
+                if kakao_id:
+                    dup = dup.filter(place__p_kakao_id=kakao_id)
+                else:
+                    dup = dup.filter(place=place)
+                # 3) 지울 날들 기억해 두고 지우기
+                days = set()
+                for row in dup:
+                    days.add(row.schedule)
+                dup.delete()
+                # 4) 지운 날들 시간 다시 계산
+                for day in days:
+                    reorder_schedule_places_by_time(day)
+                    recalculate_schedule_timeline(day)
         except Exception:
             chat_logger.exception('AI 대화 담은 장소를 일정에 넣지 못함: %s', name)
             failed.append(name or '(이름 없음)')
