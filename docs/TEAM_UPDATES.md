@@ -10,6 +10,16 @@
 
 ---
 
+## 2026-11-09 · 📐 공유: 추천 점수 키워드 보너스용 `draft` 인자 (🟩 `chat_service.py` 호출 한 줄에 추가만) — 🟧 이수한
+아직 코드 없음 (먼저 공유, 11/09 규칙). 🟧 추천 점수 PR에 같이 들어가요.
+
+- `review_rank.rank_by_reviews(items, keep_first=0, profile=None, draft=None)` — `draft` 인자 **추가만**
+  - 여행 컨셉(`draft['categories']`, 예: `['바다', '카페']`)과 장소 리뷰 키워드(`ReviewSummary.keywords`)가 겹치면 점수에 조금 더해요(순서만, 카드 `review` 값 그대로)
+- 🟩 `chat_service.py` `search_recommendations` 안의 `rank_by_reviews(...)` 호출(1137줄)에 `draft=draft` 하나 추가 — 이미 받고 있는 `draft`를 넘기기만 해요
+- 성별·나이대 가중은 이제 **하나만 있어도** 적용돼요 (성별만 → 같은 성별, 나이대만 → 같은 나이대)
+
+---
+
 ## 2026-11-09 · 로컬 LLM(설정 B, `qwen3:8b`) 예산 대화 시험 결과 + 숙소가 다른 말로 덮어써지는 문제 고침 (🟩 `chat_service.py`에 함수 추가) — 🟦 임영준
 DB·응답 키 변경 없음. 🟩 파일에 함수 1개 + 호출 1줄 **추가만**
 
