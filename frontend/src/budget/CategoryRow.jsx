@@ -1,4 +1,4 @@
-// 분류 한 줄: 금액 입력 · 예산 대비 일정 예상/쓴 돈 막대 · 넘치면 같은 분류의 더 싼 대안
+// 분류 한 줄: 금액 입력 · 예산 대비 일정 예상 막대 · 넘치면 같은 분류의 더 싼 대안
 import { useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { fetchAlternatives, swapPlace } from './api.js';
@@ -8,7 +8,7 @@ const digits = (text) => text.replace(/[^\d]/g, '').slice(0, 9);   // 쉼표는 
 const comma = (text) => (text === '' ? '' : Number(text).toLocaleString('ko-KR'));
 
 export default function CategoryRow({
-  cfg, cat, value, limit, plan, used, onChange, onSwapped,
+  cfg, cat, value, limit, plan, onChange, onSwapped,
   items = [], itemInputs = {}, resets = [], onItemChange, onItemReset,
 }) {
   const [alts, setAlts] = useState(null);   // null(닫힘) | 'loading' | 'error' | [제안…]
@@ -17,7 +17,7 @@ export default function CategoryRow({
   const itemSum = items.reduce((s, it) => s + Number(itemInputs[it.sp_id] || 0), 0);
 
   // 막대: 예산과 일정 예상 중 큰 쪽을 100%로
-  const whole = Math.max(limit, plan, used, 1);
+  const whole = Math.max(limit, plan, 1);
   const over = limit > 0 ? plan - limit : 0;
   const canAlt = ALT_CATS.includes(cat.key) && plan > 0;
 
@@ -63,16 +63,14 @@ export default function CategoryRow({
         </label>
       </div>
 
-      {/* 예산(연한 막대) 위에 일정 예상(색 막대), 쓴 돈(점선) */}
+      {/* 예산(연한 막대) 위에 일정 예상(색 막대) */}
       <div className="cb-bar" aria-hidden="true">
         <span className="cb-bar__limit" style={{ width: `${(limit / whole) * 100}%` }} />
         <span className="cb-bar__plan" style={{ width: `${(plan / whole) * 100}%`, background: cat.color }} />
-        {used > 0 && <span className="cb-bar__used" style={{ left: `${Math.min(100, (used / whole) * 100)}%` }} />}
       </div>
 
       <p className="cb-row__meta">
         일정 예상 {won(plan)}
-        {used > 0 && <> · 쓴 돈 {won(used)}</>}
         {limit > 0 && (over > 0
           ? <b className="cb-bad"> · 예산보다 {won(over)} 많아요</b>
           : <span className="cb-good"> · {won(limit - plan)} 남아요</span>)}
