@@ -10,6 +10,24 @@
 
 ---
 
+## 2026-11-09 · 카카오 대중교통·시간표 API 지금 키로 바로 돼요 → 🟦 길안내 작업 시작 가능 — 🟧 이수한
+코드·DB·`.env` 변경 없음
+
+- **카카오 대중교통 경로** `GET https://dapi.kakao.com/v2/routing/publictraffic` (`start_x`·`start_y`·`end_x`·`end_y`, 헤더 `Authorization: KakaoAK <KAKAO_REST_API_KEY>`)
+  - 지금 쓰는 카카오 REST 키 그대로 돼요. 콘솔에서 따로 켤 것 없음
+  - 서면역 → 해운대: `status: OK`, `routes` 15개. 첫 경로 `properties`: SUBWAY · 46분(`totalTime` 초) · 환승 0 · `fare.value` 1,800원, `steps`마다 `guidance`·`stops`·`vehicles`
+- **공공데이터 시간표** — 새 키 없이 지금 `TOUR_API_KEY` 하나로 세 API 모두 정상
+  - TAGO 열차정보 `1613000/TrainInfo/GetStrtpntAlocFndTrainInfo` (서울→부산 내일 75편)
+  - TAGO 국내항공 `1613000/DmstcFlightNvgInfo/GetFlightOpratInfoList` (김포→제주 내일 101편)
+  - 연안여객선 `B554035/oprt-schd-info-v2/get-oprt-schd-info-v2` (오늘 718건)
+- 로컬과 서버 키 둘 다 확인했어요 (서버는 카카오·열차 확인)
+
+### 🟦 요청
+- [ ] ODsay 빼기·카카오 대중교통 경로 작업 시작 (순서·파일·줄은 [주간 가이드](https://claude.ai/artifact/1Lwf6NtqDRyUH16a1ZFPMb#guide-front))
+- [ ] 경로 결과 저장 함수 이름은 🟧와 먼저 맞추기
+
+---
+
 ## 2026-11-06 · 다음 주 가이드 + Claude Code로 고쳐도 되는 경우 — 🟧 이수한
 코드·DB 변경 없음 (팀 공통 Claude 규칙 `.claude/rules/team-updates.md`에 예외 추가 → 열려 있는 Claude Code는 다시 열어야 읽어요)
 
