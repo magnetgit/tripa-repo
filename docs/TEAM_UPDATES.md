@@ -10,6 +10,42 @@
 
 ---
 
+## 2026-11-09 · 📐 공유 정의: 임베딩 함수·벡터 표 (`embed_service`, `embed_chunk`) — 🟧 이수한
+아직 코드 없음 (모양 먼저 공유, 11/09 규칙). 🟧가 이 모양 그대로 만들어 PR로 올릴게요. **🟩는 이걸 기준으로 여행지 정보 RAG를 설계하면 돼요.** 바뀌면 이 항목을 고치고 다시 알릴게요.
+
+### 설정
+- `.env`에 `AI_EMBED_MODEL` 한 줄 추가 (`.env.example`에도 칸). 주소·키는 지금 `AI_BASE_URL`·`AI_API_KEY` 그대로 (OpenAI 호환 `/embeddings`, Ollama도 같은 방식)
+  - 설정 A (평소·서버): `text-embedding-3-small`
+  - 설정 B (시연 PC): `bge-m3` (`ollama pull bge-m3`)
+
+### 표 `embed_chunk` (모델 `EmbedChunk`, 마이그레이션 0016은 🟧가 만듦)
+| 칸 | 뜻 |
+|---|---|
+| `kind` | `'review'`(리뷰 묶음) · `'tour'`(관광공사 소개글) … 새 종류는 이 항목에 추가 |
+| `ref_id` | 대상 id (문자열: kakao_id 또는 관광공사 contentid) |
+| `seq` | 몇 번째 조각인지 (0부터) |
+| `text` | 조각 원문 |
+| `vector` | 숫자 목록 (JSON) |
+| `model` | 만든 임베딩 모델 이름. 모델이 다르면 비교할 수 없어서 검색은 지금 모델 것만 |
+| `meta` | 장소 이름·출처 등 (JSON, 비어도 됨) |
+| `updated_at` | 만든 시각 |
+
+### 함수 (`services/embed_service.py`, 🟩는 2·3번만 쓰면 됨)
+1. `embed_texts(texts) → [[숫자…], …]` — 글 목록 → 벡터 목록. 실패하면 `EmbedError`
+2. `save_chunks(kind, ref_id, texts, meta=None) → 저장 개수` — 같은 `kind`·`ref_id`·모델의 옛 조각은 지우고 다시 저장
+3. `search(query, kind=None, top_k=3) → [{kind, ref_id, seq, text, score, meta}]` — 코사인 유사도 높은 순
+4. (🟧 리뷰용, 나중에) `similar_places(kakao_id, top_k=5)`
+
+### 🟩 쓰는 법 (여행지 정보 RAG)
+- 관광공사 소개글 가져오기·자르기(300~500자)는 🟩 → `save_chunks('tour', contentid, 조각들, meta={'name': 장소 이름})`
+- 에이전트 도구에서 `search(질문, kind='tour')` → 조각을 근거로 답하고 `meta['name']`으로 출처 표시
+- 새 표·마이그레이션은 만들지 않아요
+
+### 확인
+- [ ] 🟩 이 모양으로 괜찮은지 (바꿀 게 있으면 이 항목에 댓글)
+
+---
+
 ## 2026-11-09 · ✅ 결정: 같이 쓰는 함수·키는 "먼저 작업하는 사람이 정하고 바로 공유" + 임베딩·RAG 표는 🟧가 — 🟧 이수한
 코드 변경 없음 (규칙 기록, `.claude/rules/team-updates.md`에 한 줄)
 
