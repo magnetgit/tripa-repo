@@ -10,6 +10,19 @@
 
 ---
 
+## 2026-11-09 · 📐 공유 정의: 추천 점수에 회원 성별·나이대를 넘기는 `profile` 인자 (🟩 `chat_service.py`에 추가만) — 🟧 이수한
+아직 코드 없음 (먼저 공유, 11/09 규칙). 🟧가 추천 점수 작업 PR에서 이 모양대로 넣어요.
+
+- 모양: `profile = {'gender': 'M' | 'F' | None, 'age_group': 10~60 | None}` (동의 안 한 회원은 `None` 값, 로그인 안 했으면 `profile=None`)
+- 넘기는 길 (모두 **기본값 `None` 인자를 추가만**, 기존 호출·응답 키 그대로)
+  - `views.travel_chat` → `chat_service.run_chat_turn(..., profile=…)`
+  - `run_chat_turn(…, profile=None)` → `search_recommendations(…, profile=profile)`
+  - `search_recommendations(…, profile=None)` → `review_rank.rank_by_reviews(…, profile=profile)`
+  - `rank_by_reviews(items, keep_first=0, profile=None)` → 같은 성별·나이대 리뷰 점수를 섞어 순서만 바꿈 (`item['review']`는 그대로)
+- 🟩 지윤: `run_chat_turn`·`search_recommendations` 선언 줄에 인자가 하나씩 늘어요. 같은 줄을 고칠 일이 있으면 알려 줘 (충돌 방지)
+
+---
+
 ## 2026-11-09 · ⚠️ #64 확인: "쓴 돈(지출)"을 적는 곳이 없어졌는데 화면은 아직 "쓴 돈"을 보여 줘요 → 🟦 정해서 반영 — 🟧 이수한
 코드 변경 없음 (확인 결과 전달)
 
