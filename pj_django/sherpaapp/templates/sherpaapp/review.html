@@ -6,7 +6,7 @@
     <title>TRIPA - 리뷰 게시판</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=8">
     </head>
 <body>
 <div class="detail-container">        <!-- 전체 틀: 왼쪽 메뉴 + 오른쪽 본문 -->
@@ -175,13 +175,14 @@
             <section class="rv-list" aria-labelledby="rvListTitle">
                 <h2 id="rvListTitle" class="rv-section-title">전체 리뷰 <em>{{ review_total }}개</em></h2>
                 <div class="rt-sort" role="group" aria-label="분류 기준">
+                    <span class="rv-sort-label">분류 기준</span>
                     <a href="?tab=places&sort={{ sort }}" class="{% if not by %}is-on{% endif %}">전체</a>
                     {% for key, label, field in groups %}
                     <a href="?tab=places&by={{ key }}&sort={{ sort }}" class="{% if by == key %}is-on{% endif %}">{{ label }}</a>
                     {% endfor %}
                 </div>
                 {% if chips %}
-                <div class="rt-sort rv-chips" role="group" aria-label="{{ by }} 고르기">
+                <div class="rt-sort rv-chips rv-chips--{{ by }}" role="group" aria-label="{{ by }} 고르기">
                     {% for c in chips %}
                     <a href="?tab=places&by={{ by }}&v={{ c.value|urlencode }}&sort={{ sort }}" class="{% if v == c.value %}is-on{% endif %}">{{ c.label }} <em>{{ c.count }}</em></a>
                     {% endfor %}
@@ -190,6 +191,7 @@
                 <div class="rt-sort" role="group" aria-label="정렬">
                     <a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort=helpful" class="{% if sort == 'helpful' %}is-on{% endif %}">추천순</a>
                     <a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort=new" class="{% if sort == 'new' %}is-on{% endif %}">최신순</a>
+                    <a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort=rating" class="{% if sort == 'rating' %}is-on{% endif %}">별점 높은 순</a>
                 </div>
                 {% for r in page %}
                 <article class="rv-card">

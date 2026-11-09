@@ -789,8 +789,24 @@
 .rv-dialog__btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 /* ===== 장소 리뷰 분류 보기 (🟧 11/09): 기준·칩·정렬 줄, 추천 순위, 번호 페이지 ===== */
 .rv-list > .rt-sort { flex-wrap: wrap; margin-bottom: 8px; }
-.rv-chips a { font-weight: 600; }
-.rv-chips a em { font-style: normal; margin-left: 2px; opacity: .7; }
+/* 하위 칩: 기준 버튼(남색)과 다르게 둥근 베이지 칩, 한 줄로 옆으로 밀기 */
+.rv-list > .rv-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+.rv-chips a {
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid #eadfc8;
+    background: #fbf6ea;
+    color: #3a3326;
+    font-weight: 600;
+}
+.rv-chips a em { font-style: normal; margin-left: 3px; opacity: .6; }
+.rv-chips a.is-on { background: #1f2d4a; border-color: #1f2d4a; color: #fff; }
+
+/* 기준별 칩 색 (장소 = 베이지, 카테고리 = 하늘, 지역 = 연두, 태그 = 분홍) */
+.rv-chips--kind a   { background: #eef4ff; border-color: #d3e0fb; color: #23407a; }
+.rv-chips--region a { background: #eef8f0; border-color: #cfe9d6; color: #22603a; }
+.rv-chips--tag a    { background: #fdf0f3; border-color: #f4d3dc; color: #7a2f45; }
+.rv-sort-label { align-self: center; margin-right: 4px; font-size: 12px; color: #9aa8bd; }
 
 .rv-who .rv-rank {
     display: inline-block;
