@@ -13,6 +13,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, Exists, F, OuterRef, Prefetch, Q, Sum
+from collections import Counter
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
@@ -541,6 +542,48 @@ def travel_list(request):
 REVIEW_TAGS = ['가족과', '친구와', '연인과', '혼자', '아이와', '다시 가고 싶어요', '사진 맛집', '가성비']
 REVIEW_PAGE_SIZE = 10
 REVIEW_BEST_COUNT = 5
+REVIEW_GROUPS = [
+    ('place', '장소', 'place_name'),
+    ('kind', '카테고리', 'place__p_kind'),
+    ('region', '지역', 'place__travel__t_place'),
+    ('tag', '태그', None),
+]
+
+
+# 거르는 함수
+def _filter_reviews(reviews, by, v):
+    if not by or not v:
+        return reviews
+    if by == 'tag':
+        return reviews.filter(tags__contains=[v])
+    for key, label, field in REVIEW_GROUPS:
+        if key == by and field:
+            return reviews.filter(**{field: v})
+    return reviews
+
+
+# 기준별 칩(값·개수) 목록
+def _group_chips(by):
+    if by == 'tag':
+        counter = Counter()
+        for tags in Review.objects.values_list('tags', flat=True):
+            counter.update(tags or [])
+        return [{'value': t, 'label': t, 'count': n} for t, n in counter.most_common()]
+
+    # 2) 장소·카테고리·지역: DB에서 묶어서 센다 (GROUP BY)
+    for key, label, field in REVIEW_GROUPS:
+        if key == by and field:
+            rows = (
+                Review.objects
+                .exclude(**{field + '__isnull': True})
+                .values(field)
+                .annotate(count=Count('rv_id'))
+                .order_by('-count')
+            )
+            return [{'value': r[field], 'label': r[field], 'count': r['count']} for r in rows]
+
+    # 3) 모르는 기준이면 칩 없음
+    return []
 
 
 def _login_member(request):
@@ -578,9 +621,17 @@ def review_board(request):
             **_review_board_routes(request, member),
         })
 
-    reviews = _reviews_with_counts(member).order_by('-created_at', '-rv_id')
+    by = request.GET.get('by', '')
+    v = request.GET.get('v', '')
+    sort = request.GET.get('sort','helpful')
+    reviews = _reviews_with_counts(member)
+    reviews = _filter_reviews(reviews, by, v)
+    if sort == 'new':
+        reviews = reviews.order_by('-created_at', '-rv_id')
+    else:
+        reviews = reviews.order_by('-helpful_count', '-created_at', '-rv_id')
     page = Paginator(reviews, REVIEW_PAGE_SIZE).get_page(request.GET.get('page'))
-
+    page_numbers = page.paginator.get_elided_page_range(page.number, on_each_side=2, on_ends=1)
     best_reviews = (
         _reviews_with_counts(member)
         .filter(helpful_count__gt=0)
@@ -595,6 +646,12 @@ def review_board(request):
         'message': request.session.pop('review_message', ''),
         'tab': 'places',
         'tags': REVIEW_TAGS,   # 내 리뷰 고치기 창의 태그
+        'groups': REVIEW_GROUPS,
+        'by': by,
+        'v': v,
+        'sort': sort,
+        'page_numbers': page_numbers,
+        'chips': _group_chips(by),
     })
 
 

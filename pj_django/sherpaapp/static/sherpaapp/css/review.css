@@ -787,3 +787,31 @@
 .rv-dialog__tags label { display: inline-flex; align-items: center; gap: 4px; color: #4a5b78; cursor: pointer; }
 .rv-dialog__err { margin: 0; min-height: 1em; font-size: 12.5px; color: #d64545; }
 .rv-dialog__btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+/* ===== 장소 리뷰 분류 보기 (🟧 11/09): 기준·칩·정렬 줄, 추천 순위, 번호 페이지 ===== */
+.rv-list > .rt-sort { flex-wrap: wrap; margin-bottom: 8px; }
+.rv-chips a { font-weight: 600; }
+.rv-chips a em { font-style: normal; margin-left: 2px; opacity: .7; }
+
+.rv-who .rv-rank {
+    display: inline-block;
+    margin-left: 0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #ff8a3d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: 2px;
+    justify-self: start;
+}
+
+.rv-pages { gap: 6px; }
+.rv-pages a,
+.rv-pages span {
+    min-width: 30px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    text-align: center;
+}
+.rv-pages a:hover { background: rgba(45, 108, 223, .08); }
+.rv-pages span[aria-current="page"] { background: #1f2d4a; color: #fff; font-weight: 700; }

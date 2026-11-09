@@ -40,6 +40,17 @@ DB·응답 키 변경 없음. 🟩 파일에 함수 1개 + 호출 1줄 **추가�
 
 ---
 
+## 2026-11-09 · 수업에서 안 배운 코드는 Claude Code가 자세히 설명해 줘요 — 🟧 이수한
+코드 변경 없음 (팀 공통 Claude 규칙 `.claude/rules/team-updates.md`에 한 항목 추가). **pull 후 Claude Code를 다시 열면** 적용돼요.
+
+- 힌트를 받을 때도, "직접 수정해 줘"로 맡길 때도 처음 보는 문법·기능이 나오면 Claude가 **① 무엇인지 ② 왜 여기서 쓰는지 ③ 작은 예시(넣으면 → 나오는 것) ④ 흔한 실수**를 같이 적어 줘요
+- 수업에서 배운 것(GROUP BY·트리거·공공 API·임베딩·RAG·LangChain·FastAPI 등)은 몇 일차인지 짚고 짧게
+- 설명이 부족하면 "이거 수업에서 안 배웠어, 자세히 설명해 줘"라고 하면 돼요
+- **보기 좋게:** 코드는 VS Code처럼 색이 나뉘게 언어를 붙인 코드 블록(`python`·`django`·`css`·`javascript`…)으로, 고칠 줄은 `diff` 블록(빨강 = 원래, 초록 = 바꾼 것)으로 보여 줘요
+- 예: 오늘 나온 것들 — `**{field: v}`(사전을 이름 있는 인자로 풀기), `collections.Counter`, 줄 끝 쉼표가 튜플을 만듦, `Paginator.get_elided_page_range`, CSS 선택자 우선순위, `?v=` 번호로 캐시 피하기
+
+---
+
 ## 2026-11-09 · ✅ ODsay 뺌 → 카카오 대중교통 경로(서버) + 📐 공유 정의 `transit_service.transit_route` — 🟦 임영준
 DB 변경 없음 · 기존 응답 키 그대로 · **새 주소 `/transit_route/` + `mock.json`에 `transit_route` 추가** · `.env`의 `ODSAY_WEB_API_KEY`는 이제 안 씀(지워도 됨)
 

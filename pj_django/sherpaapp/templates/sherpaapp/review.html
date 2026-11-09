@@ -6,7 +6,7 @@
     <title>TRIPA - 리뷰 게시판</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=6">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=7">
     </head>
 <body>
 <div class="detail-container">        <!-- 전체 틀: 왼쪽 메뉴 + 오른쪽 본문 -->
@@ -174,13 +174,29 @@
             <!-- 전체 리뷰 목록 (최신순) -->
             <section class="rv-list" aria-labelledby="rvListTitle">
                 <h2 id="rvListTitle" class="rv-section-title">전체 리뷰 <em>{{ review_total }}개</em></h2>
-
+                <div class="rt-sort" role="group" aria-label="분류 기준">
+                    <a href="?tab=places&sort={{ sort }}" class="{% if not by %}is-on{% endif %}">전체</a>
+                    {% for key, label, field in groups %}
+                    <a href="?tab=places&by={{ key }}&sort={{ sort }}" class="{% if by == key %}is-on{% endif %}">{{ label }}</a>
+                    {% endfor %}
+                </div>
+                {% if chips %}
+                <div class="rt-sort rv-chips" role="group" aria-label="{{ by }} 고르기">
+                    {% for c in chips %}
+                    <a href="?tab=places&by={{ by }}&v={{ c.value|urlencode }}&sort={{ sort }}" class="{% if v == c.value %}is-on{% endif %}">{{ c.label }} <em>{{ c.count }}</em></a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="rt-sort" role="group" aria-label="정렬">
+                    <a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort=helpful" class="{% if sort == 'helpful' %}is-on{% endif %}">추천순</a>
+                    <a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort=new" class="{% if sort == 'new' %}is-on{% endif %}">최신순</a>
+                </div>
                 {% for r in page %}
                 <article class="rv-card">
                     <header class="rv-card__head">
                         <img class="rv-avatar" src="{% static 'sherpaapp/avatars/'|add:r.member.avatar_key|add:'.svg' %}" alt="" width="40" height="40">
                         <div class="rv-who">
-                            <strong>{{ r.member.nickname }}</strong>
+                            <strong>{{ r.member.nickname }}</strong> {% if sort == 'helpful' and page.number == 1 and forloop.counter <= 3 and r.helpful_count %}<span class="rv-rank">추천 {{ forloop.counter }}위</span>{% endif %}
                             <span>{{ r.created_at|date:"Y.m.d" }}</span>
                         </div>
                         <span class="rv-stars" aria-label="별점 {{ r.rating }}점">{% for i in "12345" %}{% if forloop.counter <= r.rating %}★{% else %}☆{% endif %}{% endfor %}</span>
@@ -230,9 +246,13 @@
 
                 {% if page.has_other_pages %}
                 <nav class="rv-pages" aria-label="리뷰 페이지">
-                    {% if page.has_previous %}<a href="?tab=places&page={{ page.previous_page_number }}">‹ 이전</a>{% endif %}
-                    <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
-                    {% if page.has_next %}<a href="?tab=places&page={{ page.next_page_number }}">다음 ›</a>{% endif %}
+                    {% if page.has_previous %}<a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort={{ sort }}&page={{ page.previous_page_number }}">‹</a>{% endif %}
+                    {% for n in page_numbers %}
+                        {% if n == page.paginator.ELLIPSIS %}<span>…</span>
+                        {% elif n == page.number %}<span aria-current="page">{{ n }}</span>
+                        {% else %}<a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort={{ sort }}&page={{ n }}">{{ n }}</a>{% endif %}
+                    {% endfor %}
+                    {% if page.has_next %}<a href="?tab=places&by={{ by }}&v={{ v|urlencode }}&sort={{ sort }}&page={{ page.next_page_number }}">›</a>{% endif %}
                 </nav>
                 {% endif %}
             </section>
