@@ -68,15 +68,14 @@ export default function BudgetApp({ cfg }) {
   }
 
   const plan = data.plan || {};
-  const used = data.by || {};
   const sumLimit = CATS.reduce((s, c) => s + limits[c.key], 0);
   const sumPlan = CATS.reduce((s, c) => s + (plan[c.key] || 0), 0);
-  const sumUsed = CATS.reduce((s, c) => s + (used[c.key] || 0), 0);
   const overPlan = sumPlan - sumLimit;   // + 면 일정 예상이 예산보다 많음
+  const left = sumLimit - sumPlan;       // 남은 금액 = 총예산 - 일정 예상 (- 면 초과)
 
   // 금액이 있는 분류만 기본으로 보여 주고, 나머지는 '다른 분류도 보기'
   // (금액이 0이어도 일정 장소가 있는 분류는 보여 줌 → 가격 모르는 곳을 직접 적을 수 있게)
-  const active = CATS.filter((c) => limits[c.key] || plan[c.key] || used[c.key] || items.some((it) => it.cat === c.key));
+  const active = CATS.filter((c) => limits[c.key] || plan[c.key] || items.some((it) => it.cat === c.key));
   const rows = showAll || !active.length ? CATS : active;
 
   const setOne = (key, text) => { setInputs((prev) => ({ ...prev, [key]: text })); setMsg(''); };
@@ -142,7 +141,7 @@ export default function BudgetApp({ cfg }) {
         <dl className="cb-stats">
           <div><dt>총예산 (분류 합계)</dt><dd className={changed ? 'is-edit' : ''}>{won(sumLimit)}</dd></div>
           <div><dt>일정 예상 (AI)</dt><dd className={overPlan > 0 ? 'is-over' : ''}>{won(sumPlan)}</dd></div>
-          <div><dt>쓴 돈</dt><dd>{won(sumUsed)}</dd></div>
+          <div><dt>남은 금액</dt><dd className={left < 0 ? 'is-over' : ''}>{left < 0 ? `${won(-left)} 초과` : won(left)}</dd></div>
         </dl>
 
         <p className={`cb-note${overPlan > 0 ? ' is-warn' : ''}`}>
@@ -178,7 +177,6 @@ export default function BudgetApp({ cfg }) {
                 value={inputs[c.key] ?? '0'}
                 limit={limits[c.key]}
                 plan={plan[c.key] || 0}
-                used={used[c.key] || 0}
                 onChange={(text) => setOne(c.key, text)}
                 onSwapped={load}
                 items={items.filter((it) => it.cat === c.key)}
@@ -206,14 +204,12 @@ export default function BudgetApp({ cfg }) {
         cfg={cfg}
         limits={limits}
         plan={plan}
-        used={used}
         days={data.days || []}
         dayAmounts={items.reduce((acc, it) => {
           const text = itemInputs[it.sp_id] ?? '';
           acc[it.date] = (acc[it.date] || 0) + (text === '' ? (it.ai || 0) : toNumber(text));
           return acc;
         }, {})}
-        dailyUsed={data.daily_used || {}}
       />
 
       <p className="cb-foot">

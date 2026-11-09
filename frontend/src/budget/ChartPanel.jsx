@@ -1,5 +1,5 @@
 // 예산 차트 (예전 비용 관리의 '지출 차트' 3개를 그대로 옮김, Chart.js 는 category_budget.html 에서 CDN 으로 불러옴)
-// 1) 분류별 예산 비율 (도넛)  2) 날짜별 예상 비용·쓴 돈 + 하루 예산 점선  3) 분류별 예산 · 일정 예상 · 쓴 돈 (가로 막대)
+// 1) 분류별 예산 비율 (도넛)  2) 날짜별 예상 비용 + 하루 예산 점선  3) 분류별 예산 · 일정 예상 (가로 막대)
 // 입력 칸을 고치면 바로 다시 그린다
 import { useEffect, useRef } from 'react';
 import Icon from '../components/Icon.jsx';
@@ -9,28 +9,27 @@ import { CATS, won } from './cats.js';
 const short = (v) => (Math.abs(v) >= 10000 ? `${Math.round(v / 1000) / 10}만` : String(v));
 const mmdd = (iso) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 
-export default function ChartPanel({ cfg, limits, plan, used, days, dayAmounts, dailyUsed }) {
+export default function ChartPanel({ cfg, limits, plan, days, dayAmounts }) {
   const donutRef = useRef(null);
   const dailyRef = useRef(null);
   const catRef = useRef(null);
   const hasChart = typeof window !== 'undefined' && !!window.Chart;
 
   // 차트에 쓸 값 (바뀔 때만 다시 그리도록 글자로 묶음)
-  const cats = CATS.filter((c) => limits[c.key] || plan[c.key] || used[c.key]);
+  const cats = CATS.filter((c) => limits[c.key] || plan[c.key]);
   const sumLimit = CATS.reduce((s, c) => s + (limits[c.key] || 0), 0);
   const daily = days.map((iso, i) => ({
     label: `${i + 1}일차 ${mmdd(iso)}`,
     plan: dayAmounts[iso] || 0,
-    used: dailyUsed[iso] || 0,
   }));
   const dayBudget = days.length && sumLimit ? Math.round(sumLimit / days.length) : 0;
-  const key = JSON.stringify([cats.map((c) => [c.key, limits[c.key], plan[c.key], used[c.key]]), daily, dayBudget]);
+  const key = JSON.stringify([cats.map((c) => [c.key, limits[c.key], plan[c.key]]), daily, dayBudget]);
 
   useEffect(() => {
     const Chart = window.Chart;   // category_budget.html 에서 CDN 으로 불러온 Chart.js
     if (!Chart) return undefined;
     const ds = JSON.parse(key);
-    const catList = ds[0].map(([k, limit, p, u]) => ({ ...CATS.find((c) => c.key === k), limit: limit || 0, plan: p || 0, used: u || 0 }));
+    const catList = ds[0].map(([k, limit, p]) => ({ ...CATS.find((c) => c.key === k), limit: limit || 0, plan: p || 0 }));
     const days2 = ds[1];
     const perDay = ds[2];
 
@@ -67,10 +66,9 @@ export default function ChartPanel({ cfg, limits, plan, used, days, dayAmounts, 
       },
     }));
 
-    // 2) 날짜별 예상 비용 · 쓴 돈 (막대) + 하루 예산 (점선)
+    // 2) 날짜별 예상 비용 (막대) + 하루 예산 (점선)
     const dailySets = [
       { type: 'bar', label: '예상 비용', data: days2.map((d) => d.plan), backgroundColor: '#9fbdf0', borderRadius: 4, maxBarThickness: 32, order: 3 },
-      { type: 'bar', label: '쓴 돈', data: days2.map((d) => d.used), backgroundColor: '#2d6cdf', borderRadius: 4, maxBarThickness: 32, order: 2 },
     ];
     if (perDay > 0) {
       dailySets.push({
@@ -93,7 +91,7 @@ export default function ChartPanel({ cfg, limits, plan, used, days, dayAmounts, 
       },
     }));
 
-    // 3) 분류별 예산(연한 막대) · 일정 예상(분류 색) · 쓴 돈(진한 얇은 막대)
+    // 3) 분류별 예산(연한 막대) · 일정 예상(분류 색)
     catRef.current.parentNode.style.height = `${Math.max(140, catList.length * 50 + 70)}px`;
     charts.push(new Chart(catRef.current, {
       type: 'bar',
@@ -102,7 +100,6 @@ export default function ChartPanel({ cfg, limits, plan, used, days, dayAmounts, 
         datasets: [
           { label: '예산', data: catList.map((c) => c.limit), backgroundColor: '#dfe7f7', borderRadius: 6, barPercentage: 0.9, categoryPercentage: 0.85, grouped: false, order: 3 },
           { label: '일정 예상', data: catList.map((c) => c.plan), backgroundColor: catList.map((c) => c.color), borderRadius: 6, barPercentage: 0.5, categoryPercentage: 0.85, grouped: false, order: 2 },
-          { label: '쓴 돈', data: catList.map((c) => c.used), backgroundColor: '#1f2d4a', borderRadius: 4, barPercentage: 0.18, categoryPercentage: 0.85, grouped: false, order: 1 },
         ],
       },
       options: {
@@ -115,7 +112,7 @@ export default function ChartPanel({ cfg, limits, plan, used, days, dayAmounts, 
               // '일정 예상'은 분류마다 색이 달라서 범례 색은 파랑 하나로
               generateLabels: (chart) => chart.data.datasets.map((d, i) => ({
                 text: d.label,
-                fillStyle: d.label === '예산' ? '#dfe7f7' : d.label === '쓴 돈' ? '#1f2d4a' : '#2d6cdf',
+                fillStyle: d.label === '예산' ? '#dfe7f7' : '#2d6cdf',
                 strokeStyle: 'transparent',
                 datasetIndex: i,
                 hidden: !chart.isDatasetVisible(i),
@@ -155,16 +152,16 @@ export default function ChartPanel({ cfg, limits, plan, used, days, dayAmounts, 
           </figure>
 
           <figure className="bg-chart__box">
-            <figcaption>날짜별 예상 비용 · 쓴 돈</figcaption>
+            <figcaption>날짜별 예상 비용</figcaption>
             <div className="bg-chart__canvas">
-              <canvas ref={dailyRef} role="img" aria-label="날짜별 예상 비용과 쓴 돈 막대 차트" />
+              <canvas ref={dailyRef} role="img" aria-label="날짜별 예상 비용 막대 차트" />
             </div>
           </figure>
 
           <figure className="bg-chart__box bg-chart__box--wide">
-            <figcaption>분류별 예산 · 일정 예상 · 쓴 돈</figcaption>
+            <figcaption>분류별 예산 · 일정 예상</figcaption>
             <div className="bg-chart__canvas">
-              <canvas ref={catRef} role="img" aria-label="분류별 예산 대비 일정 예상과 쓴 돈 가로 막대 차트" />
+              <canvas ref={catRef} role="img" aria-label="분류별 예산 대비 일정 예상 가로 막대 차트" />
             </div>
           </figure>
         </div>
