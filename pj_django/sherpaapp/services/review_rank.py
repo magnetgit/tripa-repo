@@ -18,6 +18,7 @@ from sherpaapp.models import Review
 MIN_REVIEWS = 2     # 이보다 적으면 순서에 반영하지 않음 (별점 표시는 함)
 PRIOR = 3.5         # 리뷰가 없거나 적은 곳의 점수
 PRIOR_WEIGHT = 3    # 평균을 PRIOR 쪽으로 당기는 정도 (리뷰 3개만큼)
+GROUP_WEIGHT = 0.4  # 같은 성별·나이대 점수를 섞는 비율 (0.4 = 40%)
 
 
 def review_stats(kakao_ids):
@@ -34,21 +35,51 @@ def review_stats(kakao_ids):
     return {r['kakao_id']: {'rating': round(r['rating'], 1), 'count': r['count']} for r in rows}
 
 
-def place_score(review):
+def group_review_stats(kakao_ids, gender, age_group):
+    """같은 성별·나이대 회원 리뷰만 센 {kakao_id: {rating, count}}"""
+    if not gender or not age_group:
+        return {}
+    ids = [str(k) for k in kakao_ids if k]
+    if not ids:
+        return {}
+
+    rows = (
+        Review.objects.filter(kakao_id__in=ids, member__gender=gender, member__age_group=age_group)
+        .values('kakao_id')
+        .annotate(rating=Avg('rating'), count=Count('rv_id'))
+    )
+    return {r['kakao_id']: {'rating': round(r['rating'], 1), 'count': r['count']} for r in rows}
+
+
+def place_score(review, same=None):
     if not review or review['count'] < MIN_REVIEWS:
         return PRIOR
 
     n = review['count']
-    return (review['rating'] * n + PRIOR * PRIOR_WEIGHT) / (n + PRIOR_WEIGHT)
+    score = (review['rating'] * n + PRIOR * PRIOR_WEIGHT) / (n + PRIOR_WEIGHT)
+    if same and same['count'] >= MIN_REVIEWS:
+        group = (same['rating'] * same['count'] + PRIOR * PRIOR_WEIGHT) / (same['count'] + PRIOR_WEIGHT)
+        score = score * (1 - GROUP_WEIGHT) + group * GROUP_WEIGHT
+    return score
 
 
-def rank_by_reviews(items, keep_first=0):
+def rank_by_reviews(items, keep_first=0, profile=None):
     """카드마다 review를 붙이고, 앞의 keep_first장(팀이 고른 곳)을 뺀 나머지를 점수 순으로."""
     stats = review_stats(item.get('kakao_id') for item in items)
+    group = {}
+    if profile:
+        group = group_review_stats(
+            (item.get('kakao_id') for item in items),
+            profile.get('gender'),
+            profile.get('age_group')
+        )
 
     for item in items:
         item['review'] = stats.get(str(item.get('kakao_id') or ''))
 
     head, rest = items[:keep_first], items[keep_first:]
-    rest = sorted(rest, key=lambda item: -place_score(item['review']))   # 같은 점수는 원래 순서
+    def score_of(item):
+        kid = str(item.get('kakao_id') or '')
+        return -place_score(item['review'], group.get(kid))
+    rest = sorted(rest, key=score_of)   # 같은 점수는 원래 순서
     return head + rest
