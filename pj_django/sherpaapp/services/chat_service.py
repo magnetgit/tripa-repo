@@ -1608,6 +1608,32 @@ def _keep_previous(ai_draft, prev):
     return ai_draft
 
 
+def _keep_found_stays(ai_stays, prev, user_text):
+    """이번 말에 숙소 얘기가 없으면, 위치까지 찾은 숙소는 AI가 바꾸거나 빼도 그대로 둔다. (🟦 11/09)
+
+    로컬 모델(qwen3)이 '예산은 50만원이야' 턴에 초안을 다시 쓰면서, 카드에서 담은 숙소를
+    앞에서 했던 말 '제주공항 근처'로 바꿔 숙소가 사라진 적이 있음 (TEAM_UPDATES 11/09).
+    - 비어 있는 날짜에 새 숙소를 넣는 건 그대로 받는다.
+    - 숙소 얘기를 하면('숙소 바꿔줘', '2일차 호텔 추천') 지금처럼 AI 판단을 따른다.
+    """
+    if not isinstance(ai_stays, list):
+        return ai_stays
+    if any(word in (user_text or '') for word in _STAY_ASK_WORDS + _STAY_WORDS):
+        return ai_stays
+
+    view = {s['date']: s for s in _llm_view(prev).get('stays') or [] if s.get('date')}
+    found = {
+        s.get('date') for s in prev.get('stays') or []
+        if isinstance(s, dict) and s.get('date') in view and s.get('lat') is not None
+    }
+    if not found:
+        return ai_stays
+
+    kept = [view[day] for day in sorted(found)]
+    others = [s for s in ai_stays if not (isinstance(s, dict) and s.get('date') in found)]
+    return kept + others
+
+
 _WEEKDAY_INDEX = {name: i for i, name in enumerate(WEEKDAYS)}
 _NIGHTS_RE = re.compile(r'(\d{1,2})\s*박(?:\s*(\d{1,2})\s*일)?')
 _KO_NUMBERS = {'일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '칠': 7, '팔': 8, '구': 9}
@@ -2115,6 +2141,9 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         ]
     if _squash(ai_draft.get('start_place_query')) in concept_keys:
         ai_draft['start_place_query'] = (prev.get('start_place') or {}).get('query')
+
+    # 숙소 얘기가 없는 턴에는 이미 찾은 숙소를 지킨다 (로컬 모델이 예전 말로 덮어쓰는 문제)
+    ai_draft['stays'] = _keep_found_stays(ai_draft.get('stays'), prev, messages[-1]['content'])
 
     guessed_cats = []
     if not match_categories(ai_draft.get('categories'), category_names):
