@@ -628,6 +628,8 @@ def review_board(request):
     reviews = _filter_reviews(reviews, by, v)
     if sort == 'new':
         reviews = reviews.order_by('-created_at', '-rv_id')
+    elif sort == 'rating':
+        reviews = reviews.order_by('-rating', '-helpful_count', '-created_at', '-rv_id')
     else:
         reviews = reviews.order_by('-helpful_count', '-created_at', '-rv_id')
     page = Paginator(reviews, REVIEW_PAGE_SIZE).get_page(request.GET.get('page'))
