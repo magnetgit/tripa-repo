@@ -403,7 +403,7 @@
              data-rain-url="{% url 'rain_options' %}"
              data-login-url="{% url 'login' %}"
              data-member="{{ member.m_id|default:'guest' }}"
-             data-odsay-key="{{ ODSAY_WEB_API_KEY|default:'' }}"
+             data-transit-url="{% url 'transit_route' %}"
              data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5"
              data-prefill="{{ prefill_title|default:'' }}"
              data-budget="{{ prefill_budget_code|default:'' }}">
@@ -523,6 +523,6 @@
 </div>
 
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
-<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261054"></script>
+<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261055"></script>
 </body>
 </html>

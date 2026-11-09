@@ -51,7 +51,7 @@
              data-login-url="{% url 'login' %}"
              data-manual-url="{% url 'travel_create' %}?mode=manual"
              data-member="{{ member.m_id|default:'guest' }}"
-             data-odsay-key="{{ ODSAY_WEB_API_KEY|default:'' }}"
+             data-transit-url="{% url 'transit_route' %}"
              data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5">
             {% csrf_token %}
         </div>

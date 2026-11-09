@@ -1607,12 +1607,6 @@
 
     const travelId = {{ travel.t_id }};
 
-    // ODsay Web API Key
-    // ODsay 애플리케이션에서 Web 플랫폼에 현재 도메인을 등록해 사용한다.
-    // Web Key는 프론트엔드 직접 호출용이다.
-    const ODSAY_WEB_API_KEY =
-        "{{ ODSAY_WEB_API_KEY|default:''|escapejs }}";
-
     let currentDay = 1;
 
     let currentScheduleId = null;
@@ -2517,28 +2511,16 @@ function focusSchedulePlace(placeId) {
 
 
 /* =========================================================
-   무료 대중교통 길찾기 - ODsay Basic Web API
+   대중교통 길찾기 - 카카오 대중교통 경로 (서버 호출, 🟦 transit_service)
 
-   - 브라우저에서 직접 호출한다.
-   - ODsay Web Key에 현재 서비스 도메인을 등록해야 한다.
-   - Basic 무료 플랜 호출 수를 아끼기 위해 같은 구간은 메모리 캐시한다.
-   - ODsay 대중교통 길찾기는 시간표 기반 실시간 검색이 아니므로
-     "몇 시 버스"를 실제 운행시간으로 단정하지 않는다.
+   - ODsay(브라우저 호출, 하루 한도·도메인 등록)를 대신한다 (11/06 결정).
+   - 서버가 카카오를 부르고 같은 구간은 7일 저장하므로 키·한도 걱정이 없다.
+   - 700m 이내 구간은 서버도 부르지 않고 도보 예상으로 돌려준다.
+   - 시간표 기반 검색이 아니므로 "몇 시 버스"를 실제 운행시간으로 단정하지 않는다.
 ========================================================= */
 
-const odsTransitRouteCache = new Map();
-const odsLaneGeometryCache = new Map();
-const odsWalkRouteCache = new Map();
-const odsTrainGeometryCache = new Map();
-
-// 상세 지도 경로 사용 여부.
-// true이면 ODsay searchPubTransPathT 결과의 mapObj로 loadLane을 추가 호출한다.
-// 무료 Basic 호출량이 늘어날 수 있으므로 같은 구간은 위 캐시를 재사용한다.
-const ODSAY_DETAILED_MAP_GEOMETRY = false;
-
-// ODsay 대중교통 길찾기는 700m 이내에서 -98 오류를 반환하므로
-// 해당 구간은 대중교통 API 대신 ODsay 도보 길찾기로 전환한다.
-const ODSAY_SHORT_WALK_METERS = 700;
+const TRANSIT_ROUTE_URL = "{% url 'transit_route' %}";
+const transitRouteCache = new Map();
 
 function normalizeTimelineTransport(value) {
     return String(value || "")
@@ -2549,1827 +2531,176 @@ function normalizeTimelineTransport(value) {
         .replace("대중교통", "public_transport");
 }
 
-function odsTrafficMeta(trafficType, trafficSubType) {
-    const type = Number(trafficType);
+// 서버 경로 점 [[위도, 경도], ...] → [{lat, lon}, ...]
+function transitPoints(points) {
+    return (Array.isArray(points) ? points : [])
+        .map(function (p) {
+            return {lat: Number(p[0]), lon: Number(p[1])};
+        })
+        .filter(function (p) {
+            return !Number.isNaN(p.lat) && !Number.isNaN(p.lon);
+        });
+}
 
-    if (type === 1) {
-        return {mode: "subway", vehicleLabel: "지하철"};
-    }
-    if (type === 2) {
-        return {mode: "bus", vehicleLabel: "버스"};
-    }
-    if (type === 3) {
-        return {mode: "walk", vehicleLabel: "도보"};
-    }
-    if (type === 4) {
-        const trainMap = {
-            1: "KTX",
-            2: "새마을",
-            3: "무궁화",
-            4: "누리로",
-            6: "ITX",
-            7: "ITX-청춘",
-            8: "SRT"
-        };
+// 서버 결과(transit_route) → 이 화면의 경로 모양 (기존 ODsay 결과와 같은 키)
+function transitToDetailRoute(baseRoute, r) {
+    const segments = (r.segments || []).map(function (seg) {
         return {
-            mode: "train",
-            vehicleLabel: trainMap[Number(trafficSubType)] || "열차"
+            mode: seg.mode,
+            estimated: Boolean(r.walk),
+            source: "kakao_publictraffic",
+            points: transitPoints(seg.points)
         };
-    }
-    if (type === 5) {
-        return {mode: "bus", vehicleLabel: "고속버스"};
-    }
-    if (type === 6) {
-        return {mode: "bus", vehicleLabel: "시외버스"};
-    }
-    if (type === 7) {
-        return {mode: "air", vehicleLabel: "항공"};
-    }
-
-    return {mode: "transit", vehicleLabel: "대중교통"};
-}
-
-function odsFirstNonEmpty() {
-    for (let i = 0; i < arguments.length; i += 1) {
-        const value = arguments[i];
-        if (value !== undefined && value !== null && String(value).trim() !== "") {
-            return String(value).trim();
-        }
-    }
-    return "";
-}
-
-function odsLaneName(section, meta) {
-    const lanes = Array.isArray(section.lane) ? section.lane : [];
-
-    if (meta.mode === "subway") {
-        const names = lanes
-            .map(function (lane) { return lane.name || lane.subwayName || ""; })
-            .filter(Boolean);
-        return names.join(" / ");
-    }
-
-    if (meta.mode === "bus") {
-        const busNumbers = lanes
-            .map(function (lane) { return lane.busNo || lane.name || ""; })
-            .filter(Boolean);
-
-        return odsFirstNonEmpty(
-            busNumbers.join(" / "),
-            section.busNo,
-            section.routeName,
-            section.laneName
-        );
-    }
-
-    if (meta.mode === "train") {
-        return odsFirstNonEmpty(
-            section.trainName,
-            section.laneName,
-            meta.vehicleLabel
-        );
-    }
-
-    if (meta.mode === "air") {
-        return odsFirstNonEmpty(
-            section.airlineName,
-            section.laneName,
-            "항공"
-        );
-    }
-
-    return "";
-}
-
-function odsPushPoint(points, lonValue, latValue) {
-    const lon = Number(lonValue);
-    const lat = Number(latValue);
-
-    if (Number.isNaN(lat) || Number.isNaN(lon)) {
-        return;
-    }
-
-    const point = {lat: lat, lon: lon};
-    const last = points.length > 0 ? points[points.length - 1] : null;
-
-    if (
-        last
-        && Number(last.lat) === lat
-        && Number(last.lon) === lon
-    ) {
-        return;
-    }
-
-    points.push(point);
-}
-
-
-function odsDistanceMeters(a, b) {
-    if (!a || !b) {
-        return Infinity;
-    }
-
-    const lat1 = Number(a.lat);
-    const lon1 = Number(a.lon);
-    const lat2 = Number(b.lat);
-    const lon2 = Number(b.lon);
-
-    if (
-        Number.isNaN(lat1)
-        || Number.isNaN(lon1)
-        || Number.isNaN(lat2)
-        || Number.isNaN(lon2)
-    ) {
-        return Infinity;
-    }
-
-    const toRad = function (degree) {
-        return degree * Math.PI / 180;
-    };
-
-    const earthRadius = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-
-    const value =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2)
-        + Math.cos(toRad(lat1))
-        * Math.cos(toRad(lat2))
-        * Math.sin(dLon / 2)
-        * Math.sin(dLon / 2);
-
-    return earthRadius * 2 * Math.atan2(
-        Math.sqrt(value),
-        Math.sqrt(1 - value)
-    );
-}
-
-
-function odsFlattenGeometrySegments(segments) {
-    const points = [];
-
-    (Array.isArray(segments) ? segments : [])
-        .forEach(function (segment) {
-            (Array.isArray(segment.points) ? segment.points : [])
-                .forEach(function (point) {
-                    odsPushPoint(
-                        points,
-                        point.lon,
-                        point.lat
-                    );
-                });
-        });
-
-    return points;
-}
-
-
-function odsNormalizeMapObject(mapObj) {
-    const value = String(mapObj || "").trim();
-
-    if (!value) {
-        return "";
-    }
-
-    if (value.startsWith("0:0@")) {
-        return value;
-    }
-
-    return `0:0@${value}`;
-}
-
-
-function odsExtractLaneGeometry(data) {
-    const result = data && data.result ? data.result : {};
-    const lanes = Array.isArray(result.lane)
-        ? result.lane
-        : [];
-
-    const segments = [];
-
-    lanes.forEach(function (lane) {
-        const laneClass = Number(lane.class);
-        const mode =
-            laneClass === 2
-                ? "subway"
-                : "bus";
-
-        const sections = Array.isArray(lane.section)
-            ? lane.section
-            : [];
-
-        sections.forEach(function (section) {
-            const graphPositions =
-                Array.isArray(section.graphPos)
-                    ? section.graphPos
-                    : [];
-
-            const points = [];
-
-            graphPositions.forEach(function (position) {
-                odsPushPoint(
-                    points,
-                    position.x,
-                    position.y
-                );
-            });
-
-            if (points.length >= 2) {
-                segments.push({
-                    mode: mode,
-                    estimated: false,
-                    source: "odsay_loadLane",
-                    lane_class: laneClass,
-                    lane_type: Number(lane.type || 0),
-                    points: points
-                });
-            }
-        });
     });
 
-    return segments;
-}
-
-
-async function odsFetchLaneGeometry(mapObj) {
-    const normalizedMapObject =
-        odsNormalizeMapObject(mapObj);
-
-    if (!normalizedMapObject) {
-        return [];
-    }
-
-    if (odsLaneGeometryCache.has(normalizedMapObject)) {
-        return odsLaneGeometryCache.get(
-            normalizedMapObject
-        );
-    }
-
-    const params = new URLSearchParams({
-        mapObject: normalizedMapObject,
-        output: "json",
-        apiKey: ODSAY_WEB_API_KEY
+    const steps = (r.steps || []).map(function (st) {
+        return {
+            mode: st.mode,
+            vehicle_type: st.mode,
+            vehicle_label: st.kind,
+            line_name: st.line,
+            display_name: st.name,
+            boarding_stop: st.from,
+            alighting_stop: st.to,
+            departure_time: null,
+            arrival_time: null,
+            duration_minutes: Number(st.minutes || 0),
+            waiting_minutes: 0,
+            direction: "",
+            pass_stops: st.stops || []
+        };
     });
 
-    const promise = fetch(
-        `https://api.odsay.com/v1/api/loadLane?${params.toString()}`,
-        {
-            method: "GET",
-            mode: "cors"
-        }
-    )
-        .then(function (response) {
-            if (!response.ok) {
-                throw new Error(
-                    `ODsay loadLane HTTP ${response.status}`
-                );
-            }
-
-            return response.json();
-        })
-        .then(function (data) {
-            if (data && data.error) {
-                throw new Error(
-                    odsErrorMessage(data)
-                );
-            }
-
-            return odsExtractLaneGeometry(data);
+    if (r.walk) {
+        steps.push({
+            mode: "walk",
+            vehicle_type: "walk",
+            vehicle_label: "도보",
+            line_name: "",
+            display_name: "도보",
+            boarding_stop: "",
+            alighting_stop: "",
+            departure_time: null,
+            arrival_time: null,
+            duration_minutes: Number(r.minutes || 0),
+            waiting_minutes: 0,
+            direction: ""
         });
-
-    odsLaneGeometryCache.set(
-        normalizedMapObject,
-        promise
-    );
-
-    try {
-        return await promise;
-    } catch (error) {
-        odsLaneGeometryCache.delete(
-            normalizedMapObject
-        );
-        throw error;
     }
-}
 
-
-
-function odsBuildShortWalkFallback(
-    baseRoute,
-    distanceMeters
-) {
-    const basePoints =
-        Array.isArray(baseRoute.points)
-            ? baseRoute.points
-            : [];
-
-    const points = basePoints
-        .map(function (point) {
-            return {
-                lat: Number(point.lat),
-                lon: Number(point.lon)
-            };
-        })
-        .filter(function (point) {
-            return (
-                !Number.isNaN(point.lat)
-                && !Number.isNaN(point.lon)
-            );
-        });
-
-    // 평균 도보속도 약 4km/h로 단순 예상.
-    // API 호출을 아끼기 위한 로컬 fallback이므로 실제 도보 길찾기는 아니다.
-    const minutes = Math.max(
-        Math.ceil(
-            Number(distanceMeters || 0)
-            / 1000
-            / 4
-            * 60
-        ),
-        1
-    );
-
-    const transitStep = {
-        mode: "walk",
-        vehicle_type: "walk",
-        vehicle_label: "도보",
-        line_name: "",
-        display_name: "도보",
-        boarding_stop: "",
-        alighting_stop: "",
-        departure_time: null,
-        arrival_time: null,
-        duration_minutes: minutes,
-        waiting_minutes: 0,
-        direction: ""
-    };
+    const rides = steps.filter(function (st) {
+        return st.mode !== "walk";
+    });
+    const firstRide = rides.length > 0 ? rides[0] : null;
+    const lastRide = rides.length > 0 ? rides[rides.length - 1] : null;
 
     return Object.assign({}, baseRoute, {
         success: true,
-        estimated: true,
-        geometry_estimated: true,
-        geometry_source: "local_short_walk_fallback",
-        api_source: "local_short_walk_fallback",
-        short_distance_walk: true,
-        message:
-            "700m 이내 구간은 ODsay 호출 없이 도보 예상으로 처리했습니다.",
-        points: points,
-        geometry_segments: [
-            {
-                mode: "walk",
-                estimated: true,
-                source: "local_short_walk_fallback",
-                points: points
-            }
-        ],
-        distance: Math.round(
-            Number(distanceMeters || 0)
-        ),
-        duration: minutes * 60,
-        transfer_count: 0,
-        transport: "walk",
-        transport_label: "도보",
-        departure_time:
-            baseRoute.departure_time || null,
-        departure_time_source: "schedule",
-        arrival_time: null,
-        transit_type: "도보",
-        line_name: null,
-        boarding_stop: null,
-        alighting_stop: null,
-        transit_steps: [transitStep],
-        transit_detail_available: true,
-        timetable_exact: false,
-        detail_status: "not_needed"
-    });
-}
-
-
-function odsBuildWalkRouteFromData(baseRoute, data) {
-    const result = data && data.result ? data.result : {};
-    const paths = Array.isArray(result.path)
-        ? result.path
-        : [];
-
-    const path = paths[0] || {};
-
-    if (
-        path.hasPathResult === false
-        || !path.recommend
-    ) {
-        throw new Error(
-            "ODsay 도보 경로를 찾지 못했습니다."
-        );
-    }
-
-    const recommend = path.recommend || {};
-    const summary = recommend.summary || {};
-    const routeLinks = Array.isArray(recommend.routes)
-        ? recommend.routes
-        : [];
-
-    const points = [];
-
-    routeLinks.forEach(function (link) {
-        const coordinates =
-            Array.isArray(link.coordinate)
-                ? link.coordinate
-                : [];
-
-        coordinates.forEach(function (coordinate) {
-            odsPushPoint(
-                points,
-                coordinate.x,
-                coordinate.y
-            );
-        });
-    });
-
-    const basePoints = Array.isArray(baseRoute.points)
-        ? baseRoute.points
-        : [];
-
-    if (points.length < 2) {
-        basePoints.forEach(function (point) {
-            odsPushPoint(
-                points,
-                point.lon,
-                point.lat
-            );
-        });
-    }
-
-    const durationSeconds =
-        Math.max(
-            Number(summary.duration || 0),
-            60
-        );
-
-    const distanceMeters =
-        Math.max(
-            Number(summary.distance || 0),
-            0
-        );
-
-    const transitStep = {
-        mode: "walk",
-        vehicle_type: "walk",
-        vehicle_label: "도보",
-        line_name: "",
-        display_name: "도보",
-        boarding_stop: "",
-        alighting_stop: "",
-        departure_time: null,
-        arrival_time: null,
-        duration_minutes: Math.max(
-            Math.ceil(durationSeconds / 60),
-            1
-        ),
-        waiting_minutes: 0,
-        direction: ""
-    };
-
-    return Object.assign({}, baseRoute, {
-        success: true,
-        estimated: false,
-        geometry_estimated: false,
-        geometry_source: "odsay_walk_path_v2",
-        api_source: "odsay_walk_path_v2",
-        short_distance_walk: true,
-        message: "700m 이내 구간은 도보 경로로 자동 전환했습니다.",
-        points: points,
-        geometry_segments: [
-            {
-                mode: "walk",
-                estimated: false,
-                source: "odsay_walk_path_v2",
-                points: points
-            }
-        ],
-        distance: distanceMeters,
-        duration: durationSeconds,
-        transfer_count: 0,
-        transport: "walk",
-        transport_label: "도보",
+        estimated: Boolean(r.walk),
+        geometry_estimated: Boolean(r.walk),
+        geometry_source: "kakao_publictraffic",
+        geometry_segments: segments,
+        geometry_detail_loaded: true,
+        detail_status: "not_needed",
+        api_source: "kakao_publictraffic",
+        short_distance_walk: Boolean(r.walk),
+        message: "",
+        points: segments.flatMap(function (seg) {
+            return seg.points;
+        }),
+        distance: Number(r.distance || 0),
+        duration: Number(r.minutes || 0) * 60,
+        transfer_count: Number(r.transfers || 0),
+        transport: r.walk ? "walk" : "public_transport",
+        transport_label: r.label || (r.walk ? "도보" : "대중교통"),
         departure_time: baseRoute.departure_time || null,
         departure_time_source: "schedule",
         arrival_time: null,
-        transit_type: "도보",
-        line_name: null,
-        boarding_stop: null,
-        alighting_stop: null,
-        transit_steps: [transitStep],
-        transit_detail_available: true,
+        transit_type: firstRide ? firstRide.vehicle_label : (r.walk ? "도보" : "대중교통"),
+        line_name: firstRide ? firstRide.line_name : null,
+        boarding_stop: firstRide ? firstRide.boarding_stop : null,
+        alighting_stop: lastRide ? lastRide.alighting_stop : null,
+        fare: r.fare,
+        kakao_url: r.url || "",
+        transit_steps: steps,
+        transit_detail_available: steps.length > 0,
         timetable_exact: false
     });
 }
 
-
-async function odsFetchWalkRoute(baseRoute) {
-    const points = Array.isArray(baseRoute.points)
-        ? baseRoute.points
-        : [];
+async function fetchTransitRoute(baseRoute) {
+    const points = Array.isArray(baseRoute.points) ? baseRoute.points : [];
 
     if (points.length < 2) {
-        throw new Error(
-            "도보 경로 좌표가 없습니다."
-        );
+        throw new Error("대중교통 경로 좌표가 없습니다.");
     }
 
     const start = points[0];
     const end = points[points.length - 1];
-
-    const cacheKey = [
-        Number(start.lon).toFixed(6),
-        Number(start.lat).toFixed(6),
-        Number(end.lon).toFixed(6),
-        Number(end.lat).toFixed(6)
-    ].join(":");
-
-    if (odsWalkRouteCache.has(cacheKey)) {
-        return odsWalkRouteCache.get(
-            cacheKey
-        );
-    }
-
-    const params = new URLSearchParams({
-        opt: "reco",
-        loc: [
-            String(start.lon),
-            String(start.lat),
-            String(end.lon),
-            String(end.lat)
-        ].join(","),
-        output: "json",
-        apiKey: ODSAY_WEB_API_KEY
-    });
-
-    const promise = fetch(
-        `https://api.odsay.com/v1/api/searchWalkPathV2?${params.toString()}`,
-        {
-            method: "GET",
-            mode: "cors"
-        }
-    )
-        .then(function (response) {
-            if (!response.ok) {
-                throw new Error(
-                    `ODsay 도보 API HTTP ${response.status}`
-                );
-            }
-
-            return response.json();
-        })
-        .then(function (data) {
-            if (data && data.error) {
-                throw new Error(
-                    odsErrorMessage(data)
-                );
-            }
-
-            return odsBuildWalkRouteFromData(
-                baseRoute,
-                data
-            );
-        });
-
-    odsWalkRouteCache.set(
-        cacheKey,
-        promise
-    );
-
-    try {
-        return await promise;
-    } catch (error) {
-        odsWalkRouteCache.delete(
-            cacheKey
-        );
-        throw error;
-    }
-}
-
-
-function odsExtractTrainVertices(data) {
-    const result = data && data.result ? data.result : {};
-    const paths = Array.isArray(result.path)
-        ? result.path
-        : [];
-
-    const selected = paths[0] || {};
-    const subPaths = Array.isArray(selected.subPath)
-        ? selected.subPath
-        : [];
-
-    const segments = [];
-
-    subPaths.forEach(function (subPath) {
-        const vertices = Array.isArray(subPath.vertices)
-            ? subPath.vertices
-            : [];
-
-        const points = [];
-
-        vertices.forEach(function (vertex) {
-            odsPushPoint(
-                points,
-                vertex.x,
-                vertex.y
-            );
-        });
-
-        if (points.length >= 2) {
-            segments.push({
-                mode: "train",
-                estimated: false,
-                source: "odsay_searchTrainPath",
-                points: points
-            });
-        }
-    });
-
-    return segments;
-}
-
-
-async function odsFetchTrainGeometry(startID, endID) {
-    const sid = String(startID || "").trim();
-    const eid = String(endID || "").trim();
-
-    if (!sid || !eid) {
-        return [];
-    }
-
-    const cacheKey = `${sid}:${eid}`;
-
-    if (odsTrainGeometryCache.has(cacheKey)) {
-        return odsTrainGeometryCache.get(
-            cacheKey
-        );
-    }
-
-    const params = new URLSearchParams({
-        SID: sid,
-        EID: eid,
-        output: "json",
-        apiKey: ODSAY_WEB_API_KEY
-    });
-
-    const promise = fetch(
-        `https://api.odsay.com/v1/api/searchTrainPath?${params.toString()}`,
-        {
-            method: "GET",
-            mode: "cors"
-        }
-    )
-        .then(function (response) {
-            if (!response.ok) {
-                throw new Error(
-                    `ODsay 열차 경로 API HTTP ${response.status}`
-                );
-            }
-
-            return response.json();
-        })
-        .then(function (data) {
-            if (data && data.error) {
-                throw new Error(
-                    odsErrorMessage(data)
-                );
-            }
-
-            return odsExtractTrainVertices(data);
-        });
-
-    odsTrainGeometryCache.set(
-        cacheKey,
-        promise
-    );
-
-    try {
-        return await promise;
-    } catch (error) {
-        odsTrainGeometryCache.delete(
-            cacheKey
-        );
-        throw error;
-    }
-}
-
-
-function odsBuildConnectorSegment(fromPoint, toPoint) {
-    if (!fromPoint || !toPoint) {
-        return null;
-    }
-
-    const distance = odsDistanceMeters(
-        fromPoint,
-        toPoint
-    );
-
-    if (!Number.isFinite(distance) || distance < 20) {
-        return null;
-    }
-
-    return {
-        mode: "walk",
-        estimated: true,
-        source: "connector",
-        points: [
-            {
-                lat: Number(fromPoint.lat),
-                lon: Number(fromPoint.lon)
-            },
-            {
-                lat: Number(toPoint.lat),
-                lon: Number(toPoint.lon)
-            }
-        ]
-    };
-}
-
-
-function odsAssembleDetailedGeometry(
-    baseRoute,
-    exactSegments,
-    fallbackSegments
-) {
-    const basePoints = Array.isArray(baseRoute.points)
-        ? baseRoute.points
-        : [];
-
-    const start = basePoints[0] || null;
-    const end = basePoints.length > 0
-        ? basePoints[basePoints.length - 1]
-        : null;
-
-    const exact = Array.isArray(exactSegments)
-        ? exactSegments.filter(
-            function (segment) {
-                return (
-                    Array.isArray(segment.points)
-                    && segment.points.length >= 2
-                );
-            }
-        )
-        : [];
-
-    const fallback = Array.isArray(fallbackSegments)
-        ? fallbackSegments
-        : [];
-
-    if (exact.length === 0) {
-        return fallback;
-    }
-
-    const result = [];
-
-    const firstExactPoint =
-        exact[0].points[0];
-
-    const startConnector =
-        odsBuildConnectorSegment(
-            start,
-            firstExactPoint
-        );
-
-    if (startConnector) {
-        result.push(startConnector);
-    }
-
-    exact.forEach(function (segment, index) {
-        if (index > 0) {
-            const previous =
-                exact[index - 1];
-
-            const previousEnd =
-                previous.points[
-                    previous.points.length - 1
-                ];
-
-            const currentStart =
-                segment.points[0];
-
-            const connector =
-                odsBuildConnectorSegment(
-                    previousEnd,
-                    currentStart
-                );
-
-            if (connector) {
-                result.push(connector);
-            }
-        }
-
-        result.push(segment);
-    });
-
-    const lastExact =
-        exact[exact.length - 1];
-
-    const lastExactPoint =
-        lastExact.points[
-            lastExact.points.length - 1
-        ];
-
-    const endConnector =
-        odsBuildConnectorSegment(
-            lastExactPoint,
-            end
-        );
-
-    if (endConnector) {
-        result.push(endConnector);
-    }
-
-    return result;
-}
-
-
-function odsErrorMessage(data) {
-    if (!data || !data.error) {
-        return "ODsay 대중교통 경로를 찾지 못했습니다.";
-    }
-
-    const error = Array.isArray(data.error)
-        ? data.error[0]
-        : data.error;
-
-    if (!error) {
-        return "ODsay 대중교통 API 오류";
-    }
-
-    return odsFirstNonEmpty(
-        error.message,
-        error.msg,
-        error.code,
-        "ODsay 대중교통 API 오류"
-    );
-}
-
-function odsBuildTransitRoute(baseRoute, data) {
-    const result = data && data.result ? data.result : {};
-    const paths = Array.isArray(result.path) ? result.path : [];
-
-    if (paths.length === 0) {
-        throw new Error(odsErrorMessage(data));
-    }
-
-    // ODsay 추천 순서의 첫 번째 경로를 사용한다.
-    const selected = paths[0] || {};
-    const info = selected.info || {};
-    const sections = Array.isArray(selected.subPath)
-        ? selected.subPath
-        : [];
-
-    const basePoints = Array.isArray(baseRoute.points)
-        ? baseRoute.points
-        : [];
-
-    const firstBasePoint = basePoints[0] || null;
-    const lastBasePoint = basePoints.length > 0
-        ? basePoints[basePoints.length - 1]
-        : null;
-
-    const transitSteps = [];
-    const majorSteps = [];
-    const fallbackSegments = [];
-    const trainRequests = [];
-
-    sections.forEach(function (section) {
-        const meta = odsTrafficMeta(
-            section.trafficType,
-            section.trafficSubType
-                ?? section.trainType
-        );
-
-        const lineName = odsLaneName(section, meta);
-        const displayName = lineName && lineName !== meta.vehicleLabel
-            ? `${meta.vehicleLabel} ${lineName}`
-            : meta.vehicleLabel;
-
-        const durationMinutes = Math.max(
-            Number(
-                section.sectionTime
-                ?? section.duration
-                ?? 0
-            ) || 0,
-            0
-        );
-
-        const waitingMinutes = Math.max(
-            Number(section.waitingTime || 0) || 0,
-            0
-        );
-
-        const passStations =
-            section.passStopList
-            && Array.isArray(section.passStopList.stations)
-                ? section.passStopList.stations
-                : [];
-
-        const sectionPoints = [];
-
-        odsPushPoint(
-            sectionPoints,
-            section.startX,
-            section.startY
-        );
-
-        passStations.forEach(function (station) {
-            odsPushPoint(
-                sectionPoints,
-                station.x,
-                station.y
-            );
-        });
-
-        odsPushPoint(
-            sectionPoints,
-            section.endX,
-            section.endY
-        );
-
-        if (sectionPoints.length >= 2) {
-            fallbackSegments.push({
-                mode: meta.mode,
-                estimated: true,
-                source: "odsay_pass_stop_fallback",
-                points: sectionPoints
-            });
-        }
-
-        const step = {
-            mode: meta.mode,
-            vehicle_type: String(section.trafficType || ""),
-            vehicle_label: meta.vehicleLabel,
-            line_name: lineName,
-            display_name: displayName,
-            boarding_stop: odsFirstNonEmpty(
-                section.startName,
-                section.startNameKor
-            ),
-            alighting_stop: odsFirstNonEmpty(
-                section.endName,
-                section.endNameKor
-            ),
-
-            // searchPubTransPathT 자체는 실제 시간표 기반 출발시각을
-            // 보장하지 않으므로 여기서는 일정상 시각과 구분한다.
-            departure_time: null,
-            arrival_time: null,
-
-            duration_minutes: durationMinutes,
-            waiting_minutes: waitingMinutes,
-            direction: odsFirstNonEmpty(
-                section.way,
-                section.wayName
-            ),
-            pass_stops: passStations
-                .map(function (station) {
-                    return odsFirstNonEmpty(
-                        station.stationName,
-                        station.stationNameKor
-                    );
+    const from = `${Number(start.lat).toFixed(6)},${Number(start.lon).toFixed(6)}`;
+    const to = `${Number(end.lat).toFixed(6)},${Number(end.lon).toFixed(6)}`;
+    const cacheKey = `${from}:${to}`;
+
+    if (!transitRouteCache.has(cacheKey)) {
+        const params = new URLSearchParams({from: from, to: to});
+        transitRouteCache.set(
+            cacheKey,
+            fetch(`${TRANSIT_ROUTE_URL}?${params.toString()}`, {credentials: "same-origin"})
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok || !data.success) {
+                            throw new Error(data.message || `경로 서버 오류 ${response.status}`);
+                        }
+                        return data.route;
+                    });
                 })
-                .filter(Boolean)
-        };
-
-        transitSteps.push(step);
-
-        if (meta.mode !== "walk") {
-            majorSteps.push(step);
-        }
-
-        if (
-            Number(section.trafficType) === 4
-            && section.startID
-            && section.endID
-        ) {
-            trainRequests.push({
-                startID: section.startID,
-                endID: section.endID
-            });
-        }
-    });
-
-    // subPath에 좌표가 없거나 매우 단순한 응답일 때 최소 fallback.
-    if (fallbackSegments.length === 0) {
-        const fallbackPoints = [];
-
-        if (firstBasePoint) {
-            odsPushPoint(
-                fallbackPoints,
-                firstBasePoint.lon,
-                firstBasePoint.lat
-            );
-        }
-
-        sections.forEach(function (section) {
-            odsPushPoint(
-                fallbackPoints,
-                section.startX,
-                section.startY
-            );
-            odsPushPoint(
-                fallbackPoints,
-                section.endX,
-                section.endY
-            );
-        });
-
-        if (lastBasePoint) {
-            odsPushPoint(
-                fallbackPoints,
-                lastBasePoint.lon,
-                lastBasePoint.lat
-            );
-        }
-
-        if (fallbackPoints.length >= 2) {
-            fallbackSegments.push({
-                mode: "transit",
-                estimated: true,
-                source: "odsay_endpoint_fallback",
-                points: fallbackPoints
-            });
-        }
+                .catch(function (error) {
+                    transitRouteCache.delete(cacheKey);   // 실패는 다음에 다시 시도
+                    throw error;
+                })
+        );
     }
 
-    const summedMinutes = transitSteps.reduce(
-        function (sum, step) {
-            return sum + Number(step.duration_minutes || 0);
-        },
-        0
-    );
-
-    const totalMinutes = Math.max(
-        Number(info.totalTime || 0) || summedMinutes,
-        0
-    );
-
-    const transportNames = majorSteps
-        .map(function (step) {
-            return step.display_name;
-        })
-        .filter(Boolean);
-
-    const firstMajor =
-        majorSteps.length > 0
-            ? majorSteps[0]
-            : null;
-
-    const lastMajor =
-        majorSteps.length > 0
-            ? majorSteps[majorSteps.length - 1]
-            : null;
-
-    const fallbackPoints =
-        odsFlattenGeometrySegments(
-            fallbackSegments
-        );
-
-    return Object.assign({}, baseRoute, {
-        success: true,
-        estimated: false,
-
-        // loadLane / searchTrainPath 상세 좌표를 아직 적용하기 전에는
-        // passStopList 또는 승하차 지점 기반의 보조 경로다.
-        geometry_estimated: true,
-        geometry_source: "odsay_pass_stop_fallback",
-        geometry_segments: fallbackSegments,
-        map_object: odsFirstNonEmpty(
-            info.mapObj,
-            info.mapOBJ
-        ),
-        train_geometry_requests: trainRequests,
-
-        api_source: "odsay_basic_web",
-        message: "",
-        points: fallbackPoints,
-        distance: Number(
-            info.totalDistance
-            ?? info.trafficDistance
-            ?? 0
-        ) || 0,
-        duration: totalMinutes * 60,
-        transfer_count: Math.max(
-            majorSteps.length - 1,
-            0
-        ),
-        transport: "public_transport",
-        transport_label: transportNames.length > 0
-            ? transportNames.join(" → ")
-            : "대중교통",
-
-        departure_time:
-            baseRoute.departure_time || null,
-        departure_time_source: "schedule",
-        arrival_time: null,
-
-        transit_type: firstMajor
-            ? firstMajor.vehicle_label
-            : "대중교통",
-        line_name: firstMajor
-            ? firstMajor.line_name
-            : null,
-        boarding_stop: firstMajor
-            ? firstMajor.boarding_stop
-            : null,
-        alighting_stop: lastMajor
-            ? lastMajor.alighting_stop
-            : null,
-        transit_steps: transitSteps,
-        transit_detail_available:
-            transitSteps.length > 0,
-        timetable_exact: false
-    });
+    const r = await transitRouteCache.get(cacheKey);
+    return transitToDetailRoute(baseRoute, r);
 }
 
-async function odsFetchTransitRoute(baseRoute) {
-    if (!ODSAY_WEB_API_KEY) {
-        throw new Error(
-            "ODSAY_WEB_API_KEY가 설정되지 않았습니다."
-        );
-    }
-
-    const points = Array.isArray(baseRoute.points)
-        ? baseRoute.points
-        : [];
-
-    if (points.length < 2) {
-        throw new Error(
-            "대중교통 경로 좌표가 없습니다."
-        );
-    }
-
-    const start = points[0];
-    const end = points[points.length - 1];
-
-    const directDistance =
-        odsDistanceMeters(
-            start,
-            end
-        );
-
-    // ODsay 대중교통 API는 700m 이내에서 -98을 반환한다.
-    // 가까운 구간은 실제 도보 길찾기 API로 자동 전환한다.
-    if (
-        Number.isFinite(directDistance)
-        && directDistance <= ODSAY_SHORT_WALK_METERS
-    ) {
-        return odsBuildShortWalkFallback(
-            baseRoute,
-            directDistance
-        );
-    }
-
-    const cacheKey = [
-        Number(start.lon).toFixed(6),
-        Number(start.lat).toFixed(6),
-        Number(end.lon).toFixed(6),
-        Number(end.lat).toFixed(6)
-    ].join(":");
-
-    if (odsTransitRouteCache.has(cacheKey)) {
-        return odsTransitRouteCache.get(
-            cacheKey
-        );
-    }
-
-    const params = new URLSearchParams({
-        SX: String(start.lon),
-        SY: String(start.lat),
-        EX: String(end.lon),
-        EY: String(end.lat),
-        OPT: "0",
-        SearchPathType: "0",
-        output: "json",
-        apiKey: ODSAY_WEB_API_KEY
-    });
-
-    const requestPromise = fetch(
-        `https://api.odsay.com/v1/api/searchPubTransPathT?${params.toString()}`,
-        {
-            method: "GET",
-            mode: "cors"
-        }
-    )
-        .then(function (response) {
-            if (!response.ok) {
-                throw new Error(
-                    `ODsay API HTTP ${response.status}`
-                );
-            }
-
-            return response.json();
-        })
-        .then(async function (data) {
-            if (data && data.error) {
-                throw new Error(
-                    odsErrorMessage(data)
-                );
-            }
-
-            let route =
-                odsBuildTransitRoute(
-                    baseRoute,
-                    data
-                );
-
-            // 기본 화면에서는 노선/환승 정보까지만 조회한다.
-            // loadLane/searchTrainPath 상세 geometry는
-            // 사용자가 [상세 경로 보기]를 눌렀을 때만 호출한다.
-            if (!ODSAY_DETAILED_MAP_GEOMETRY) {
-                route.detail_status = "ready";
-                return route;
-            }
-
-            const exactSegments = [];
-
-            // 도시내 버스/지하철은 mapObj -> loadLane으로
-            // 실제 노선 그래픽 좌표(graphPos)를 가져온다.
-            if (route.map_object) {
-                try {
-                    const laneSegments =
-                        await odsFetchLaneGeometry(
-                            route.map_object
-                        );
-
-                    laneSegments.forEach(function (segment) {
-                        exactSegments.push(segment);
-                    });
-                } catch (error) {
-                    console.warn(
-                        "ODsay loadLane 상세 경로 조회 실패:",
-                        error
-                    );
-                }
-            }
-
-            // 도시간 열차 구간은 searchTrainPath의 vertices로
-            // 실제 열차 운행 경로를 보강한다.
-            const trainRequests =
-                Array.isArray(route.train_geometry_requests)
-                    ? route.train_geometry_requests
-                    : [];
-
-            for (const requestInfo of trainRequests) {
-                try {
-                    const trainSegments =
-                        await odsFetchTrainGeometry(
-                            requestInfo.startID,
-                            requestInfo.endID
-                        );
-
-                    trainSegments.forEach(function (segment) {
-                        exactSegments.push(segment);
-                    });
-                } catch (error) {
-                    console.warn(
-                        "ODsay 열차 상세 경로 조회 실패:",
-                        error
-                    );
-                }
-            }
-
-            if (exactSegments.length > 0) {
-                const geometrySegments =
-                    odsAssembleDetailedGeometry(
-                        baseRoute,
-                        exactSegments,
-                        route.geometry_segments
-                    );
-
-                route = Object.assign(
-                    {},
-                    route,
-                    {
-                        geometry_estimated: false,
-                        geometry_source:
-                            "odsay_detailed_geometry",
-                        geometry_segments:
-                            geometrySegments,
-                        points:
-                            odsFlattenGeometrySegments(
-                                geometrySegments
-                            )
-                    }
-                );
-            }
-
-            return route;
-        });
-
-    odsTransitRouteCache.set(
-        cacheKey,
-        requestPromise
-    );
-
-    try {
-        return await requestPromise;
-    } catch (error) {
-        odsTransitRouteCache.delete(
-            cacheKey
-        );
-        throw error;
-    }
-}
-
-
-function odsIsQuotaError(error) {
-    const message = String(
-        error && error.message
-            ? error.message
-            : error || ""
-    ).toLowerCase();
-
-    return (
-        message.includes("quota")
-        || message.includes("limit")
-        || message.includes("exceed")
-        || message.includes("daily")
-        || message.includes("일일")
-        || message.includes("사용량")
-        || message.includes("호출")
-        || message.includes("횟수")
-        || message.includes("제한")
-    );
-}
-
-
-async function odsFetchDetailedGeometry(route) {
-    if (!route) {
-        throw new Error(
-            "상세 경로 대상이 없습니다."
-        );
-    }
-
-    if (route.short_distance_walk) {
-        return route;
-    }
-
-    if (
-        route.geometry_detail_loaded
-        && Array.isArray(route.geometry_segments)
-        && route.geometry_segments.length > 0
-    ) {
-        return route;
-    }
-
-    const exactSegments = [];
-
-    // 도시내 버스/지하철 상세 geometry
-    if (route.map_object) {
-        try {
-            const laneSegments =
-                await odsFetchLaneGeometry(
-                    route.map_object
-                );
-
-            laneSegments.forEach(
-                function (segment) {
-                    exactSegments.push(segment);
-                }
-            );
-        } catch (error) {
-            // 열차 geometry가 따로 있을 수 있으므로
-            // 여기서 바로 전체 실패로 끝내지는 않는다.
-            console.warn(
-                "ODsay loadLane 상세 경로 조회 실패:",
-                error
-            );
-
-            if (odsIsQuotaError(error)) {
-                throw error;
-            }
-        }
-    }
-
-    // 도시간 열차 상세 geometry
-    const trainRequests =
-        Array.isArray(
-            route.train_geometry_requests
-        )
-            ? route.train_geometry_requests
-            : [];
-
-    for (const requestInfo of trainRequests) {
-        try {
-            const trainSegments =
-                await odsFetchTrainGeometry(
-                    requestInfo.startID,
-                    requestInfo.endID
-                );
-
-            trainSegments.forEach(
-                function (segment) {
-                    exactSegments.push(segment);
-                }
-            );
-        } catch (error) {
-            console.warn(
-                "ODsay 열차 상세 경로 조회 실패:",
-                error
-            );
-
-            if (odsIsQuotaError(error)) {
-                throw error;
-            }
-        }
-    }
-
-    if (exactSegments.length === 0) {
-        throw new Error(
-            "이 이동구간에서 ODsay 상세 경로 좌표를 제공하지 않았습니다."
-        );
-    }
-
-    const geometrySegments =
-        odsAssembleDetailedGeometry(
-            route,
-            exactSegments,
-            route.geometry_segments
-        );
-
-    return Object.assign(
-        {},
-        route,
-        {
-            geometry_estimated: false,
-            geometry_source:
-                "odsay_detailed_geometry",
-            geometry_segments:
-                geometrySegments,
-            points:
-                odsFlattenGeometrySegments(
-                    geometrySegments
-                ),
-            geometry_detail_loaded: true,
-            detail_status: "loaded",
-            detail_error: ""
-        }
-    );
-}
-
-
-function redrawRoutePolylines(
-    routeData,
-    focusRouteIndex = null
-) {
-    if (!map || !routeData) {
-        return;
-    }
-
-    routePolylines.forEach(
-        function (polyline) {
-            polyline.setMap(null);
-        }
-    );
-
-    routePolylines = [];
-
-    const routes =
-        Array.isArray(routeData.routes)
-            ? routeData.routes
-            : [];
-
-    const focusBounds =
-        new kakao.maps.LatLngBounds();
-
-    let hasFocusPoint = false;
-
-    routes.forEach(
-        function (route, index) {
-
-            if (!route || !route.success) {
-                return;
-            }
-
-            const routeColor =
-                route.to_marker === "R"
-                    ? "#16a34a"
-                    : getScheduleColor(
-                        Math.max(
-                            Number(
-                                route.to_order || 1
-                            ) - 1,
-                            0
-                        )
-                    );
-
-            const segments =
-                Array.isArray(
-                    route.geometry_segments
-                )
-                && route.geometry_segments.length > 0
-                    ? route.geometry_segments
-                    : [
-                        {
-                            mode:
-                                route.transport
-                                || "transit",
-                            estimated:
-                                Boolean(
-                                    route.estimated
-                                    || route.geometry_estimated
-                                ),
-                            points:
-                                Array.isArray(route.points)
-                                    ? route.points
-                                    : []
-                        }
-                    ];
-
-            segments.forEach(
-                function (segment) {
-
-                    const segmentPoints =
-                        Array.isArray(segment.points)
-                            ? segment.points
-                            : [];
-
-                    if (segmentPoints.length < 2) {
-                        return;
-                    }
-
-                    const path = [];
-
-                    segmentPoints.forEach(
-                        function (point) {
-                            const lat =
-                                Number(point.lat);
-                            const lon =
-                                Number(point.lon);
-
-                            if (
-                                Number.isNaN(lat)
-                                || Number.isNaN(lon)
-                            ) {
-                                return;
-                            }
-
-                            const position =
-                                new kakao.maps.LatLng(
-                                    lat,
-                                    lon
-                                );
-
-                            path.push(position);
-
-                            if (
-                                focusRouteIndex !== null
-                                && Number(index)
-                                    === Number(focusRouteIndex)
-                            ) {
-                                focusBounds.extend(
-                                    position
-                                );
-                                hasFocusPoint = true;
-                            }
-                        }
-                    );
-
-                    if (path.length < 2) {
-                        return;
-                    }
-
-                    const mode =
-                        String(
-                            segment.mode || ""
-                        );
-
-                    const isWalk =
-                        mode === "walk";
-
-                    const estimated =
-                        Boolean(
-                            segment.estimated
-                            || (
-                                route.estimated
-                                && !route.geometry_detail_loaded
-                            )
-                        );
-
-                    const polyline =
-                        new kakao.maps.Polyline({
-                            map: map,
-                            path: path,
-                            strokeWeight:
-                                isWalk ? 4 : 7,
-                            strokeColor:
-                                isWalk
-                                    ? "#64748b"
-                                    : routeColor,
-                            strokeOpacity:
-                                estimated
-                                    ? 0.65
-                                    : 0.96,
-                            strokeStyle:
-                                estimated
-                                    ? "dash"
-                                    : "solid"
-                        });
-
-                    routePolylines.push(
-                        polyline
-                    );
-                }
-            );
-        }
-    );
-
-    if (
-        focusRouteIndex !== null
-        && hasFocusPoint
-    ) {
-        map.relayout();
-        map.setBounds(
-            focusBounds
-        );
-    }
-}
-
-
-async function loadDetailedRouteGeometry(
-    routeIndex,
-    trigger
-) {
-    if (
-        !currentRouteData
-        || !Array.isArray(
-            currentRouteData.routes
-        )
-    ) {
-        alert(
-            "현재 경로 데이터가 없습니다."
-        );
-        return;
-    }
-
-    const route =
-        currentRouteData.routes[
-            Number(routeIndex)
-        ];
-
-    if (!route) {
-        alert(
-            "상세 경로를 찾을 수 없습니다."
-        );
-        return;
-    }
-
-    if (route.short_distance_walk) {
-        redrawRoutePolylines(
-            currentRouteData,
-            routeIndex
-        );
-        return;
-    }
-
-    if (route.geometry_detail_loaded) {
-        redrawRoutePolylines(
-            currentRouteData,
-            routeIndex
-        );
-        return;
-    }
-
-    if (trigger) {
-        trigger.disabled = true;
-        trigger.textContent =
-            "상세 경로 불러오는 중...";
-    }
-
-    try {
-        const detailedRoute =
-            await odsFetchDetailedGeometry(
-                route
-            );
-
-        currentRouteData.routes[
-            Number(routeIndex)
-        ] = detailedRoute;
-
-        currentRouteData.route_points =
-            currentRouteData.routes.flatMap(
-                function (item) {
-                    return Array.isArray(
-                        item.points
-                    )
-                        ? item.points
-                        : [];
-                }
-            );
-
-        currentRouteData.points =
-            currentRouteData.route_points;
-
-        redrawRoutePolylines(
-            currentRouteData,
-            routeIndex
-        );
-
-        if (currentDayData) {
-            renderSchedule(
-                currentDayData,
-                currentRouteData
-            );
-        }
-
-    } catch (error) {
-        console.warn(
-            "상세 경로 수동 조회 실패:",
-            error
-        );
-
-        route.detail_status =
-            odsIsQuotaError(error)
-                ? "quota_exceeded"
-                : "error";
-
-        route.detail_error =
-            error && error.message
-                ? error.message
-                : "상세 경로 조회 실패";
-
-        if (currentDayData) {
-            renderSchedule(
-                currentDayData,
-                currentRouteData
-            );
-        }
-    }
-}
-
-
-
-async function enrichRouteDataWithOdsay(data) {
+// 대중교통 여행이면 구간마다 카카오 경로로 노선·환승·요금·지도 선을 채운다
+async function enrichRouteDataWithTransit(data) {
     if (!data) {
         return data;
     }
 
-    const transport = normalizeTimelineTransport(data.transport);
-
-    if (transport !== "public_transport") {
+    if (normalizeTimelineTransport(data.transport) !== "public_transport") {
         return data;
     }
 
-    const routes = Array.isArray(data.routes)
-        ? data.routes
-        : [];
+    const routes = Array.isArray(data.routes) ? data.routes : [];
 
     if (routes.length === 0) {
         return data;
     }
 
-    if (!ODSAY_WEB_API_KEY) {
-        console.warn(
-            "ODSAY_WEB_API_KEY가 없어 예상 이동시간만 표시합니다."
-        );
-        data.odsay_status = "missing_key";
-        return data;
-    }
-
-    const enrichedRoutes = [];
-
-    // 무료 Basic 호출 수와 순간 호출 집중을 줄이기 위해 순차 호출한다.
-    for (const route of routes) {
-        try {
-            const enriched = await odsFetchTransitRoute(route);
-            enrichedRoutes.push(enriched);
-        } catch (error) {
-            console.warn(
-                "ODsay 대중교통 길찾기 실패:",
-                route.from_place,
-                "->",
-                route.to_place,
-                error
-            );
-
-            enrichedRoutes.push(
-                Object.assign({}, route, {
+    const enrichedRoutes = await Promise.all(
+        routes.map(function (route) {
+            return fetchTransitRoute(route).catch(function (error) {
+                console.warn("대중교통 길찾기 실패:", route.from_place, "->", route.to_place, error);
+                return Object.assign({}, route, {
                     estimated: true,
-                    api_source: "odsay_basic_web_error",
+                    api_source: "kakao_publictraffic_error",
                     transit_api_error: true,
-                    message: error && error.message
-                        ? error.message
-                        : "ODsay 대중교통 길찾기 실패"
-                })
-            );
-        }
-    }
+                    message: error && error.message ? error.message : "대중교통 길찾기 실패"
+                });
+            });
+        })
+    );
 
     data.routes = enrichedRoutes;
-    data.route_points = enrichedRoutes.flatMap(
-        function (route) {
-            return Array.isArray(route.points)
-                ? route.points
-                : [];
-        }
-    );
+    data.route_points = enrichedRoutes.flatMap(function (route) {
+        return Array.isArray(route.points) ? route.points : [];
+    });
     data.points = data.route_points;
-    data.api_source = "odsay_basic_web";
-    data.odsay_status = "done";
+    data.api_source = "kakao_publictraffic";
 
     return data;
 }
@@ -4639,8 +2970,8 @@ function drawSchedule(scheduleId) {
 
         .then(async function (data) {
 
-            // 대중교통 선택 시 ODsay 무료 Web API로 노선 정보를 보강한다.
-            data = await enrichRouteDataWithOdsay(data);
+            // 대중교통 선택 시 카카오 대중교통 경로(서버)로 노선·환승·요금을 채운다.
+            data = await enrichRouteDataWithTransit(data);
 
             // 지도/API가 알려준 실제 이동시간이 DB에 저장된 계획시간보다 길면
             // 다음 일정들을 앞 일정 출발시각 이후로 연쇄적으로 밀어낸다.
@@ -5715,6 +4046,12 @@ function buildTransportSegmentHtml(
             );
         }
 
+        if (Number(matchedRoute.fare) > 0) {
+            detailParts.push(
+                `1인 ${Number(matchedRoute.fare).toLocaleString("ko-KR")}원`
+            );
+        }
+
         if (detailParts.length > 0) {
             transitDetailHtml = `
                 <span class="transport-detail-text">
@@ -5728,101 +4065,6 @@ function buildTransportSegmentHtml(
                 matchedRoute
             );
 
-        const routeIndex =
-            routes.indexOf(
-                matchedRoute
-            );
-
-        if (
-            routeIndex >= 0
-            && !matchedRoute.short_distance_walk
-            && matchedRoute.api_source === "odsay_basic_web"
-        ) {
-            if (matchedRoute.geometry_detail_loaded) {
-                transitDetailHtml += `
-                    <div class="route-detail-actions">
-                        <button
-                            type="button"
-                            class="route-detail-btn"
-                            onclick="
-                                event.stopPropagation();
-                                loadDetailedRouteGeometry(
-                                    ${routeIndex},
-                                    this
-                                );
-                            ">
-                            지도에서 상세 경로 보기
-                        </button>
-                        <span class="route-detail-status">
-                            상세 노선 좌표를 불러온 상태입니다.
-                        </span>
-                    </div>
-                `;
-            } else if (
-                matchedRoute.detail_status
-                === "quota_exceeded"
-            ) {
-                transitDetailHtml += `
-                    <div class="route-detail-actions">
-                        <button
-                            type="button"
-                            class="route-detail-btn"
-                            disabled>
-                            상세 경로 조회 한도 초과
-                        </button>
-                        <span class="route-detail-status error">
-                            오늘 상세 경로 API 사용 한도를 초과했습니다. 기본 직선/간략 경로는 계속 표시됩니다.
-                        </span>
-                    </div>
-                `;
-            } else if (
-                matchedRoute.detail_status
-                === "error"
-            ) {
-                transitDetailHtml += `
-                    <div class="route-detail-actions">
-                        <button
-                            type="button"
-                            class="route-detail-btn"
-                            onclick="
-                                event.stopPropagation();
-                                loadDetailedRouteGeometry(
-                                    ${routeIndex},
-                                    this
-                                );
-                            ">
-                            상세 경로 다시 시도
-                        </button>
-                        <span class="route-detail-status error">
-                            ${escapeHtml(
-                                matchedRoute.detail_error
-                                || "상세 경로 좌표를 불러오지 못했습니다."
-                            )}
-                        </span>
-                    </div>
-                `;
-            } else {
-                transitDetailHtml += `
-                    <div class="route-detail-actions">
-                        <button
-                            type="button"
-                            class="route-detail-btn"
-                            onclick="
-                                event.stopPropagation();
-                                loadDetailedRouteGeometry(
-                                    ${routeIndex},
-                                    this
-                                );
-                            ">
-                            상세 경로 보기
-                        </button>
-                        <span class="route-detail-status">
-                            누를 때만 추가 API를 호출합니다.
-                        </span>
-                    </div>
-                `;
-            }
-        }
     }
 
     return `

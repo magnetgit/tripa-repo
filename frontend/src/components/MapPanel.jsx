@@ -1,12 +1,12 @@
 // 3) 지도 칸: 카카오맵에 핀을 찍고, 일정 미리보기가 있으면 방문 순서대로 선을 잇는다.
-// 대중교통이면 ODsay 실제 경로(버스·지하철 정류장을 따라)로 그린다.
+// 대중교통이면 카카오 대중교통 경로(서버 호출, 실제 노선 모양)로 그린다.
 //
 // 카카오맵은 React 바깥에서 지도를 직접 그리는 라이브러리라서,
 // 지도 객체는 useRef 에 보관하고 그리기는 useEffect 안에서 한다.
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { currentDay, dayItems, dayStartPoint } from '../lib/plan.js';
-import { ROUTE_COLOR, fetchTransit } from '../lib/odsay.js';
+import { ROUTE_COLOR, fetchTransit } from '../lib/transit.js';
 import { shortDate } from '../lib/util.js';
 
 function pinOverlay(kakao, kind, label, lat, lon) {
@@ -35,7 +35,7 @@ function isTransit(state) {
   return state.draft.transport === 'public_transport' || t.includes('대중교통');
 }
 
-export default function MapPanel({ state, sprite, odsayKey, focus }) {
+export default function MapPanel({ state, sprite, transitUrl, focus }) {
   const boxRef = useRef(null);
   const mapRef = useRef(null);
   const focusRef = useRef(null);   // 추천 카드를 눌러 띄운 장소 표시 (일정 표시와 따로)
@@ -102,7 +102,7 @@ export default function MapPanel({ state, sprite, odsayKey, focus }) {
         stops.slice(1).forEach((b, i) => {
           const a = stops[i];
           const temp = line([[a.lat, a.lon], [b.lat, b.lon]], '#9fb3d9', true);
-          fetchTransit(odsayKey, a, b).then((segs) => {
+          fetchTransit(transitUrl, a, b).then((segs) => {
             if (token !== tokenRef.current || !segs) return; // 그사이 지도가 바뀌었거나 실패 → 자리표시 유지
             temp.setMap(null);
             segs.forEach((s) => line(s.points, ROUTE_COLOR[s.mode] || ROUTE_COLOR.walk, s.mode === 'walk'));
@@ -127,7 +127,7 @@ export default function MapPanel({ state, sprite, odsayKey, focus }) {
       map.setCenter(points[0]);
       map.setLevel(d.start_place || (d.stays || []).length ? 5 : 8);
     }
-  }, [ready, state, odsayKey]);
+  }, [ready, state, transitUrl]);
 
   // 추천 카드를 누르면: 그 장소로 지도를 옮기고 주황 핀으로 표시
   useEffect(() => {

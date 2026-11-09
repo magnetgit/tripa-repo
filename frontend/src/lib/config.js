@@ -19,7 +19,7 @@ export function readConfig(root) {
     loginUrl: ds.loginUrl || '/login/',
     manualUrl: ds.manualUrl || '/travel_create/?mode=manual',
     member: ds.member || 'guest',
-    odsayKey: ds.odsayKey || '',
+    transitUrl: ds.transitUrl || '/transit_route/',
     sprite: ds.sprite || '/static/sherpaapp/icons/icons.svg?v=5',
     // 템플릿의 {% csrf_token %} 값이 있으면 그걸, 없으면(개발 서버) 쿠키에서
     csrf: tokenInput ? tokenInput.value : csrfFromCookie(),
