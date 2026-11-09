@@ -44,6 +44,8 @@ function startState(cfg, allowRestore) {
 export default function App({ cfg }) {
   const [state, setState] = useState(() => startState(cfg, true));
   const [input, setInput] = useState('');
+  // 추천 카드를 눌러 지도에 띄울 장소 {name, lat, lon, key}
+  const [focus, setFocus] = useState(null);
   const [placeholder, setPlaceholder] = useState(PLACEHOLDER);
   const [applyLabel, setApplyLabel] = useState('');   // 적용 중 버튼 글자
   const [applyLink, setApplyLink] = useState('');     // 경고가 있을 때 '만들어진 여행 보러 가기'
@@ -331,6 +333,8 @@ export default function App({ cfg }) {
         state={state} sprite={cfg.sprite}
         input={input} setInput={setInput} placeholder={placeholder} inputRef={inputRef}
         onSend={send} onReset={onReset} onAddPin={addPin} onAddStay={addStay}
+        focus={focus}
+        onFocusPlace={(item) => setFocus({ name: item.name, lat: Number(item.lat), lon: Number(item.lon), key: Date.now() })}
       />
       <DraftPanel
         ref={draftBodyRef}
@@ -342,7 +346,7 @@ export default function App({ cfg }) {
           onMove: moveItem, onRemove: removeItem, onResetOrder: resetOrder, onRestore: restoreDay, onRefresh: refreshPlan,
         }}
       />
-      <MapPanel state={state} sprite={cfg.sprite} odsayKey={cfg.odsayKey} />
+      <MapPanel state={state} sprite={cfg.sprite} odsayKey={cfg.odsayKey} focus={focus} />
     </>
   );
 }

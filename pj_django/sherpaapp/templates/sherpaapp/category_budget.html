@@ -1,0 +1,72 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIPA - 비용 관리</title>
+
+    <!-- 공통 모양 (사이드바·하늘 배경) -->
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261074">
+    <!-- React 빌드 결과물 (frontend 에서 npm run build → static/budget/) -->
+    <link rel="stylesheet" href="{% static 'budget/budget.css' %}">
+</head>
+
+<body>
+<div class="detail-container">
+    <aside class="sidebar">
+        <div class="logo">
+            <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>
+        </div>
+
+        <div class="menu-title">MENU</div>
+
+        <ul class="menu">
+            <li><a href="{% url 'travel_list' %}">{% include "_icon.html" with name="suitcase" %} 내 여행</a></li>
+            <li><a href="{% url 'travel_create' %}">{% include "_icon.html" with name="plus" %} 여행 만들기</a></li>
+            <li><a href="{% url 'schedule_manage' %}">{% include "_icon.html" with name="calendar" %} 일정 관리</a></li>
+            <li><a href="{% url 'budget' %}" class="active">{% include "_icon.html" with name="wallet" %} 비용 관리</a></li>
+            <li><a href="{% url 'review_board' %}">{% include "_icon.html" with name="chat" %} 리뷰 게시판</a></li>
+        </ul>
+
+        <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} {{ member.nickname }}</a>
+    </aside>
+
+    <main class="detail-content trip-sky">
+        <div class="page-title">
+            <h1>{% include "_icon.html" with name="wallet" %} 비용 관리</h1>
+            <p>여행을 만들 때 AI가 일정의 장소 가격으로 분류별 예산을 매겨 두었어요. 금액은 직접 고칠 수 있어요.</p>
+        </div>
+
+        {% if travel %}
+        <!-- React 가 이 칸 안에 분류별 예산 화면을 그림. 서버 주소는 data- 속성으로 넘겨줌 -->
+        <div class="cb-app" id="root"
+             data-travel-id="{{ travel.t_id }}"
+             data-travel-title="{{ travel.t_title }}"
+             data-travel-place="{{ travel.t_place }}"
+             data-travel-dates="{{ travel.t_start|date:'Y.m.d' }} ~ {{ travel.t_end|date:'Y.m.d' }}"
+             data-category-url="{% url 'budget_category' travel.t_id %}"
+             data-alt-url="{% url 'budget_alternatives' travel.t_id %}"
+             data-swap-url="{% url 'budget_swap' travel.t_id %}"
+             data-detail-url="{% url 'travel_detail' travel.t_id %}"
+             data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5">
+            {% csrf_token %}
+            <!-- 여행 바꾸기: React 밖의 일반 링크 목록 (data 로 넘김) -->
+            <script type="application/json" id="cbTravels">[{% for t in travels %}{"id": {{ t.t_id }}, "title": "{{ t.t_title|escapejs }}", "dates": "{{ t.t_start|date:'m.d' }}~{{ t.t_end|date:'m.d' }}", "url": "{% url 'budget_travel' t.t_id %}"}{% if not forloop.last %},{% endif %}{% endfor %}]</script>
+        </div>
+        {% else %}
+        <div class="cb-empty">
+            <p>아직 만든 여행이 없어요.</p>
+            <a class="btn btn-primary" href="{% url 'travel_create' %}">여행 만들기</a>
+        </div>
+        {% endif %}
+    </main>
+</div>
+
+{% if travel %}
+<!-- 예산 차트 (예전 비용 관리와 같은 Chart.js) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script type="module" src="{% static 'budget/budget.js' %}"></script>
+{% endif %}
+
+</body>
+</html>

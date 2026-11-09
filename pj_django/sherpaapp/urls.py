@@ -220,6 +220,32 @@ urlpatterns = [
         name='route_share'
     ),
 
+    # 비 오는 날 실내 / 실외 (🟦): 실내 대안, 여행 날짜별 날씨·장소 실내 여부
+    path(
+        'rain_options/',
+        views.rain_options,
+        name='rain_options'
+    ),
+
+    path(
+        'travel_weather/<int:travel_id>/<int:day>/',
+        views.travel_weather,
+        name='travel_weather'
+    ),
+
+    # 예산을 넘으면 같은 분류의 더 싼 대안 (🟦 예산 AI)
+    path(
+        'budget_alternatives/<int:travel_id>/',
+        views.budget_alternatives,
+        name='budget_alternatives'
+    ),
+
+    path(
+        'budget_swap/<int:travel_id>/',
+        views.budget_swap,
+        name='budget_swap'
+    ),
+
     path(
         'travel_costs/<int:travel_id>/<int:day>/',
         views.travel_costs,
@@ -327,51 +353,26 @@ urlpatterns = [
 
 
     # ==========================================
-    # 비용 관리
+    # 비용 관리 = React 카테고리 예산 화면 (🟦, 11/09)
+    # AI가 매긴 분류별 금액을 회원이 고치는 화면. 예전 지출 기록 화면(budget.html)은 없앰
     # ==========================================
 
     path(
         'budget/',
-        views.budget,
+        views.category_budget_page,
         name='budget'
     ),
 
     path(
         'budget/<int:travel_id>/',
-        views.budget,
+        views.category_budget_page,
         name='budget_travel'
     ),
 
-    path(
-        'budget/<int:travel_id>/update-total/',
-        views.budget_update_total,
-        name='budget_update_total'
-    ),
 
-    # AI 예상 예산 다시 계산 (저장된 일정 × 인원)
-    path(
-        'budget/<int:travel_id>/ai-fill/',
-        views.budget_ai_fill,
-        name='budget_ai_fill'
-    ),
 
-    path(
-        'budget/<int:travel_id>/add/',
-        views.budget_add,
-        name='budget_add'
-    ),
 
-    path(
-        'budget/<int:travel_id>/delete/<int:pay_id>/',
-        views.budget_delete,
-        name='budget_delete'
-    ),
 
-    path(
-        'budget/<int:travel_id>/update/<int:pay_id>/',
-        views.budget_update_pay,
-        name='budget_update_pay'
-    ),
 
     path(
         'member_delete/',

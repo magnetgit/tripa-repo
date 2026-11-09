@@ -42,12 +42,14 @@ from .services import festival_service
 from .services import region_photo_service
 from .services import hours_service
 from .services import budget_service
+from .services import rain_service
 
 logger = logging.getLogger(__name__)
 from .services.route_service import get_kakao_route, get_travel_time
 from .models import TravelCategory
 from .models import TravelDayPlan
 from .models import TravelBudget
+from .models import TravelBudgetItem
 from .models import SharedRoute, RouteRating, RouteComment
 
 # ==============================================
@@ -1171,6 +1173,11 @@ def travel_detail(request, travel_id):
         'member': member,
         # 리뷰 게시판 '여행 루트'에 공유했는지 (공유 버튼·창)
         'shared_route': SharedRoute.objects.filter(travel=travel).first(),
+        # 위쪽 '다른 여행으로 이동' 선택 칸 (내 여행만, 최근 출발 순)
+        'my_travels': (
+            Travel.objects.filter(member=member).order_by('-t_start', '-t_id')
+            if member else Travel.objects.none()
+        ),
         'schedules': schedules,
         'days': days,
         'visited_places': visited_places,
@@ -1370,6 +1377,13 @@ def travel_detail_day(
 
             'place_image':
                 place_image,
+
+            # 비 오는 날 근처 실내 대안을 찾을 때 씀 (🟦, 추가 키)
+            'place_lat':
+                _float_or_none(sp.place.p_lat),
+
+            'place_lon':
+                _float_or_none(sp.place.p_lon),
         })
 
 
@@ -1658,12 +1672,19 @@ def travel_costs(request, travel_id, day):
         logger.exception('예상 비용 실패 travel=%s day=%s', travel_id, day)
         estimate = {'planned': 0, 'by': {}}
 
+    # 비용 관리에서 회원이 고친 금액이 있으면 그 금액으로 (edited: true)
+    places = {str(it['sp_id']): it['cost'] for it in items if it.get('cost')}
+    for sp_id, amount in TravelBudgetItem.objects.filter(schedule_place_id__in=[it['sp_id'] for it in items]).values_list('schedule_place_id', 'amount'):
+        cost = dict(places.get(str(sp_id)) or {'cat': 'etc', 'source': 'user', 'per': None, 'unit': 'person', 'cap': 1})
+        cost.update(amount=amount, edited=True)
+        places[str(sp_id)] = cost
+
     return JsonResponse({
         'success': True,
         'day': day,
         'people': people,
-        'places': {str(it['sp_id']): it['cost'] for it in items if it.get('cost')},
-        'planned': estimate['planned'],
+        'places': places,
+        'planned': sum(c['amount'] for c in places.values()),
         'by': estimate['by'],
     })
 
@@ -2030,121 +2051,6 @@ def _budget_category(pay):
     return by_key['etc']
 
 
-def _pct(part, whole):
-    return '%.2f' % (part / whole * 100) if whole > 0 else '0.00'
-
-
-def _budget_overview(travel, pays, total_budget, used_money):
-    """비용 관리 화면에 필요한 묶음 데이터를 만든다."""
-    by_cat = {}
-
-    for cat in BUDGET_CATEGORIES:
-        by_cat[cat[1]] = {
-            'name': cat[0], 'key': cat[1], 'color': cat[2], 'icon': cat[3],
-            'amount': 0, 'count': 0,
-        }
-
-    groups = {}
-    ordered = sorted(
-        pays,
-        key=lambda p: (p.schedule.s_day if p.schedule and p.schedule.s_day else date.max, p.pay_id)
-    )
-
-    for index, pay in enumerate(ordered):
-        cat = _budget_category(pay)
-        amount = pay.pay_pay or 0
-        by_cat[cat[1]]['amount'] += amount
-        by_cat[cat[1]]['count'] += 1
-
-        day = pay.schedule.s_day if pay.schedule and pay.schedule.s_day else None
-        group = groups.get(day)
-
-        if group is None:
-            day_no = ((day - travel.t_start).days + 1) if (day and travel.t_start) else None
-            group = groups[day] = {
-                'day': day, 'day_no': day_no, 'total': 0, 'rows': [],
-            }
-
-        group['total'] += amount
-        group['rows'].append({
-            'pay': pay,
-            'index': index,
-            'amount': amount,
-            'place': pay.place.p_name if pay.place_id and pay.place else (travel.t_place or ''),
-            'category': by_cat[cat[1]],
-        })
-
-    categories = [c for c in by_cat.values() if c['amount'] > 0]
-    categories.sort(key=lambda c: -c['amount'])
-
-    for c in categories:
-        c['percent'] = round(c['amount'] / used_money * 100) if used_money > 0 else 0
-
-    # 한 줄 그래프: 예산을 넘으면 사용 금액 전체가 100%, 아니면 총 예산이 100%
-    whole = max(total_budget, used_money)
-    segments = [
-        {'name': c['name'], 'color': c['color'], 'amount': c['amount'], 'width': _pct(c['amount'], whole)}
-        for c in categories
-    ]
-    is_over = total_budget > 0 and used_money > total_budget
-
-    return {
-        'day_groups': list(groups.values()),
-        'categories': categories,
-        'bar_segments': segments,
-        'is_over': is_over,
-        'over_money': max(used_money - total_budget, 0),
-        'total_marker': _pct(total_budget, whole) if is_over else None,
-        'top_category': categories[0] if categories else None,
-        'pay_count': len(ordered),
-    }
-
-
-def _budget_chart(travel, pays, total_budget):
-    """비용 관리 아래 '지출 차트'에 쓸 숫자 묶음 (화면에서 json_script로 읽음)."""
-    by_key = {}
-    for cat in BUDGET_CATEGORIES:
-        by_key[cat[1]] = {'name': cat[0], 'key': cat[1], 'color': cat[2], 'used': 0, 'budget': 0}
-
-    # 분류별 예산 (travel_budget 표, 아직 없으면 0)
-    for row in TravelBudget.objects.filter(travel=travel):
-        if row.category in by_key:
-            by_key[row.category]['budget'] = row.amount or 0
-
-    # 날짜 칸: 여행 첫날~마지막 날 (지출이 없는 날도 0으로)
-    days = []
-    if travel.t_start and travel.t_end and travel.t_end >= travel.t_start:
-        count = min((travel.t_end - travel.t_start).days + 1, 60)
-        days = [travel.t_start + timedelta(days=i) for i in range(count)]
-    day_used = {d: 0 for d in days}
-
-    for pay in pays:
-        amount = pay.pay_pay or 0
-        by_key[_budget_category(pay)[1]]['used'] += amount
-        day = pay.schedule.s_day if pay.schedule_id and pay.schedule else None
-        if day is not None:
-            day_used[day] = day_used.get(day, 0) + amount
-
-    ordered_days = sorted(day_used)
-    start = travel.t_start or (ordered_days[0] if ordered_days else None)
-    daily = []
-    for d in ordered_days:
-        no = (d - start).days + 1 if start else None
-        label = '%s일차 %d/%d' % (no, d.month, d.day) if no and no > 0 else '%d/%d' % (d.month, d.day)
-        daily.append({'label': label, 'amount': day_used[d]})
-
-    cats = [c for c in by_key.values() if c['used'] > 0 or c['budget'] > 0]
-    cats.sort(key=lambda c: (-c['used'], -c['budget']))
-
-    return {
-        'categories': cats,
-        'daily': daily,
-        # 하루 예산 = 총 예산 ÷ 여행 일수 (점선)
-        'daily_budget': round(total_budget / len(days)) if total_budget > 0 and days else 0,
-        'has_cat_budget': any(c['budget'] > 0 for c in cats),
-    }
-
-
 # AI 예상 예산을 계산한 인원 (DB 칸이 없어서 로그인 세션에 여행별로 기억)
 BUDGET_PEOPLE_DEFAULT = 2
 
@@ -2158,796 +2064,6 @@ def _remember_budget_people(request, travel_id, people):
     saved = dict(request.session.get('budget_people') or {})
     saved[str(travel_id)] = people
     request.session['budget_people'] = saved   # 새 dict로 넣어야 세션이 저장됨
-
-
-def _budget_ai_rows(travel, pays):
-    """여행 만들 때 AI가 계산해 둔 분류별 예산(travel_budget 표)과 지금까지 쓴 돈을 나란히 (🟦 예산 AI)."""
-    limits = budget_service.load_limits(travel)
-    used = {cat[1]: 0 for cat in BUDGET_CATEGORIES}
-
-    for pay in pays:
-        used[_budget_category(pay)[1]] += pay.pay_pay or 0
-
-    rows = []
-    for name, key, color, icon, _ in BUDGET_CATEGORIES:
-        limit = limits.get(key) or 0
-        if limit <= 0:
-            continue
-        spent = used[key]
-        rows.append({
-            'name': name, 'key': key, 'color': color, 'icon': icon,
-            'limit': limit, 'used': spent,
-            'left': limit - spent, 'over': spent > limit,
-            'width': min(100, round(spent / limit * 100)),
-        })
-
-    return {'rows': rows, 'total': sum(r['limit'] for r in rows)}
-
-
-def budget(
-    request,
-    travel_id=None
-):
-
-    # ==========================================
-    # 로그인 확인
-    # ==========================================
-
-    login_user = request.session.get(
-        'login_ok_user'
-    )
-
-
-    if not login_user:
-
-        return redirect(
-            'login'
-        )
-
-
-    try:
-
-        member = Member.objects.get(
-            user_id=login_user
-        )
-
-    except Member.DoesNotExist:
-
-        return redirect(
-            'login'
-        )
-
-
-    # ==========================================
-    # 현재 회원의 여행 목록
-    # ==========================================
-
-    travels = (
-        Travel.objects
-        .filter(
-            member=member
-        )
-        .order_by(
-            '-t_id'
-        )
-    )
-
-
-    # ==========================================
-    # 선택된 여행
-    # ==========================================
-
-    if travel_id:
-
-        travel = get_object_or_404(
-            Travel,
-            t_id=travel_id,
-            member=member
-        )
-
-    else:
-
-        travel = travels.first()
-
-
-    # ==========================================
-    # 여행이 하나도 없음
-    # ==========================================
-
-    if not travel:
-
-        return render(
-            request,
-            'sherpaapp/budget.html',
-            {
-                'member':
-                    member,
-
-                'travels':
-                    travels,
-
-                'travel':
-                    None,
-
-                'pays':
-                    [],
-
-                'total_budget':
-                    0,
-
-                'used_money':
-                    0,
-
-                'remain_money':
-                    0,
-
-                'budget_percent':
-                    0
-            }
-        )
-
-
-    # ==========================================
-    # 해당 여행의 비용
-    # ==========================================
-
-    pays = (
-        Pay.objects
-        .filter(
-            schedule__travel=travel
-        )
-        .select_related(
-            'schedule',
-            'place'
-        )
-        .order_by(
-            '-schedule__s_day',
-            '-pay_id'
-        )
-    )
-
-
-    # ==========================================
-    # 총 예산
-    # ==========================================
-
-    total_budget = (
-        travel.t_budget
-        or 0
-    )
-
-
-    # ==========================================
-    # 사용 금액
-    # ==========================================
-
-    used_money = sum(
-        pay.pay_pay or 0
-        for pay in pays
-    )
-
-
-    # ==========================================
-    # 남은 금액
-    # ==========================================
-
-    remain_money = (
-        total_budget
-        -
-        used_money
-    )
-
-
-    # ==========================================
-    # 예산 사용률
-    # ==========================================
-
-    if total_budget > 0:
-
-        budget_percent = int(
-            used_money
-            /
-            total_budget
-            *
-            100
-        )
-
-    else:
-
-        budget_percent = 0
-
-
-    # 진행바 최대 100%
-    if budget_percent > 100:
-
-        budget_percent = 100
-
-
-    return render(
-        request,
-        'sherpaapp/budget.html',
-        {
-            'member':
-                member,
-
-            'travels':
-                travels,
-
-            'travel':
-                travel,
-
-            'pays':
-                pays,
-
-            'total_budget':
-                total_budget,
-
-            'used_money':
-                used_money,
-
-            'remain_money':
-                remain_money,
-
-            'budget_percent':
-                budget_percent,
-
-            **_budget_overview(
-                travel,
-                pays,
-                total_budget,
-                used_money
-            ),
-
-            # AI 예상 예산 (분류별 예산 대비 사용)
-            'ai_budget':
-                _budget_ai_rows(
-                    travel,
-                    pays
-                ),
-
-            # AI 예산을 계산한 인원 (인원 칸에 그대로 보임)
-            'ai_people':
-                _budget_people(
-                    request,
-                    travel.t_id
-                ),
-
-            # 아래쪽 지출 차트
-            'chart_data':
-                _budget_chart(
-                    travel,
-                    pays,
-                    total_budget
-                )
-        }
-    )
-
-
-# ==============================================
-# 총 예산 수정
-# ==============================================
-
-def budget_update_total(
-    request,
-    travel_id
-):
-
-    if request.method != 'POST':
-
-        return redirect(
-            'budget_travel',
-            travel_id=travel_id
-        )
-
-
-    login_user = request.session.get(
-        'login_ok_user'
-    )
-
-
-    if not login_user:
-
-        return redirect(
-            'login'
-        )
-
-
-    try:
-
-        member = Member.objects.get(
-            user_id=login_user
-        )
-
-    except Member.DoesNotExist:
-
-        return redirect(
-            'login'
-        )
-
-
-    travel = get_object_or_404(
-        Travel,
-        t_id=travel_id,
-        member=member
-    )
-
-
-    budget_value = request.POST.get(
-        'total_budget'
-    )
-
-
-    try:
-
-        budget_value = int(
-            budget_value
-        )
-
-
-        if budget_value < 0:
-
-            raise ValueError
-
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
-        return HttpResponse("""
-            <script>
-                alert('올바른 예산 금액을 입력해주세요.');
-                history.back();
-            </script>
-        """)
-
-
-    travel.t_budget = (
-        budget_value
-    )
-
-
-    travel.save(
-        update_fields=[
-            't_budget'
-        ]
-    )
-
-
-    return redirect(
-        'budget_travel',
-        travel_id=travel.t_id
-    )
-
-
-# ==============================================
-# 비용 추가
-# ==============================================
-
-def budget_add(
-    request,
-    travel_id
-):
-
-    if request.method != 'POST':
-
-        return redirect(
-            'budget_travel',
-            travel_id=travel_id
-        )
-
-
-    # ==========================================
-    # 로그인 확인
-    # ==========================================
-
-    login_user = request.session.get(
-        'login_ok_user'
-    )
-
-
-    if not login_user:
-
-        return redirect(
-            'login'
-        )
-
-
-    try:
-
-        member = Member.objects.get(
-            user_id=login_user
-        )
-
-    except Member.DoesNotExist:
-
-        return redirect(
-            'login'
-        )
-
-
-    # ==========================================
-    # 여행 확인
-    # ==========================================
-
-    travel = get_object_or_404(
-        Travel,
-        t_id=travel_id,
-        member=member
-    )
-
-
-    # ==========================================
-    # FORM 값
-    # ==========================================
-
-    amount = request.POST.get(
-        'expense_amount'
-    )
-
-
-    category = request.POST.get(
-        'expense_category',
-        ''
-    ).strip()
-
-
-    place_name = request.POST.get(
-        'expense_place',
-        ''
-    ).strip()
-
-
-    memo = request.POST.get(
-        'expense_memo',
-        ''
-    ).strip()
-
-
-    expense_date = request.POST.get(
-        'expense_date'
-    )
-
-
-    # ==========================================
-    # 금액 확인
-    # ==========================================
-
-    try:
-
-        amount = int(
-            amount
-        )
-
-
-        if amount <= 0:
-
-            raise ValueError
-
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
-        return HttpResponse("""
-            <script>
-                alert('올바른 금액을 입력해주세요.');
-                history.back();
-            </script>
-        """)
-
-
-    # ==========================================
-    # 날짜 확인
-    # ==========================================
-
-    if not expense_date:
-
-        return HttpResponse("""
-            <script>
-                alert('날짜를 선택해주세요.');
-                history.back();
-            </script>
-        """)
-
-
-    # ==========================================
-    # 여행 날짜 범위 확인
-    # ==========================================
-
-    if (
-        travel.t_start
-        and
-        expense_date < str(
-            travel.t_start
-        )
-    ):
-
-        return HttpResponse("""
-            <script>
-                alert('여행 시작일 이전 날짜입니다.');
-                history.back();
-            </script>
-        """)
-
-
-    if (
-        travel.t_end
-        and
-        expense_date > str(
-            travel.t_end
-        )
-    ):
-
-        return HttpResponse("""
-            <script>
-                alert('여행 종료일 이후 날짜입니다.');
-                history.back();
-            </script>
-        """)
-
-
-    # ==========================================
-    # 해당 날짜 일정 찾기
-    # ==========================================
-
-    schedule = (
-        Schedule.objects
-        .filter(
-            travel=travel,
-            s_day=expense_date
-        )
-        .first()
-    )
-
-
-    # 일정이 없으면 생성
-    if not schedule:
-
-        schedule = (
-            Schedule.objects.create(
-                travel=travel,
-                s_day=expense_date
-            )
-        )
-
-
-    # ==========================================
-    # 장소 연결
-    # ==========================================
-
-    place = None
-
-
-    if place_name:
-
-        place = (
-            Place.objects
-            .filter(
-                travel=travel,
-                p_name=place_name
-            )
-            .first()
-        )
-
-
-    # ==========================================
-    # 메모 자동 생성
-    # ==========================================
-
-    if not memo:
-
-        if (
-            place_name
-            and
-            category
-        ):
-
-            memo = (
-                f'{place_name} '
-                f'{category}'
-            )
-
-        elif place_name:
-
-            memo = (
-                f'{place_name} 비용'
-            )
-
-        elif category:
-
-            memo = (
-                category
-            )
-
-        else:
-
-            memo = (
-                '기타 비용'
-            )
-
-
-    # ==========================================
-    # PAY 저장
-    # ==========================================
-
-    Pay.objects.create(
-
-        schedule=
-            schedule,
-
-        place=
-            place,
-
-        pay_context=
-            memo,
-
-        pay_pay=
-            amount
-    )
-
-
-    return redirect(
-        'budget_travel',
-        travel_id=travel.t_id
-    )
-
-
-# ==============================================
-# 비용 삭제
-# ==============================================
-
-def budget_delete(
-    request,
-    travel_id,
-    pay_id
-):
-
-    if request.method != 'POST':
-
-        return redirect(
-            'budget_travel',
-            travel_id=travel_id
-        )
-
-
-    login_user = request.session.get(
-        'login_ok_user'
-    )
-
-
-    if not login_user:
-
-        return redirect(
-            'login'
-        )
-
-
-    try:
-
-        member = Member.objects.get(
-            user_id=login_user
-        )
-
-    except Member.DoesNotExist:
-
-        return redirect(
-            'login'
-        )
-
-
-    travel = get_object_or_404(
-        Travel,
-        t_id=travel_id,
-        member=member
-    )
-
-
-    pay = get_object_or_404(
-        Pay,
-        pay_id=pay_id,
-        schedule__travel=travel
-    )
-
-
-    pay.delete()
-
-
-    return redirect(
-        'budget_travel',
-        travel_id=travel.t_id
-    )
-
-
-# ==============================================
-# 비용 금액 수정
-# ==============================================
-
-def budget_update_pay(
-    request,
-    travel_id,
-    pay_id
-):
-
-    if request.method != 'POST':
-
-        return JsonResponse(
-            {'ok': False, 'error': '잘못된 요청이에요.'},
-            status=405
-        )
-
-
-    login_user = request.session.get(
-        'login_ok_user'
-    )
-
-    if not login_user:
-
-        return JsonResponse(
-            {'ok': False, 'error': '로그인이 필요해요.', 'login': True},
-            status=401
-        )
-
-
-    try:
-
-        member = Member.objects.get(
-            user_id=login_user
-        )
-
-    except Member.DoesNotExist:
-
-        return JsonResponse(
-            {'ok': False, 'error': '로그인이 필요해요.', 'login': True},
-            status=401
-        )
-
-
-    # 내 여행의 비용만 고칠 수 있다
-    travel = get_object_or_404(
-        Travel,
-        t_id=travel_id,
-        member=member
-    )
-
-    pay = get_object_or_404(
-        Pay,
-        pay_id=pay_id,
-        schedule__travel=travel
-    )
-
-
-    raw_amount = (
-        request.POST.get('amount', '')
-        .replace(',', '')
-        .strip()
-    )
-
-    try:
-
-        amount = int(raw_amount)
-
-        if amount <= 0 or amount > 2000000000:
-
-            raise ValueError
-
-    except ValueError:
-
-        return JsonResponse(
-            {'ok': False, 'error': '1원 이상의 올바른 금액을 입력해 주세요.'},
-            status=400
-        )
-
-
-    pay.pay_pay = amount
-    pay.save(update_fields=['pay_pay'])
-
-
-    return JsonResponse({
-        'ok': True,
-        'amount': amount,
-    })
 
 
 # ==============================================
@@ -6388,6 +5504,7 @@ def _chat_preview_days(travel, draft):
             kind = place.p_kind or ''
 
             items.append({
+                'sp_id': row.sp_id,   # 예산 대안 '바꾸기'가 어느 자리인지 알려고 (추가 키)
                 'name': place.p_name,
                 'kind': kind,
                 'addr': place.p_addr or '',
@@ -6496,6 +5613,15 @@ def travel_chat_preview(request):
     # 장소마다 사진 1장 (mock.json 의 stops[].photo). 롤백 밖에서 해야 찾은 사진이 저장된다.
     # 새로 찾는 건 한 번에 PREVIEW_PHOTO_NEW곳까지 (응답이 늦어지지 않게)
     attach_photos([item for day in days for item in day['items']], max_new=PREVIEW_PHOTO_NEW)
+
+    # 날짜별 날씨(days[].weather, mock.json) + 장소마다 실내/실외(items[].indoor) — 🟦 rain_service
+    try:
+        weather = rain_service.trip_days_weather(draft['place'], draft['start'], draft['end'], draft.get('center'))
+        for day in days:
+            day['weather'] = weather.get(day['date'])
+        rain_service.attach_indoor([item for day in days for item in day['items']])
+    except Exception:
+        chat_logger.exception('AI 대화 미리보기 날씨·실내 판단 실패')
 
     # 장소마다 예상 비용(cost) + 일정 전체 예상 예산(budget) — 자동으로 들어간 식당·카페도 포함 (🟦 budget_service)
     try:
@@ -6652,7 +5778,9 @@ def budget_estimate(request):
 def budget_category(request, travel_id):
     """여행의 카테고리(분류별) 예산
     GET  → {success, budget: {total, limit: {분류: 예산}, by: {분류: 쓴 돈}}}
-    POST JSON {limit: {sight: 30000, food: 150000, ...}} (보낸 분류만 저장) → 같은 모양
+    GET ?plan=1 → 위 + plan·counts·people·items (장소별 금액, 비용 관리 화면)
+    POST JSON {limit: {sight: 30000, food: 150000, ...}, items: {sp_id: 금액 또는 null}} → 같은 모양
+         limit 은 보낸 분류만 저장, items 는 장소별로 고친 금액 (null 이면 AI 금액으로 되돌림)
     분류 키: sight·food·cafe·move·stay·shop·etc (mock.json budget 키)
     """
     member = _login_member(request)
@@ -6669,9 +5797,14 @@ def budget_category(request, travel_id):
         body = _chat_json_body(request)
         if body is None or not isinstance(body.get('limit'), dict):
             return JsonResponse({'success': False, 'message': 'limit 값이 필요해요.'}, status=400)
-        if not budget_service.clean_limits(body['limit']):
+        if not budget_service.clean_limits(body['limit']) and not isinstance(body.get('items'), dict):
             return JsonResponse({'success': False, 'message': '저장할 분류 금액이 없어요.'}, status=400)
+        if isinstance(body.get('items'), dict):
+            _save_budget_items(travel, body['items'])
         limits = budget_service.save_limits(travel, body['limit'])
+        # 비용 관리(11/09)에서는 총예산을 따로 고치지 않고 분류 합계가 곧 총예산
+        travel.t_budget = sum(limits.values())
+        travel.save(update_fields=['t_budget'])
     elif request.method == 'GET':
         limits = budget_service.load_limits(travel)
     else:
@@ -6683,45 +5816,292 @@ def budget_category(request, travel_id):
         if cat in used:
             used[cat] += pay.pay_pay or 0
 
-    return JsonResponse({
+    result = {
         'success': True,
         'budget': {'total': travel.t_budget or 0, 'limit': limits, 'by': used},
+    }
+
+    # ?plan=1 → 지금 일정의 분류별 예상 비용·장소 수도 (카테고리 예산 화면, 추가 키)
+    #   plan: {분류: 예상 금액}, counts: {분류: 장소 수}, people: 계산 인원
+    if request.method == 'GET' and request.GET.get('plan'):
+        people = _budget_people(request, travel.t_id)
+        try:
+            days = _chat_preview_days(travel, {})
+            estimate = budget_service.plan_budget(days, people)
+            items = _budget_items(travel, days)
+            counts = {c: 0 for c in budget_service.CATEGORIES}
+            for item in items:
+                counts[item['cat']] = counts.get(item['cat'], 0) + 1
+            # 차트용: 여행 날짜 목록과 날짜별 쓴 돈 (Pay)
+            daily_used = {}
+            for pay in Pay.objects.filter(schedule__travel=travel).select_related('schedule'):
+                if pay.schedule_id and pay.schedule and pay.schedule.s_day:
+                    key = pay.schedule.s_day.isoformat()
+                    daily_used[key] = daily_used.get(key, 0) + (pay.pay_pay or 0)
+            result['budget'].update({
+                'plan': estimate['by'],
+                'counts': counts,
+                'people': estimate['people'],
+                'items': items,
+                'days': [d.get('date') for d in days],
+                'daily_used': daily_used,
+            })
+        except Exception:
+            logger.exception('카테고리 예산 일정 예상 실패 travel=%s', travel_id)
+
+    return JsonResponse(result)
+
+
+def _budget_items(travel, days):
+    """비용 관리: 일정 장소마다 AI 금액(ai)과 회원이 고친 금액(amount) — 가격을 모르는 장소도 넣어서 직접 적을 수 있게
+    days: plan_budget 을 거친 _chat_preview_days (장소마다 cost)
+    → [{sp_id, day, date, name, kind, cat, ai, amount, edited, per, unit, source}]
+    """
+    saved = dict(TravelBudgetItem.objects.filter(travel=travel).values_list('schedule_place_id', 'amount'))
+    items = []
+    for day in days:
+        for it in day.get('items') or []:
+            cost = it.get('cost') or None
+            kind = '숙박' if it.get('is_stay') else (it.get('kind') or '')
+            ai = cost['amount'] if cost else None
+            items.append({
+                'sp_id': it.get('sp_id'),
+                'day': day.get('day'),
+                'date': day.get('date'),
+                'name': it.get('name'),
+                'kind': it.get('kind') or '',
+                'cat': cost['cat'] if cost else budget_service.category_of(kind, it.get('name')),
+                'ai': ai,
+                'amount': saved.get(it.get('sp_id'), ai),
+                'edited': it.get('sp_id') in saved,
+                'per': cost['per'] if cost else None,
+                'unit': cost['unit'] if cost else None,
+                'source': cost['source'] if cost else None,
+            })
+    return items
+
+
+def _save_budget_items(travel, items):
+    """{sp_id: 금액 | null} 저장 (내 여행의 장소만, null 은 AI 금액으로 되돌림)"""
+    ids = []
+    for key in items:
+        try:
+            ids.append(int(key))
+        except (TypeError, ValueError):
+            continue
+    places = {sp.sp_id: sp for sp in SchedulePlace.objects.filter(schedule__travel=travel, sp_id__in=ids)}
+    for key, value in items.items():
+        try:
+            sp = places.get(int(key))
+        except (TypeError, ValueError):
+            continue
+        if not sp:
+            continue
+        if value is None:
+            TravelBudgetItem.objects.filter(schedule_place=sp).delete()
+            continue
+        try:
+            amount = int(str(value).replace(',', ''))
+        except (TypeError, ValueError):
+            continue
+        if 0 <= amount <= 100000000:
+            TravelBudgetItem.objects.update_or_create(schedule_place=sp, defaults={'travel': travel, 'amount': amount})
+
+
+# ==============================================
+# 예산 AI (🟦): 예상 비용이 총예산을 넘으면 같은 분류의 더 싼 대안 / 바꾸기
+# ==============================================
+
+def _my_travel_json(request, travel_id):
+    """(member, travel, 오류 응답) — 로그인 401, 없는 여행 404, 남의 여행 403"""
+    member = _login_member(request)
+    if not member:
+        return None, None, JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return member, None, JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return member, None, JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+    return member, travel, None
+
+
+# GET → {success, people, planned, budget, over, suggestions: [{sp_id, day, name, cat, amount, options: [...]}]}
+def budget_alternatives(request, travel_id):
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
+
+    try:
+        # ?cat=food → 그 분류만 (카테고리 예산 화면에서 분류가 넘쳤을 때, 총예산과 상관없이)
+        only_cat = request.GET.get('cat')
+        result = budget_service.over_budget_options(
+            _chat_preview_days(travel, {}),
+            _budget_people(request, travel.t_id),
+            travel.t_budget,
+            only_cat=only_cat if only_cat in budget_service.CATEGORIES else None,
+        )
+    except Exception:
+        logger.exception('예산 대안 실패 travel=%s', travel_id)
+        return JsonResponse({'success': False, 'message': '대안을 찾지 못했어요. 잠시 뒤 다시 시도해 주세요.'}, status=500)
+
+    # 대안 정보 칸에 쓸 사진 (저장된 건 바로, 새로 찾는 건 8곳까지 — 나머지는 다음에)
+    options = [o for sg in result['suggestions'] for o in sg['options']]
+    try:
+        attach_photos(options, max_new=8)
+    except Exception:
+        logger.warning('예산 대안 사진 실패 travel=%s', travel_id, exc_info=True)
+
+    return JsonResponse(dict(result, success=True))
+
+
+# POST {sp_id, name, addr, kind, lat, lon, kakao_id} → 그 자리의 장소만 대안으로 바꾸고 그날 시간을 다시 계산
+@require_POST
+def budget_swap(request, travel_id):
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
+
+    sp = (
+        SchedulePlace.objects.select_related('place', 'schedule')
+        .filter(sp_id=request.POST.get('sp_id') or 0, schedule__travel=travel)
+        .first()
+    )
+    name = (request.POST.get('name') or '').strip()
+    if not sp or not name:
+        return JsonResponse({'success': False, 'message': '바꿀 장소 정보가 없습니다.'}, status=400)
+
+    lat = _decimal_or_none(request.POST.get('lat'))
+    lon = _decimal_or_none(request.POST.get('lon'))
+    addr = (request.POST.get('addr') or '').strip()
+    kakao_id = (request.POST.get('kakao_id') or '').strip() or None
+    old = sp.place
+
+    if SchedulePlace.objects.filter(schedule=sp.schedule, place__p_name=name).exclude(sp_id=sp.sp_id).exists():
+        return JsonResponse({'success': False, 'message': '이미 그날 일정에 있는 장소예요.'}, status=400)
+
+    place = Place.objects.filter(travel=travel, p_name=name, p_addr=addr).first()
+    if not place:
+        place = Place.objects.create(
+            travel=travel, p_name=name, p_addr=addr,
+            p_kind=(request.POST.get('kind') or old.p_kind or '').strip(),
+            p_lat=lat, p_lon=lon, p_kakao_id=kakao_id,
+        )
+
+    with transaction.atomic():
+        sp.place = place
+        sp.save(update_fields=['place'])
+        TravelBudgetItem.objects.filter(schedule_place=sp).delete()   # 다른 장소라 고친 금액은 지움
+
+        # 숙소를 바꾸면 그날 밤 숙소 정보도 같이 (다음 날 출발점이 됨)
+        if '숙' in (old.p_kind or ''):
+            TravelDayPlan.objects.filter(travel=travel, plan_date=sp.schedule.s_day).update(
+                accommodation_name=name, accommodation_addr=addr,
+                accommodation_lat=lat, accommodation_lon=lon,
+            )
+            if travel.accommodation == old.p_name:
+                travel.accommodation = name
+                travel.accommodation_lat = lat
+                travel.accommodation_lon = lon
+                travel.save(update_fields=['accommodation', 'accommodation_lat', 'accommodation_lon'])
+
+    recalculate_schedule_timeline(sp.schedule)
+
+    return JsonResponse({
+        'success': True,
+        'message': "'%s' 대신 '%s'(으)로 바꿨어요." % (old.p_name, name),
+        'sp_id': sp.sp_id,
     })
 
 
 # ==============================================
-# 비용 관리 - AI 예상 예산 다시 계산 (🟦 예산 AI)
-# 저장된 일정의 장소 가격 × 인원으로 분류별 예산과 총 예산을 채운다.
-# AI 대화로 만들지 않은 여행이나, 인원이 바뀐 여행도 이 버튼으로 채울 수 있다.
+# 비 오는 날 실내 / 실외 (🟦 rain_service)
 # ==============================================
 
-@require_POST
-def budget_ai_fill(request, travel_id):
-    member = _chat_member(request)
+# GET ?name=&lat=&lon=&people=&skip=이름|이름 → {success, options: [실내 대안 …]} (미리보기·일정 관리 같이 씀)
+def rain_options(request):
+    if not _login_member(request):
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
 
+    lat = _float_or_none(request.GET.get('lat'))
+    lon = _float_or_none(request.GET.get('lon'))
+    if lat is None or lon is None:
+        return JsonResponse({'success': False, 'message': '장소 위치가 없어요.'}, status=400)
+
+    skip = [s for s in (request.GET.get('skip') or '').split('|') if s][:50]
+    try:
+        options = rain_service.indoor_options(
+            (request.GET.get('name') or '').strip(), lat, lon,
+            budget_service.clean_people(request.GET.get('people') or 2), skip,
+        )
+    except Exception:
+        logger.exception('실내 대안 실패')
+        return JsonResponse({'success': False, 'message': '실내 대안을 찾지 못했어요.'}, status=500)
+
+    return JsonResponse({'success': True, 'options': options})
+
+
+# GET → {success, people, days: [{day, date, weather}], places: {sp_id: indoor}}  (places 는 그날만)
+def travel_weather(request, travel_id, day):
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
+
+    schedules = list(Schedule.objects.filter(travel=travel).order_by('s_day'))
+    if day < 1 or day > len(schedules):
+        return JsonResponse({'success': False, 'message': '존재하지 않는 DAY입니다.'}, status=404)
+
+    weather = {}
+    if travel.t_start and travel.t_end:
+        center = None
+        first = (
+            SchedulePlace.objects.filter(schedule__travel=travel, place__p_lat__isnull=False)
+            .select_related('place').order_by('schedule__s_day', 'visit_order').first()
+        )
+        if first:
+            center = {'lat': float(first.place.p_lat), 'lon': float(first.place.p_lon)}
+        weather = rain_service.trip_days_weather(
+            travel.t_place, travel.t_start.isoformat(), travel.t_end.isoformat(), center)
+
+    sps = (
+        SchedulePlace.objects.filter(schedule=schedules[day - 1])
+        .select_related('place').order_by('visit_order', 'sp_id')
+    )
+    items = [{
+        'sp_id': sp.sp_id, 'name': sp.place.p_name, 'kind': sp.place.p_kind or '',
+        'lat': _float_or_none(sp.place.p_lat), 'lon': _float_or_none(sp.place.p_lon),
+        'kakao_id': sp.place.p_kakao_id or None, 'is_stay': '숙' in (sp.place.p_kind or ''),
+    } for sp in sps]
+    rain_service.attach_indoor(items)
+
+    return JsonResponse({
+        'success': True,
+        'people': _budget_people(request, travel.t_id),
+        'days': [
+            {'day': i, 'date': s.s_day.isoformat(), 'weather': weather.get(s.s_day.isoformat())}
+            for i, s in enumerate(schedules, start=1)
+        ],
+        'places': {str(it['sp_id']): it['indoor'] for it in items},
+    })
+
+
+# ==============================================
+# 카테고리 예산 화면 (React, 🟦) — frontend 빌드 결과(static/budget/)를 띄움
+# 데이터는 화면이 budget_category·budget_alternatives·budget_swap 주소로 직접 불러옴
+# ==============================================
+
+def category_budget_page(request, travel_id=None):
+    member = _login_member(request)
     if not member:
         return redirect('login')
 
-    travel = get_object_or_404(Travel, t_id=travel_id, member=member)
-    people = budget_service.clean_people(request.POST.get('people'))
+    travels = Travel.objects.filter(member=member).order_by('-t_start', '-t_id')
+    if travel_id:
+        travel = get_object_or_404(Travel, t_id=travel_id, member=member)
+    else:
+        travel = travels.first()
 
-    try:
-        estimate = budget_service.plan_budget(_chat_preview_days(travel, {}), people)
-    except Exception:
-        chat_logger.exception('비용 관리 AI 예산 계산 실패 (t_id=%s)', travel.t_id)
-        estimate = {'items': [], 'planned': 0, 'by': {}}
-
-    if not estimate['items']:
-        return HttpResponse("""
-            <script>
-                alert('일정에 가격을 알 수 있는 장소가 없어 예산을 계산하지 못했어요.');
-                history.back();
-            </script>
-        """)
-
-    budget_service.save_limits(travel, estimate['by'])
-    _remember_budget_people(request, travel.t_id, people)   # 다시 열어도 인원 칸이 이 숫자로
-    travel.t_budget = estimate['planned']
-    travel.save(update_fields=['t_budget'])
-
-    return redirect('budget_travel', travel_id=travel.t_id)
+    return render(request, 'sherpaapp/category_budget.html', {
+        'member': member,
+        'travels': travels,
+        'travel': travel,
+    })

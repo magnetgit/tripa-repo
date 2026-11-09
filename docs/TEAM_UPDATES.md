@@ -10,6 +10,151 @@
 
 ---
 
+## 2026-11-09 · 추천 카드를 누르면 지도에서 위치 보기 — 🟦 임영준
+DB·응답 키 변경 없음 (화면만)
+
+- 대화의 추천 카드(빈 곳)를 누르면 지도가 그 장소로 옮겨 가고(확대 5단계) **주황 핀**에 이름 표시, 누른 카드는 주황 테두리. 넣기 버튼·카카오맵 링크는 그대로 동작. 폰처럼 지도가 화면 밖이면 지도까지 내려감
+- 대화 화면 `travel_chat.js` `focusPlace()`, React `App.jsx`(`focus` 상태) → `ChatPanel`·`RecCards`(누르기) · `MapPanel`(핀), 모양 `.tc-mappin--focus`·`.tc-card.is-focus`
+
+---
+
+## 2026-11-09 · 추천 카드에 ★ TRIPA 추천 + 영업시간·입장료·휴무·주차·팁 (`pick`) — 🟦 임영준
+DB·응답 키 변경 없음 (🟩가 이미 보내던 `pick`을 화면에 보여 줌)
+
+- 팀이 고른 부산 장소(`docs/data/busan_spots_draft.csv`, 31곳)가 카드에 나오면: 주황 테두리 + **★ TRIPA 추천** 배지 + 영업·입장료·휴무·주차·팁 칸 (값 있는 것만)
+- 대화 화면 `travel_chat.js` `pickInfo()`, React `RecCards.jsx` `PickInfo`, 모양 `style.css` `.tc-pick`·`.tc-tag--pick`·`.tc-card.is-pick`
+- 시험: 부산 '바다' → 해운대·광안리, '맛집' → 영진돼지국밥·국제밀면이 TRIPA 추천으로 앞에 나옴
+
+---
+
+## 2026-11-09 · 비용 관리: 분류를 펼쳐 장소별 금액 보고 고치기 — 🟦 임영준 (**DB 변경 → 모두 `migrate`**)
+**새 표 `travel_budget_item` (모델 `TravelBudgetItem`, 마이그레이션 `0017_travel_budget_item`, 🟧 `0016_embedchunk` 다음)** → pull 후 `python manage.py migrate`
+
+- 표: `travel`(FK) · `schedule_place`(일정의 그 자리, OneToOne) · `amount` · `updated_at`. **회원이 고친 장소만** 저장, 없으면 AI 금액. 일정에서 장소를 빼면 같이 지워지고, 대안으로 바꾸면(`budget_swap`) 고친 금액은 지움
+- 화면(React `CategoryRow.jsx`): 분류마다 '상세 N곳 보기 · 고치기' → 장소마다 DAY·이름·AI 금액(1인/1박 방)·금액 칸·'AI 금액'(되돌리기). 장소 금액을 고치면 그 분류 예산 = 장소 합계. 가격 모르는 곳(예: 창덕궁)도 나와서 직접 적을 수 있음
+- API (추가만)
+  - `GET budget/<id>/category/?plan=1` → `budget.items: [{sp_id, day, date, name, kind, cat, ai, amount, edited, per, unit, source}]`, `counts`는 이제 가격 모르는 곳도 셈
+  - `POST budget/<id>/category/` → `{limit: {...}, items: {sp_id: 금액 | null}}` (null = AI 금액으로). 남의 여행 장소는 무시
+  - `GET travel_costs/<id>/<day>/` → 고친 장소는 그 금액 + `edited: true` (여행 상세 카드에 '예산 22,000원 (직접 고침)')
+
+- **예산 차트** (예전 비용 관리 '지출 차트' 3개를 React `ChartPanel.jsx`로 옮김, 같은 Chart.js 4.4.1 CDN·`.bg-chart` 모양)
+  - 분류별 예산 비율(도넛) · 날짜별 예상 비용·쓴 돈 + 하루 예산 점선 · 분류별 예산/일정 예상/쓴 돈(가로 막대). 금액 칸을 고치면 바로 다시 그림
+  - `GET budget/<id>/category/?plan=1`에 `days`(여행 날짜 목록)·`daily_used`({날짜: 쓴 돈}) 추가
+
+### 확인
+- [ ] 🟧🟩 pull 후 `migrate` (0016·0017)
+- [ ] 🟧 `views.py` `_budget_items`·`_save_budget_items` 확인 부탁
+
+---
+
+## 2026-11-09 · ⚠️ 비용 관리 = React 카테고리 예산 화면으로 바꿈 (예전 지출 기록 화면 없앰) — 🟦 임영준
+DB 변경 없음. **주소 이름 몇 개가 없어졌어요** (아래). 다른 화면에서 쓰던 곳은 없음을 확인함.
+
+- 왼쪽 메뉴 '비용 관리'(`{% url 'budget' %}`, `budget_travel`) → 이제 React 카테고리 예산 화면(`category_budget_page`, 템플릿 `category_budget.html`). 주소는 그대로 `budget/`·`budget/<id>/`
+- 회원은 **AI가 매긴 분류별 금액만** 고쳐요. 총예산은 따로 안 고치고 **분류 합계 = 총예산** (`budget_category` POST가 `t_budget`도 합계로 저장)
+- 없앤 것 (🟧 `views.py`·`urls.py`에서 지움)
+  - 템플릿 `budget.html`, 뷰 `budget`·`budget_update_total`·`budget_add`·`budget_delete`·`budget_update_pay`·`budget_ai_fill`, 계산 `_budget_overview`·`_budget_chart`·`_budget_ai_rows`·`_pct`
+  - 주소 이름 `budget_update_total`·`budget_add`·`budget_delete`·`budget_update_pay`·`budget_ai_fill`, 잠깐 있던 `category_budget`·`category_budget_travel`
+  - → **지출(Pay) 추가·수정·삭제 화면이 없어요.** 지출 기록이 다시 필요하면 회의에서 정하기
+  - 여행 상세 왼쪽 'DAY n 여행 비용'(기록한 지출 목록·합계) 칸도 없앰 → 그 자리에 'AI 예상 비용'만 (`renderPayment`). `travel_detail_day`의 `pays`·`total_pay` 응답 키는 그대로 둠
+  - 🟦 로컬 DB의 예전 시험 지출 17건은 지웠어요 (각자 로컬 DB는 각자 판단)
+- 남긴 것: `_budget_category`·`BUDGET_CATEGORIES`(분류 API가 씀), `_budget_people`(인원)
+- `style.css`의 `.bg-*`(예전 비용 관리 모양)는 지금 안 쓰지만 남겨 둠
+
+### 확인
+- [ ] 🟧 `views.py`에서 지운 비용 관리 뷰들 확인 부탁 (Pay 모델·표는 그대로)
+- [ ] 🟩🟧 지출 기록 화면이 없어도 되는지 (회의)
+
+---
+
+## 2026-11-09 · 카테고리 예산 화면 (React) — 🟦 임영준
+DB 변경 없음. 🟧 `views.py`·`urls.py`에 **추가만**. 응답 키 추가만.
+
+- 새 화면 `GET category_budget/` · `category_budget/<travel_id>/` (`category_budget`, `category_budget_travel`) → `sherpaapp/category_budget.html` 이 React 빌드(`static/budget/budget.js`·`budget.css`)를 띄움. 로그인 필요, 남의 여행 404
+  - 들어가는 곳: 비용 관리 왼쪽 'AI 예상 예산' 칸의 **카테고리 예산 고치기 →**
+  - 화면: 여행 고르기 · 총예산/분류 합계/일정 예상(AI) · 분류마다 금액 입력 + 예산 대비 일정 예상 막대(쓴 돈은 세로선) · 'AI 예상대로 채우기'·'되돌리기'·'저장' · 넘친 분류는 '더 싼 곳 찾기' → 바꾸기 · 오른쪽 'AI가 장소를 고르는 방식' + 분류별 한 곳당 상한(예산 ÷ 장소 수)
+- React 소스 `frontend/src/budget/` (`BudgetApp.jsx`·`CategoryRow.jsx`·`FlowPanel.jsx`·`api.js`·`cats.js`·`budget.css`), 빌드 설정 `frontend/vite.budget.config.js`
+  - **`npm run build` 한 번으로 `/chat/`·카테고리 예산 둘 다 빌드** (package.json `build` 바꿈). `/chat/` 결과물은 그대로
+- API 추가 키
+  - `GET budget/<id>/category/?plan=1` → `budget`에 `plan`(지금 일정의 분류별 예상 비용)·`counts`(분류별 장소 수)·`people` 추가
+  - `GET budget_alternatives/<id>/?cat=food` → 그 분류만, 총예산과 상관없이 대안 (`over_budget_options(..., only_cat=)`)
+  - `budget_service.plan_counts(items)` 추가
+
+### 확인
+- [ ] 🟧 `views.py` `category_budget_page`, `budget_category`의 `?plan=1` 확인 부탁
+- [ ] 🟦 왼쪽 메뉴에 '카테고리 예산'을 따로 넣을지 (지금은 비용 관리에서 들어감)
+
+---
+
+## 2026-11-09 · 일정 미리보기·일정 관리에 날씨 + 실내/실외, 비 오는 날 실내 대안으로 바꾸기 — 🟦 임영준
+DB 변경 없음. 🟧 `views.py`·`urls.py`에 **추가만**. 응답 키 추가 (`mock.json` `plan.days[].weather`에 label·temp_min·rain_pct·rainy, `stops[].indoor`).
+
+- 새 파일 `services/rain_service.py` (🟦)
+  - `trip_days_weather(place, start, end, center)` → `{날짜: {date, kind, label, temp, temp_min, rain_pct, rainy}}` (🟩 `trip_weather` 그대로, 16일 안만). **`rainy`: 비·눈이거나 강수 확률 60% 이상**
+  - `place_indoor(name, kind, lat, lon, kakao_id)` → True/False/None. 🟩 `is_indoor`를 그대로 쓰고, 우리 `p_kind`(랜드마크 등)로 모르면 카카오 분류를 찾아 판단 (7일 캐시, 키 `indoor:v1:`). 식당·카페·숙소·쇼핑은 실내
+  - `indoor_options(name, lat, lon, people, skip)` → 5km 안 박물관·미술관·전시관·아쿠아리움·쇼핑몰 3곳 (예상 비용·사진 포함)
+- 일정 미리보기(`travel_chat_preview`) 응답: 날마다 `weather`, 장소마다 `indoor` 추가
+  - 화면(`travel_chat.js`): 일차 탭에 ☀/☁/☔ 기온, 그날 날씨 한 줄, 장소마다 실내/실외 배지. 비 오는 날 실외 장소에 '☔ 실내 대안 보기' → '바꾸기'를 누르면 그 장소는 지운 장소로, 실내 장소는 같은 시간 담은 장소로 넣고 다시 짬
+  - React `PlanPreview.jsx`: 날씨·배지만 (바꾸기는 아직)
+- 일정 관리(여행 상세): 날짜 버튼에 날씨, 카드에 실내/실외, 왼쪽 'DAY n 날씨' 상자. 비 오는 날 실외 장소마다 실내 대안 → '바꾸기'(기존 `budget_swap` 그대로)
+- 새 주소
+  - `GET rain_options/?name=&lat=&lon=&people=&skip=` (`rain_options`) → `{success, options}` (로그인 401)
+  - `GET travel_weather/<travel_id>/<day>/` (`travel_weather`) → `{success, people, days: [{day, date, weather}], places: {sp_id: indoor}}` (로그인 401, 남의 여행 403)
+  - `travel_detail_day` 장소마다 `place_lat`·`place_lon` 추가
+- 알아 둘 것: 🟩 `is_indoor`는 '테마파크'를 실외로 봐서 롯데월드 어드벤처가 실외로 나옴 (🟩 단어 목록 문제)
+- `rain_service`에서 🟩 `is_indoor`가 모르는 곳 보충 (🟩 파일은 안 건드림): 자연휴양림·숲·올레길(도보여행)·정원·민속촌·읍성 → 실외, 전시·공연·갤러리 → 실내, 축제·행사 → 실외(전시·공연이면 실내). 일정 장소 147곳 중 모름 16 → 2곳(시장·전망대)
+- 그래도 모르는 곳(`indoor: null`)은 회색 **'실내·실외 섞임'** 배지 (추천 카드·미리보기·일정 관리)
+- **예보가 없는 날도 날씨 채움** (`trip_days_weather`, 날씨마다 `source` 키 추가 — `mock.json`)
+  - `forecast`: 16일 안 예보 (지금처럼, 비 오면 실내 대안)
+  - `past`: 이미 지난 날 → 그날 실제 날씨 (open-meteo 예보 주소 지난 92일 / 기록 주소 `archive-api`)
+  - `last_year`: 16일보다 먼 날 → **작년 같은 날 날씨** (참고용이라 `rainy: false`, 작년에 비·눈이면 `last_year_rain: true`). 화면엔 '☁ 10° 작년', '작년 이맘때 흐림 …'
+  - 지난 날씨는 7일 캐시 (키 `wxday:`), 새 키 필요 없음
+
+### 확인
+- [ ] 🟩 일정을 처음 만들 때부터 비 오는 날 실내를 고르는 건(11/06 결정) 🟩 `schedule_service` 담당 — 이 `rain_service`의 `trip_days_weather`·`place_indoor`를 같이 써도 돼요
+- [ ] 🟧 `views.py` 맨 아래 `rain_options`·`travel_weather`, 미리보기에 날씨·실내 붙이는 곳 확인 부탁
+
+---
+
+## 2026-11-09 · 여행 상세 위쪽에 '다른 여행으로 이동' 선택 칸 — 🟦 임영준
+DB·응답 키 변경 없음. 🟧 `views.py` `travel_detail` 화면 값에 `my_travels`(내 여행, 최근 출발 순) **추가만**.
+- 내 여행일 때만, 여행이 2개 이상이면 '게시판 공유'·'여행 수정' 버튼 옆에 보임. 고르면 바로 그 여행 상세로
+
+---
+
+## 2026-11-09 · 추천 카드에 실내 / 실외 표시, 비 오는 날은 실내 강조 — 🟦 임영준 (🟩 `chat_service.py` 조금 수정)
+DB 변경 없음. 응답 키는 **추가만** (`mock.json` `places.weather`).
+
+- 카드 이름 옆에 `indoor` 그대로: `true` → **실내**, `false` → **실외**, `null`(모름) → 표시 안 함 (대화 화면 `travel_chat.js`·React `RecCards.jsx`)
+- 가는 날 비·눈 예보면
+  - 카드 위 한 줄: "☔ 11/12 비 예보(강수 80%) · 실내 장소를 먼저 보여 드려요" (실내 카드가 없으면 "'1일차 실내 추천'이라고 말해 보세요")
+  - 실내는 파란 배지 "실내 · 비 와도 OK", 실외는 흐린 배지 "실외 · 비 오면 아쉬워요"
+- 🟩 `chat_service.py`: `rain_first`가 이미 구하던 가는 날 날씨를 `rec['visit_weather']`에 담고, 추천 응답에 **`weather` 키** `{date, kind, label, rain_pct}` 또는 `null` 추가 (`_card_weather`). 실내를 앞에 두는 순서는 🟩 코드 그대로
+
+### 확인
+- [ ] 🟩 `rain_first`의 한 줄·추천 응답 `weather` 키 확인 부탁
+
+---
+
+## 2026-11-09 · 예산 AI: 예산을 넘으면 같은 분류의 더 싼 대안 + '바꾸기' — 🟦 임영준
+DB 변경 없음. 🟧 `views.py`·`urls.py`에 **추가만**.
+
+- 여행 상세 왼쪽 '여행 비용' 아래 **예산 초과 · 더 싼 대안** 상자: 일정 전체 예상 비용 > 총예산(`t_budget`)일 때만 보임
+  - 비싼 장소부터 최대 4곳, 장소마다 근처(식당 2km·관광지 3km·숙소 5km)의 같은 분류 장소 중 더 싼 곳 3개 (카카오 장소 검색 → 기존 가격 계산 그대로)
+  - 대안 이름을 누르면 정보 펼치기: 사진·주소·카카오 분류·전화·가격 근거(1인 × 인원 / 방 × 개수, 관광공사 요금인지 보통 가격인지)·지금 장소와 비교·TRIPA 리뷰 별점(`review_summary`)·카카오맵 링크
+  - '바꾸기' → 그 자리 장소만 바뀌고 그날 시간 다시 계산. 숙소를 바꾸면 그날 밤 `TravelDayPlan` 숙소도 같이 바뀜(다음 날 출발점)
+- 새 주소
+  - `GET budget_alternatives/<travel_id>/` (`budget_alternatives`) → `{success, people, planned, budget, over, suggestions: [{sp_id, day, name, cat, amount, options: [{name, addr, kind, lat, lon, kakao_id, url, category, phone, distance, cost, save, photo}]}]}`
+  - `POST budget_swap/<travel_id>/` (`budget_swap`) `{sp_id, name, addr, kind, lat, lon, kakao_id}` → `{success, message, sp_id}`
+  - 둘 다 로그인 401, 남의 여행 403
+- `_chat_preview_days`의 장소마다 `sp_id` 키 추가 (일정 미리보기 응답에도 들어감, 추가만)
+- 카페는 보통 가격이 다 같아서(7,000원) 대안이 없음
+
+### 확인
+- [ ] 🟧 `views.py` 맨 아래 `budget_alternatives`·`budget_swap` 확인 부탁 (장소 바꾸기 + `recalculate_schedule_timeline`)
+
+---
+
 ## 2026-11-09 · 📐 공유 정의: 임베딩 함수·벡터 표 (`embed_service`, `embed_chunk`) — 🟧 이수한
 아직 코드 없음 (모양 먼저 공유, 11/09 규칙). 🟧가 이 모양 그대로 만들어 PR로 올릴게요. **🟩는 이걸 기준으로 여행지 정보 RAG를 설계하면 돼요.** 바뀌면 이 항목을 고치고 다시 알릴게요.
 

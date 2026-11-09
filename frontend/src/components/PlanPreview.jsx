@@ -2,7 +2,11 @@
 import { useState } from 'react';
 import Icon from './Icon.jsx';
 import { dayItems, isPlanFresh, removedKey } from '../lib/plan.js';
-import { costText } from './RecCards.jsx';
+import { PlaceTag, costText } from './RecCards.jsx';
+
+// 날씨 표시 (days[].weather: kind sun/cloud/rain/snow, temp, rainy)
+const WX_MARK = { sun: '☀', cloud: '☁', rain: '☔', snow: '❄' };
+const wxText = (w) => `${WX_MARK[w.kind] || '☁'}${w.temp != null ? ` ${w.temp}°` : ''}`;
 
 function Msg({ text, loading, error }) {
   return (
@@ -69,11 +73,27 @@ export default function PlanPreview({ state, sprite, onTab, onMove, onRemove, on
           >
             <strong>{d.day}일차</strong>
             <span>{d.label}</span>
+            {d.weather && (
+              <span className={`tc-tab__wx${d.weather.rainy ? ' is-rain' : ''}${d.weather.source === 'last_year' ? ' is-old' : ''}`}>
+                {wxText(d.weather)}{d.weather.source === 'last_year' ? ' 작년' : ''}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       <div className="tc-plan__body" aria-live="polite">
+        {'weather' in day && (
+          <p className={day.weather && day.weather.rainy ? 'tc-rec__rain' : 'tc-plan__wx'}>
+            {!day.weather
+              ? '날씨 정보를 찾지 못했어요.'
+              : day.weather.source === 'last_year'
+                ? `${wxText(day.weather)} 작년 이맘때 ${day.weather.label || ''}${day.weather.last_year_rain ? ' · 작년엔 비·눈이 왔어요' : ''} · 예보는 여행 16일 전부터 나와요`
+                : day.weather.source === 'past'
+                  ? `${wxText(day.weather)} 그날 날씨 ${day.weather.label || ''}`
+                  : `${wxText(day.weather)} ${day.weather.label || ''}${day.weather.rain_pct != null ? ` · 강수 ${day.weather.rain_pct}%` : ''}${day.weather.rainy ? ' · 실외 장소는 실내로 바꾸는 걸 생각해 보세요' : ' · 실외 일정도 괜찮아요'}`}
+          </p>
+        )}
         <ol className="tc-tl">
           {/* 1) 출발 시간 + 출발점 */}
           <li className="tc-tl__item is-start">
@@ -126,6 +146,7 @@ export default function PlanPreview({ state, sprite, onTab, onMove, onRemove, on
                     ) : it.kind ? (
                       <span className="tc-tag">{it.kind}</span>
                     ) : null}
+                    {!it.is_stay && <PlaceTag indoor={it.indoor} rainy={!!(day.weather && day.weather.rainy)} />}
                     <span className="tc-tl__mv">
                       <button type="button" className="tc-tl__mvbtn" title="위로" aria-label={`${it.name} 위로 옮기기`}
                         disabled={i === 0} onClick={() => onMove(day, i, i - 1)}>↑</button>

@@ -388,6 +388,15 @@ def plan_budget(days, people):
     return {'people': people, 'planned': sum(by.values()), 'by': by, 'items': items, 'unknown': unknown}
 
 
+def plan_counts(items):
+    """plan_budget 의 items → 분류별 장소 수 {분류: 개수} (카테고리 예산 화면의 '한 곳당 상한' 계산용)"""
+    counts = {c: 0 for c in CATEGORIES}
+    for item in items or []:
+        if item.get('cat') in counts:
+            counts[item['cat']] += 1
+    return counts
+
+
 # =========================================================
 # 카테고리 예산 저장 (travel_budget 표)
 # =========================================================
@@ -426,3 +435,131 @@ def load_limits(travel):
         if row.category in limits:
             limits[row.category] = row.amount or 0
     return limits
+
+
+# =========================================================
+# 예산을 넘으면: 같은 분류의 더 싼 대안 (근처 카카오 장소 → 같은 가격 계산 → 더 싼 곳만)
+# =========================================================
+
+# 분류마다 근처에서 찾을 검색어 (싼 종류부터) · 카카오 분류 코드 · 찾는 거리(m)
+ALT_SEARCH = {
+    'food': ((('국밥', '칼국수', '분식', '한식', '중식'), 'FD6'), 2000),
+    'stay': ((('모텔', '게스트하우스', '호텔'), 'AD5'), 5000),
+    'sight': ((('공원', '관광명소', '전망대'), 'AT4'), 3000),
+    'shop': ((('시장', '전통시장'), ''), 3000),
+}
+ALT_KIND = {'FD6': '음식', 'AD5': '숙박', 'AT4': '관광', 'CE7': '카페'}
+ALT_CANDIDATES = 12     # 가격을 따져 볼 근처 장소 수 (관광공사 호출 수를 줄이려고 제한)
+ALT_PER_PLACE = 3       # 장소 하나에 보여줄 대안 수
+
+
+def _nearby(cat, lat, lon, skip_ids, skip_names):
+    """같은 분류로 찾을 근처 카카오 장소들 (가까운 순, 같은 장소·쓸모없는 분류 빼고)"""
+    from .place_service import is_junk_kind, kakao_documents
+
+    (queries, group), radius = ALT_SEARCH[cat]
+    found, seen = [], set(skip_ids)
+    for query in queries:
+        try:
+            docs = kakao_documents(query, 15, group, x=lon, y=lat, radius=radius, sort='distance')
+        except requests.RequestException:
+            logger.warning('대안 검색 실패: %s', query)
+            continue
+        for doc in docs:
+            if doc.get('id') in seen or doc.get('place_name') in skip_names or is_junk_kind(doc.get('category_name')):
+                continue
+            seen.add(doc.get('id'))
+            found.append(doc)
+        if len(found) >= ALT_CANDIDATES:
+            break
+    return found[:ALT_CANDIDATES]
+
+
+def cheaper_options(item, people, skip_names=()):
+    """
+    일정 장소 하나보다 싼 같은 분류 근처 장소들.
+    item: {name, kind, lat, lon, kakao_id, cost: {amount, cat}}  (plan_budget이 cost를 붙인 장소)
+    → [{name, addr, kind, lat, lon, kakao_id, url, distance, cost, save}] 싼 순서
+    """
+    cost = item.get('cost') or {}
+    cat = cost.get('cat')
+    if cat not in ALT_SEARCH or not cost.get('amount') or item.get('lat') is None or item.get('lon') is None:
+        return []
+
+    docs = _nearby(cat, item['lat'], item['lon'],
+                   [item.get('kakao_id')] if item.get('kakao_id') else [],
+                   set(skip_names) | {item.get('name')})
+
+    def one(doc):
+        kind = ALT_KIND.get(doc.get('category_group_code'), '')
+        try:
+            return place_price(doc.get('place_name'), kind, float(doc['y']), float(doc['x']),
+                               doc.get('id'), doc.get('category_name'))
+        except Exception:
+            logger.warning('대안 가격 계산 실패: %s', doc.get('place_name'), exc_info=True)
+            return None
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        prices = list(pool.map(one, docs))
+
+    options = []
+    for doc, price in zip(docs, prices):
+        if not price or price['cat'] != cat:
+            continue
+        alt_cost = to_cost(price, people)
+        if alt_cost['amount'] >= cost['amount']:
+            continue
+        options.append({
+            'name': doc.get('place_name'),
+            'addr': doc.get('road_address_name') or doc.get('address_name') or '',
+            'kind': ALT_KIND.get(doc.get('category_group_code'), '') or (doc.get('category_name') or '').split('>')[-1].strip(),
+            'lat': float(doc['y']),
+            'lon': float(doc['x']),
+            'kakao_id': doc.get('id'),
+            'url': doc.get('place_url') or '',
+            'category': doc.get('category_name') or '',   # 카카오 분류 원문 (예: 음식점 > 한식 > 국밥)
+            'phone': doc.get('phone') or '',
+            'distance': int(doc.get('distance') or 0),
+            'cost': alt_cost,
+            'save': cost['amount'] - alt_cost['amount'],
+        })
+
+    options.sort(key=lambda o: (o['cost']['amount'], o['distance']))
+    return options[:ALT_PER_PLACE]
+
+
+def over_budget_options(days, people, budget, max_places=4, only_cat=None):
+    """
+    일정 전체 예상 비용이 총예산을 넘으면, 비싼 장소부터 같은 분류의 더 싼 대안을 붙인다.
+    days: _chat_preview_days 모양 (장소마다 sp_id) → plan_budget 으로 cost 를 붙인 뒤 계산
+    only_cat: 분류 하나만 (카테고리 예산 화면에서 그 분류가 넘쳤을 때). 이때는 총예산과 상관없이 찾는다
+    → {'people', 'planned', 'budget', 'over', 'suggestions': [{sp_id, day, name, cat, amount, options}]}
+    """
+    estimate = plan_budget(days, people)
+    budget = int(budget or 0)
+    over = estimate['planned'] - budget if budget > 0 else 0
+    result = {'people': estimate['people'], 'planned': estimate['planned'], 'budget': budget,
+              'over': max(over, 0), 'suggestions': []}
+    if over <= 0 and not only_cat:
+        return result
+
+    in_plan = {it.get('name') for day in days for it in day.get('items') or []}
+    rows = [(day.get('day'), it) for day in days for it in day.get('items') or []
+            if (it.get('cost') or {}).get('amount') and (it.get('cost') or {}).get('cat') in ALT_SEARCH
+            and (not only_cat or it['cost']['cat'] == only_cat)]
+    rows.sort(key=lambda row: -row[1]['cost']['amount'])
+
+    done = set()
+    for day, it in rows:
+        if len(result['suggestions']) >= max_places:
+            break
+        if it.get('name') in done:
+            continue
+        done.add(it.get('name'))
+        options = cheaper_options(it, estimate['people'], in_plan)
+        if options:
+            result['suggestions'].append({
+                'sp_id': it.get('sp_id'), 'day': day, 'name': it.get('name'),
+                'cat': it['cost']['cat'], 'amount': it['cost']['amount'], 'options': options,
+            })
+    return result

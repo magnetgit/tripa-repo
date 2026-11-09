@@ -2024,6 +2024,7 @@ def rain_first(items, rec, visit, draft, tool_log, notes):
         items = [item for item in items if item.get('indoor') is not False]
 
     day = visit_weather(visit, draft, tool_log)
+    rec['visit_weather'] = day   # 🟦 카드 화면이 '비 오는 날 실내 추천' 표시에 씀 (추천 응답 weather 키)
 
     if not day or day.get('kind') not in ('rain', 'snow') or indoor_asked:
         return items
@@ -2040,6 +2041,13 @@ def rain_first(items, rec, visit, draft, tool_log, notes):
     trip_day = (visit - _parse_date(draft.get('start'))).days + 1
     notes.append("%s가 있어요. 실내 장소가 필요하면 '%d일차 실내 추천'처럼 말해 주세요." % (when, trip_day))
     return items
+
+
+def _card_weather(day):
+    """추천 카드에 붙일 가는 날 날씨 (필요한 칸만). 모르면 None."""
+    if not isinstance(day, dict) or not day.get('kind'):
+        return None
+    return {k: day.get(k) for k in ('date', 'kind', 'label', 'rain_pct')}
 
 
 def weather_from_tools(tool_log):
@@ -2241,6 +2249,8 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
                     'time': rec['time'],
                     'anchor': anchor_name,
                     'items': items,
+                    # 가는 날 날씨 {date, kind(sun/cloud/rain/snow), label, rain_pct} 또는 None (추가 키, 🟦 카드 실내/실외 표시)
+                    'weather': _card_weather(rec.get('visit_weather')),
                 }
 
                 if rec.get('stay'):
