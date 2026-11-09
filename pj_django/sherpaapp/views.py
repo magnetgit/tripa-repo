@@ -5010,6 +5010,7 @@ def travel_chat(request):
             body.get('draft'),
             category_names,
             today=date.today(),
+            profile={'gender':member.gender, 'age_group':member.age_group},
         )
     except chat_service.ChatError as error:
         return _chat_error(str(error), 502)

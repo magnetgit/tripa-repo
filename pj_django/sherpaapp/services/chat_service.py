@@ -1013,7 +1013,7 @@ CARD_SIZE = 4       # 추천 카드 수
 SPARE_CARDS = 3     # 쉬는 곳을 빼도 카드가 줄지 않게 더 받아 두는 후보 수
 
 
-def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True, costs=True):
+def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True, costs=True, profile=None):
     """카카오 키워드 검색으로 추천 장소 카드 목록을 만든다.
 
     spare: 여분 후보 수. 여분은 목록 맨 뒤에 붙는다 (쉬는 곳을 뺀 뒤 앞에서 size장을 쓰면 됨)
@@ -1134,7 +1134,7 @@ def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True, cos
     items = _with_picks(items, rec, draft, anchor, near_found, exclude, size)
 
     # 게시판 리뷰 별점을 붙이고, 리뷰 좋은 곳을 앞으로 (팀이 고른 곳은 맨 앞 그대로)
-    items = rank_by_reviews(items, keep_first=sum(1 for item in items if item.get('pick')))
+    items = rank_by_reviews(items, keep_first=sum(1 for item in items if item.get('pick')), profile=profile)
 
     # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
     if photos:
@@ -2064,7 +2064,7 @@ def weather_from_tools(tool_log):
     return None
 
 
-def run_chat_turn(messages, draft, category_names, today=None, llm=None):
+def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile=None):
     today = today or date.today()
     llm = llm or call_llm
 
@@ -2222,7 +2222,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None):
         elif not getattr(settings, 'KAKAO_REST_API_KEY', ''):
             notes.append('카카오 REST API 키(KAKAO_REST_API_KEY)가 없어서 장소를 찾지 못했어요.')
         else:
-            anchor_name, items = search_recommendations(rec, new_draft, spare=SPARE_CARDS, photos=False, costs=False)
+            anchor_name, items = search_recommendations(rec, new_draft, spare=SPARE_CARDS, photos=False, costs=False, profile=profile)
 
             # 방문하는 날 쉬는 곳은 빼고 알려 준다 (관광공사에 쉬는 날이 있는 곳만 알 수 있음)
             visit = visit_date(rec, new_draft)
