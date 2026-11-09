@@ -1134,7 +1134,7 @@ def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True, cos
     items = _with_picks(items, rec, draft, anchor, near_found, exclude, size)
 
     # 게시판 리뷰 별점을 붙이고, 리뷰 좋은 곳을 앞으로 (팀이 고른 곳은 맨 앞 그대로)
-    items = rank_by_reviews(items, keep_first=sum(1 for item in items if item.get('pick')), profile=profile)
+    items = rank_by_reviews(items, keep_first=sum(1 for item in items if item.get('pick')), profile=profile, draft=draft)
 
     # 카드마다 사진 1장 (없으면 photo=None → 화면은 기본 이미지)
     if photos:
