@@ -17,6 +17,7 @@
     addUrl: app.dataset.addUrl,
     previewUrl: app.dataset.previewUrl,
     estimateUrl: app.dataset.estimateUrl || '',
+    rainUrl: app.dataset.rainUrl || '',
     loginUrl: app.dataset.loginUrl,
     member: app.dataset.member || 'guest',
     sprite: app.dataset.sprite,
@@ -329,6 +330,173 @@
     return '1인 ' + won(cost.per) + (n > 1 ? ' · ' + n + '명 ' + won(cost.per * n) : '') + ' (' + tag + ')';
   }
 
+  // ---- TRIPA 추천 (pick: 팀이 고른 장소 표의 정보) ----
+  var PICK_ROWS = [['hours', '영업'], ['fee', '입장료'], ['rest', '휴무'], ['parking', '주차']];
+
+  function pickInfo(pick) {
+    if (!pick) return null;
+    var rows = PICK_ROWS.filter(function (r) { return pick[r[0]]; });
+    if (!rows.length && !pick.memo) return null;
+    var box = make('dl', 'tc-pick');
+    rows.forEach(function (r) {
+      var row = make('div', 'tc-pick__row');
+      row.appendChild(make('dt', null, r[1]));
+      row.appendChild(make('dd', null, pick[r[0]]));
+      box.appendChild(row);
+    });
+    if (pick.memo) {
+      var memo = make('div', 'tc-pick__row tc-pick__memo');
+      memo.appendChild(make('dt', null, '팁'));
+      memo.appendChild(make('dd', null, pick.memo));
+      box.appendChild(memo);
+    }
+    return box;
+  }
+
+  // ---- 실내 / 실외 표시 (카드 indoor: true 실내 · false 실외 · null 모름 → 표시 안 함) ----
+  function isRainy(weather) {
+    return !!weather && (weather.kind === 'rain' || weather.kind === 'snow');
+  }
+
+  // '☔ 11/12 비 예보(강수 80%) · 실내 장소를 먼저 보여 드려요'
+  // 실내 카드가 하나도 없으면 '1일차 실내 추천'이라고 말해 보라고 안내
+  function weatherNote(weather, rec) {
+    var mark = weather.kind === 'snow' ? '❄' : '☔';
+    var when = weather.date ? weather.date.slice(5).replace('-', '/') + ' ' : '';
+    var pct = weather.rain_pct != null ? '(강수 ' + weather.rain_pct + '%)' : '';
+    var hasIndoor = rec.items.some(function (it) { return it.indoor === true; });
+    var tip = hasIndoor
+      ? '실내 장소를 먼저 보여 드려요'
+      : "실내 장소는 '" + (rec.day ? rec.day + '일차 ' : '') + "실내 추천'이라고 말해 보세요";
+    return mark + ' ' + when + (weather.label || '비') + ' 예보' + pct + ' · ' + tip;
+  }
+
+  // 비 오는 날이면 실내는 '비 와도 OK'로 눈에 띄게, 실외는 '비 오면 아쉬워요'로 흐리게
+  function placeTag(indoor, rainy) {
+    if (indoor === true) {
+      return make('span', 'tc-tag tc-tag--indoor' + (rainy ? ' is-rain' : ''), rainy ? '실내 · 비 와도 OK' : '실내');
+    }
+    if (indoor === false) {
+      return make('span', 'tc-tag tc-tag--outdoor' + (rainy ? ' is-rain' : ''), rainy ? '실외 · 비 오면 아쉬워요' : '실외');
+    }
+    if (indoor === null) {
+      // 시장·전망대처럼 곳마다 다른 곳 (서버가 판단 못 함)
+      return make('span', 'tc-tag tc-tag--mixed', '실내·실외 섞임');
+    }
+    return null;
+  }
+
+  // ---- 일정 미리보기: 날씨 · 비 오는 날 실내 대안 (rain_options) ----
+  var WEATHER_MARK = { sun: '☀', cloud: '☁', rain: '☔', snow: '❄' };
+  var rainOpen = null;      // 펼친 장소 'day:이름'
+  var rainCache = {};       // 'day:이름' → 실내 대안 목록 (또는 'loading' / 'error')
+
+  function weatherMark(w) {
+    var mark = WEATHER_MARK[w.kind] || (w.rainy ? '☔' : '☁');
+    return mark + (w.temp != null ? ' ' + w.temp + '°' : '');
+  }
+
+  function dayWeatherText(w, outdoorCount) {
+    if (!w) return '날씨 정보를 찾지 못했어요.';
+    var pct = w.rain_pct != null ? ' · 강수 ' + w.rain_pct + '%' : '';
+    var temp = w.temp != null ? ' ' + w.temp + '°' + (w.temp_min != null ? '/' + w.temp_min + '°' : '') : '';
+    var mark = weatherMark(w).split(' ')[0];
+    // 16일보다 먼 날: 작년 같은 날 (참고용) · 지난 날: 그날 실제 날씨
+    if (w.source === 'last_year') {
+      return mark + ' 작년 이맘때 ' + (w.label || '') + temp + (w.last_year_rain ? ' · 작년엔 비·눈이 왔어요' : '') + ' · 예보는 여행 16일 전부터 나와요';
+    }
+    if (w.source === 'past') return mark + ' 그날 날씨 ' + (w.label || '') + temp;
+    var head = mark + ' ' + (w.label || '') + temp + pct;
+    if (!w.rainy) return head + ' · 실외 일정도 괜찮아요';
+    return head + (outdoorCount ? ' · 실외 ' + outdoorCount + '곳은 아래 \'실내 대안\'으로 바꿀 수 있어요' : ' · 오늘 일정은 모두 실내예요');
+  }
+
+  function rainBlock(day, it) {
+    var key = day.day + ':' + it.name;
+    var wrap = make('div', 'tc-rain');
+    var btn = make('button', 'tc-rain__btn', rainOpen === key ? '실내 대안 접기' : '☔ 실내 대안 보기');
+    btn.type = 'button';
+    btn.addEventListener('click', function () {
+      rainOpen = rainOpen === key ? null : key;
+      if (rainOpen && !rainCache[key]) loadRain(day, it, key);
+      renderPlan();
+    });
+    wrap.appendChild(btn);
+    if (rainOpen !== key) return wrap;
+
+    var got = rainCache[key];
+    if (got === 'loading' || !got) {
+      wrap.appendChild(make('p', 'tc-rain__msg', '근처 실내 장소를 찾는 중이에요...'));
+    } else if (got === 'error' || !got.length) {
+      wrap.appendChild(make('p', 'tc-rain__msg', got === 'error' ? '실내 대안을 찾지 못했어요.' : '5km 안에 실내 장소가 없어요.'));
+    } else {
+      got.forEach(function (o) {
+        var opt = make('div', 'tc-rain__opt');
+        if (o.photo && o.photo.url) {
+          var img = make('img', 'tc-rain__img');
+          img.src = o.photo.url;
+          img.alt = '';
+          img.loading = 'lazy';
+          img.referrerPolicy = 'no-referrer';
+          img.onerror = function () { img.remove(); };
+          opt.appendChild(img);
+        }
+        var info = make('div', 'tc-rain__info');
+        info.appendChild(make('strong', null, o.name));
+        var kind = (o.category || '').split('>').pop().trim();
+        var price = o.cost ? (o.cost.per ? '1인 ' + won(o.cost.per) : '무료') : '가격 정보 없음';
+        info.appendChild(make('span', null, [kind, distText(o.distance), price].filter(Boolean).join(' · ')));
+        opt.appendChild(info);
+        var pick = make('button', 'tc-rain__pick', '바꾸기');
+        pick.type = 'button';
+        pick.addEventListener('click', function () { swapIndoor(day, it, o); });
+        opt.appendChild(pick);
+        wrap.appendChild(opt);
+      });
+    }
+    return wrap;
+  }
+
+  function distText(m) {
+    return m >= 1000 ? (m / 1000).toFixed(1) + 'km' : m + 'm';
+  }
+
+  function loadRain(day, it, key) {
+    if (!cfg.rainUrl || it.lat == null) { rainCache[key] = 'error'; return; }
+    rainCache[key] = 'loading';
+    var skip = [];
+    state.plan.days.forEach(function (d) { (d.items || []).forEach(function (x) { skip.push(x.name); }); });
+    var q = '?name=' + encodeURIComponent(it.name) + '&lat=' + it.lat + '&lon=' + it.lon
+      + '&people=' + (state.draft.people || 2) + '&skip=' + encodeURIComponent(skip.slice(0, 40).join('|'));
+    fetch(cfg.rainUrl + q, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { rainCache[key] = data && data.success ? data.options : 'error'; })
+      .catch(function () { rainCache[key] = 'error'; })
+      .then(function () { if (rainOpen === key) renderPlan(); });
+  }
+
+  // 실외 장소를 빼고(지운 장소) 같은 날 같은 시간에 실내 장소를 담는다 → 일정을 다시 짠다
+  function swapIndoor(day, it, o) {
+    if (state.busy) return;
+    var pins = (state.draft.pins || []).filter(function (p) { return !(it.pin && p.day === day.day && p.name === it.name); });
+    if (pins.length >= MAX_PINS) {
+      state.notes = ['담을 수 있는 장소는 최대 ' + MAX_PINS + '곳이에요.'];
+      renderDraft();
+      return;
+    }
+    if (!it.pin) state.removed = state.removed.concat([{ day: day.day, name: it.name }]);
+    state.draft.pins = pins.concat([{
+      day: day.day, name: o.name, addr: o.addr, kind: o.kind, lat: o.lat, lon: o.lon,
+      phone: o.phone, url: o.url, time: it.arrive || null, kakao_id: o.kakao_id || null
+    }]);
+    rainOpen = null;
+    state.notes = ["비 예보라 '" + it.name + "' 대신 실내 '" + o.name + "'(으)로 바꿨어요."];
+    save();
+    renderMessages();
+    renderDraft(['추가한 장소']);
+    maybePlan();
+  }
+
   function renderRec(rec) {
     var box = make('div', 'tc-rec');
 
@@ -341,15 +509,34 @@
     cond.appendChild(make('span', 'tc-chip', parts.join(' · ') || rec.title));
     box.appendChild(cond);
 
+    // 가는 날 비·눈 예보면 한 줄 안내 (서버가 실내 장소를 앞에 둠)
+    var rainy = isRainy(rec.weather);
+    if (rainy) {
+      box.appendChild(make('p', 'tc-rec__rain', weatherNote(rec.weather, rec)));
+    }
+
     rec.items.forEach(function (item) {
-      var card = make('div', 'tc-card');
+      var card = make('div', 'tc-card' + (item.pick ? ' is-pick' : ''));
+      // 카드를 누르면 지도에서 위치 보기 (넣기 버튼·카카오맵 링크는 그대로 동작)
+      if (item.lat != null && item.lon != null) {
+        card.classList.add('is-clickable');
+        card.title = '눌러서 지도에서 위치 보기';
+        card.addEventListener('click', function (e) {
+          if (e.target.closest('button, a')) return;
+          focusPlace(item, card);
+        });
+      }
 
       card.appendChild(cardPhoto(item));
 
       var body = make('div', 'tc-card__body');
       var head = make('div', 'tc-card__head');
       head.appendChild(make('strong', null, item.name));
+      // 팀이 직접 고른 장소 (부산 장소 표) → TRIPA 추천 배지
+      if (item.pick) head.appendChild(make('span', 'tc-tag tc-tag--pick', '★ TRIPA 추천'));
       head.appendChild(make('span', 'tc-tag', item.kind || '장소'));
+      var place = placeTag(item.indoor, rainy);
+      if (place) head.appendChild(place);
       body.appendChild(head);
 
       var meta = make('p', 'tc-card__meta');
@@ -371,6 +558,10 @@
         sub.appendChild(link);
       }
       if (sub.childNodes.length) body.appendChild(sub);
+
+      // TRIPA 추천 장소: 팀이 확인한 영업시간·입장료·휴무·주차·메모 (pick, 값이 있는 것만)
+      var pickBox = pickInfo(item.pick);
+      if (pickBox) body.appendChild(pickBox);
 
       // 평점(review)·예상 비용(cost)은 값이 올 때만 (mock.json 키)
       var extraText = cardExtra(item);
@@ -863,6 +1054,13 @@
       tab.setAttribute('aria-selected', i === state.dayTab ? 'true' : 'false');
       tab.appendChild(make('strong', null, day.day + '일차'));
       tab.appendChild(make('span', null, day.label));
+      if (day.weather) {
+        var old = day.weather.source === 'last_year';
+        var wx = make('span', 'tc-tab__wx' + (day.weather.rainy ? ' is-rain' : '') + (old ? ' is-old' : ''),
+          weatherMark(day.weather) + (old ? ' 작년' : ''));
+        if (old) wx.title = '작년 같은 날 날씨예요 (예보는 여행 16일 전부터 나와요)';
+        tab.appendChild(wx);
+      }
       tab.addEventListener('click', function () {
         state.dayTab = i;
         renderPlan();
@@ -872,6 +1070,14 @@
     });
 
     var day = days[state.dayTab];
+    var rainyDay = !!(day.weather && day.weather.rainy);
+
+    // 그날 날씨 한 줄 (비 오면 실외 장소에 '실내 대안' 버튼)
+    if ('weather' in day) {
+      var outdoorCount = dayItems(day).filter(function (it) { return it.indoor === false && !it.is_stay; }).length;
+      el.planBody.appendChild(make('p', rainyDay ? 'tc-rec__rain' : 'tc-plan__wx', dayWeatherText(day.weather, outdoorCount)));
+    }
+
     var list = make('ol', 'tc-tl');
 
     // 1) 출발 시간 + 출발점
@@ -912,6 +1118,10 @@
         head.appendChild(make('span', 'tc-tag tc-tag--pin', '담은 장소'));
       } else if (it.kind) {
         head.appendChild(make('span', 'tc-tag', it.kind));
+      }
+      if (!it.is_stay) {
+        var inOut = placeTag(it.indoor, rainyDay);
+        if (inOut) head.appendChild(inOut);
       }
       var mv = make('span', 'tc-tl__mv');
       var up = make('button', 'tc-tl__mvbtn', '↑');
@@ -988,6 +1198,11 @@
         costRow.appendChild(document.createTextNode(' ' + stopCost));
         if (it.cost.text) costRow.title = it.cost.text;
         body.appendChild(costRow);
+      }
+
+      // 비 오는 날 실외 장소: 근처 실내 대안 보기 → 고르면 그 자리를 실내 장소로
+      if (rainyDay && it.indoor === false && !it.is_stay) {
+        body.appendChild(rainBlock(day, it));
       }
 
       row.appendChild(body);
@@ -1237,6 +1452,31 @@
       xAnchor: 0.5,
       yAnchor: 1
     });
+  }
+
+  // 추천 카드를 누르면 그 장소로 지도를 옮기고 표시 (다른 표시는 그대로)
+  var focusOverlay = null;
+  var focusCard = null;
+
+  function focusPlace(item, card) {
+    if (item.lat == null || item.lon == null) return;
+    if (focusCard) focusCard.classList.remove('is-focus');
+    focusCard = card || null;
+    if (focusCard) focusCard.classList.add('is-focus');
+    if (!map) { initMap(); return; }
+
+    if (focusOverlay) focusOverlay.setMap(null);
+    focusOverlay = pin('focus', item.name, Number(item.lat), Number(item.lon));
+    focusOverlay.setZIndex(10);
+    focusOverlay.setMap(map);
+
+    map.relayout();
+    map.setLevel(5);
+    map.panTo(new kakao.maps.LatLng(Number(item.lat), Number(item.lon)));
+
+    // 폰처럼 지도가 화면 밖이면 지도까지 내려가 보여 준다
+    var r = el.mapBox.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) el.mapBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function updateMap() {

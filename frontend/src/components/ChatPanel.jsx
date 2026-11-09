@@ -4,7 +4,7 @@ import Icon from './Icon.jsx';
 import RecCards from './RecCards.jsx';
 import { EXAMPLES } from '../lib/util.js';
 
-function Bubble({ m, draft, sprite, onAddPin, onAddStay }) {
+function Bubble({ m, draft, sprite, onAddPin, onAddStay, focus, onFocusPlace }) {
   const isUser = m.role === 'user';
   const hasRec = !!(m.rec && m.rec.items && m.rec.items.length);
   const text = <div className={`tc-bubble${m.error ? ' tc-bubble--error' : ''}`}>{m.content}</div>;
@@ -19,7 +19,8 @@ function Bubble({ m, draft, sprite, onAddPin, onAddStay }) {
       {hasRec ? (
         <div className="tc-col">
           {text}
-          <RecCards rec={m.rec} draft={draft} sprite={sprite} onAddPin={onAddPin} onAddStay={onAddStay} />
+          <RecCards rec={m.rec} draft={draft} sprite={sprite} onAddPin={onAddPin} onAddStay={onAddStay}
+            focus={focus} onFocus={onFocusPlace} />
         </div>
       ) : (
         text
@@ -30,7 +31,7 @@ function Bubble({ m, draft, sprite, onAddPin, onAddStay }) {
 
 export default function ChatPanel({
   state, sprite, input, setInput, placeholder, inputRef,
-  onSend, onReset, onAddPin, onAddStay,
+  onSend, onReset, onAddPin, onAddStay, focus, onFocusPlace,
 }) {
   const listRef = useRef(null);
 
@@ -57,7 +58,8 @@ export default function ChatPanel({
 
       <div className="tc-messages" ref={listRef} aria-live="polite">
         {state.messages.map((m, i) => (
-          <Bubble key={i} m={m} draft={state.draft} sprite={sprite} onAddPin={onAddPin} onAddStay={onAddStay} />
+          <Bubble key={i} m={m} draft={state.draft} sprite={sprite} onAddPin={onAddPin} onAddStay={onAddStay}
+            focus={focus} onFocusPlace={onFocusPlace} />
         ))}
         {state.busy && (
           <div className="tc-msg tc-msg--bot">

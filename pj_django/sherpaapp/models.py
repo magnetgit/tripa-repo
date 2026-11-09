@@ -757,6 +757,49 @@ class SchedulePlace(models.Model):
 
 
 # ==============================================
+# 비용 관리: 장소별 예산 (🟦 11/09)
+# AI가 일정 장소마다 매긴 금액(가격 × 인원)을 회원이 고친 값만 저장한다.
+# 저장한 값이 없는 장소는 AI 금액을 그대로 쓴다. 분류 합계는 travel_budget 에 저장.
+# 일정에서 장소를 빼면(SchedulePlace 삭제) 같이 지워진다.
+# ==============================================
+
+class TravelBudgetItem(models.Model):
+
+    tbi_id = models.AutoField(
+        primary_key=True,
+        db_column='TBI_ID'
+    )
+
+    travel = models.ForeignKey(
+        Travel,
+        on_delete=models.CASCADE,
+        db_column='T_ID',
+        related_name='budget_items'
+    )
+
+    # 일정의 그 자리 (장소 하나에 금액 하나)
+    schedule_place = models.OneToOneField(
+        SchedulePlace,
+        on_delete=models.CASCADE,
+        db_column='SP_ID',
+        related_name='budget_item'
+    )
+
+    amount = models.PositiveIntegerField(
+        db_column='AMOUNT',
+        default=0
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        db_column='UPDATED_AT'
+    )
+
+    class Meta:
+        db_table = 'travel_budget_item'
+
+
+# ==============================================
 # 비용
 # ==============================================
 

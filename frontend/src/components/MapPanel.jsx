@@ -35,9 +35,10 @@ function isTransit(state) {
   return state.draft.transport === 'public_transport' || t.includes('대중교통');
 }
 
-export default function MapPanel({ state, sprite, odsayKey }) {
+export default function MapPanel({ state, sprite, odsayKey, focus }) {
   const boxRef = useRef(null);
   const mapRef = useRef(null);
+  const focusRef = useRef(null);   // 추천 카드를 눌러 띄운 장소 표시 (일정 표시와 따로)
   const overlaysRef = useRef([]);
   const tokenRef = useRef(0); // 다시 그리면 이전 경로 결과는 버림
   const [ready, setReady] = useState(false);
@@ -127,6 +128,23 @@ export default function MapPanel({ state, sprite, odsayKey }) {
       map.setLevel(d.start_place || (d.stays || []).length ? 5 : 8);
     }
   }, [ready, state, odsayKey]);
+
+  // 추천 카드를 누르면: 그 장소로 지도를 옮기고 주황 핀으로 표시
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !focus || Number.isNaN(focus.lat)) return;
+    const kakao = window.kakao;
+    if (focusRef.current) focusRef.current.setMap(null);
+    focusRef.current = pinOverlay(kakao, 'focus', focus.name, focus.lat, focus.lon);
+    focusRef.current.setZIndex(10);
+    focusRef.current.setMap(map);
+    map.relayout();
+    map.setLevel(5);
+    map.panTo(new kakao.maps.LatLng(focus.lat, focus.lon));
+    // 폰처럼 지도가 화면 밖이면 지도까지 내려가 보여 준다
+    const r = boxRef.current.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) boxRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [ready, focus]);
 
   return (
     <section className="tc-panel tc-mapPanel" aria-label="지도">

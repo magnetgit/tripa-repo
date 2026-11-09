@@ -58,6 +58,53 @@ export function costText(cost, people) {
     : `1인 ${wonText(cost.per)} (${tag})`;
 }
 
+// 실내 / 실외 (indoor: true · false · null 모름 → 표시 안 함). 비·눈 오는 날이면 실내는 강조, 실외는 흐리게
+const isRainy = (w) => !!w && (w.kind === 'rain' || w.kind === 'snow');
+
+// 실내 카드가 하나도 없으면 '1일차 실내 추천'이라고 말해 보라고 안내
+function weatherNote(w, rec) {
+  const mark = w.kind === 'snow' ? '❄' : '☔';
+  const when = w.date ? `${w.date.slice(5).replace('-', '/')} ` : '';
+  const pct = w.rain_pct != null ? `(강수 ${w.rain_pct}%)` : '';
+  const tip = rec.items.some((it) => it.indoor === true)
+    ? '실내 장소를 먼저 보여 드려요'
+    : `실내 장소는 '${rec.day ? `${rec.day}일차 ` : ''}실내 추천'이라고 말해 보세요`;
+  return `${mark} ${when}${w.label || '비'} 예보${pct} · ${tip}`;
+}
+
+export function PlaceTag({ indoor, rainy }) {
+  if (indoor === true) {
+    return <span className={`tc-tag tc-tag--indoor${rainy ? ' is-rain' : ''}`}>{rainy ? '실내 · 비 와도 OK' : '실내'}</span>;
+  }
+  if (indoor === false) {
+    return <span className={`tc-tag tc-tag--outdoor${rainy ? ' is-rain' : ''}`}>{rainy ? '실외 · 비 오면 아쉬워요' : '실외'}</span>;
+  }
+  if (indoor === null) {
+    // 시장·전망대처럼 곳마다 다른 곳 (서버가 판단 못 함)
+    return <span className="tc-tag tc-tag--mixed">실내·실외 섞임</span>;
+  }
+  return null;
+}
+
+// TRIPA 추천 장소: 팀이 확인한 영업시간·입장료·휴무·주차·메모 (pick, 값이 있는 것만)
+const PICK_ROWS = [['hours', '영업'], ['fee', '입장료'], ['rest', '휴무'], ['parking', '주차'], ['memo', '팁']];
+
+function PickInfo({ pick }) {
+  if (!pick) return null;
+  const rows = PICK_ROWS.filter(([key]) => pick[key]);
+  if (!rows.length) return null;
+  return (
+    <dl className="tc-pick">
+      {rows.map(([key, label]) => (
+        <div className={`tc-pick__row${key === 'memo' ? ' tc-pick__memo' : ''}`} key={key}>
+          <dt>{label}</dt>
+          <dd>{pick[key]}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 // 평점(review)은 값이 올 때만 (mock.json 키)
 function cardExtra(item) {
   const parts = [];
@@ -77,13 +124,17 @@ function hasStay(draft, item, day) {
   return !!s && (s.name === item.name || s.query === item.name);
 }
 
-export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay }) {
+export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay, focus, onFocus }) {
   const cond = [];
   if (rec.anchor) cond.push(`${rec.anchor} 기준`);
   if (rec.day) cond.push(`${rec.day}일차`);
   if (rec.time) cond.push(rec.time);
 
   const n = tripDays(draft);
+  const rainy = isRainy(rec.weather);
+  const canFocus = (item) => item.lat != null && item.lon != null;
+  const isFocused = (item) => !!focus && focus.name === item.name
+    && Math.abs(focus.lat - Number(item.lat)) < 1e-6 && Math.abs(focus.lon - Number(item.lon)) < 1e-6;
 
   return (
     <div className="tc-rec">
@@ -91,6 +142,7 @@ export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay }) {
         <span>조건</span>
         <span className="tc-chip">{cond.join(' · ') || rec.title}</span>
       </p>
+      {rainy && <p className="tc-rec__rain">{weatherNote(rec.weather, rec)}</p>}
 
       {rec.items.map((item) => {
         // 넣을 수 있는 날짜: AI가 정해 준 날짜, 아니면 1일차부터(최대 7일)
@@ -111,13 +163,22 @@ export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay }) {
         const showLink = item.url && KAKAO_LINK.test(item.url);
 
         return (
-          <div className="tc-card" key={`${item.name}-${item.addr || ''}`}>
+          <div
+            className={`tc-card${item.pick ? ' is-pick' : ''}${canFocus(item) ? ' is-clickable' : ''}${isFocused(item) ? ' is-focus' : ''}`}
+            key={`${item.name}-${item.addr || ''}`}
+            title={canFocus(item) ? '눌러서 지도에서 위치 보기' : undefined}
+            // 카드를 누르면 지도에서 위치 보기 (넣기 버튼·카카오맵 링크는 그대로 동작)
+            onClick={(e) => { if (canFocus(item) && onFocus && !e.target.closest('button, a')) onFocus(item); }}
+          >
             <CardPhoto item={item} sprite={sprite} />
 
             <div className="tc-card__body">
               <div className="tc-card__head">
                 <strong>{item.name}</strong>
+                {/* 팀이 직접 고른 장소 (부산 장소 표) */}
+                {item.pick && <span className="tc-tag tc-tag--pick">★ TRIPA 추천</span>}
                 <span className="tc-tag">{item.kind || '장소'}</span>
+                <PlaceTag indoor={item.indoor} rainy={rainy} />
               </div>
 
               <p className="tc-card__meta">
@@ -135,6 +196,8 @@ export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay }) {
                   )}
                 </p>
               )}
+
+              <PickInfo pick={item.pick} />
 
               {cardExtra(item) && <p className="tc-card__extra">{cardExtra(item)}</p>}
               {costText(item.cost, draft.people) && (

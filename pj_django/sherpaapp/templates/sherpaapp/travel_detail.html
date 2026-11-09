@@ -1362,7 +1362,14 @@
            여행 기간 축제·행사 (왼쪽) + 끌어서 넣기
         ========================================= */
         /* 헤더 버튼 묶음 + 공유 창 */
-        .trip-head-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .trip-head-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+
+        /* 다른 여행으로 이동 (내 여행 목록) */
+        .trip-switch { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 10px 0 12px; border: 1px solid #dbe4f3; border-radius: 10px; background: #fff; color: #2d6cdf; cursor: pointer; }
+        .trip-switch:focus-within { border-color: #2d6cdf; box-shadow: 0 0 0 3px rgba(45, 108, 223, .15); }
+        .trip-switch .tp-icon { width: 15px; height: 15px; flex: 0 0 auto; }
+        .trip-switch select { max-width: 240px; padding: 0 2px; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 700; color: #1f2d4a; cursor: pointer; outline: none; text-overflow: ellipsis; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
         .route-share-open { display: inline-flex; align-items: center; gap: 6px; }
         .route-share-open.is-shared { border-color: #2d6cdf; color: #2d6cdf; background: #eef4ff; }
         .route-share__desc { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: #f6f9ff; color: #3d4d68; font-size: 13.5px; line-height: 1.6; }
@@ -1494,6 +1501,69 @@
         .pay-ai .pay-item.is-ai { font-size: 13px; color: #4a5b78; }
         .pay-ai .total-pay.is-ai { color: #2d6cdf; }
         .pay-ai__note { margin: 6px 0 0; font-size: 11px; color: #98a3b8; line-height: 1.5; }
+
+        /* ===== 예산 초과 → 더 싼 대안 (budget_alternatives) ===== */
+        .alt-box { border: 1px solid #fad9ad; background: #fffaf2; }
+        .alt-box[hidden] { display: none; }
+
+        /* ===== 날씨 · 비 오는 날 실내 대안 (travel_weather) ===== */
+        .rain-box { border: 1px solid #d6e3fb; background: #f6f9ff; }
+        .rain-box[hidden] { display: none; }
+        .rain-line { margin: 0 0 8px; font-size: 13px; line-height: 1.6; color: #4a5b78; }
+        .rain-line.is-rain { color: #2459b8; font-weight: 700; }
+        .rain-box .alt-item { border-top-color: #dde7f8; }
+        .rain-open { padding: 4px 10px; border: 1px solid #c9d9f6; border-radius: 999px; background: #eef4ff; color: #2459b8; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .rain-open:hover { border-color: #2d6cdf; }
+        .rain-box .alt-list li { border-color: #e3eaf7; }
+        .day-wx { margin-top: 3px; font-size: 11.5px; font-weight: 700; color: #7b88a1; }
+        .day-wx.is-rain { color: #2459b8; }
+        .day-wx.is-old { font-weight: 600; color: #98a3b8; }
+        .rain-sub { margin: -4px 0 0; font-size: 11.5px; color: #98a3b8; }
+        .day.active .day-wx { color: rgba(255, 255, 255, .92); }
+        .sp-inout { display: inline-flex; margin-top: 5px; margin-left: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+        .sp-inout.is-in { background: #e8f1ff; color: #2d6cdf; }
+        .sp-inout.is-out { background: #eaf7ef; color: #1f8a4c; }
+        .sp-inout.is-in.is-rain { background: #2d6cdf; color: #fff; }
+        .sp-inout.is-out.is-rain { background: #f1f4f8; color: #8a97ad; }
+        .sp-inout.is-mixed { background: #f1f4f8; color: #64748b; }
+        .alt-box .section-title .tp-icon { color: #c25e00; }
+        .alt-summary { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: #4a5b78; }
+        .alt-summary b { color: #1f2d4a; }
+        .alt-summary .alt-over { color: #d64545; }
+        .alt-empty { margin: 0; font-size: 12.5px; color: #7b88a1; }
+        .alt-item { padding: 10px 0; border-top: 1px dashed #f0dcc0; }
+        .alt-item__head { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; font-weight: 700; color: #1f2d4a; }
+        .alt-item__head em { margin-right: 4px; font-style: normal; font-size: 11.5px; color: #c25e00; }
+        .alt-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+        /* 1줄: 이름 / 2줄: 종류·거리·금액 + 줄어드는 돈 + 바꾸기 */
+        .alt-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 2px 8px; padding: 7px 10px; border-radius: 10px; background: #fff; border: 1px solid #f3e6d3; }
+        .alt-name { grid-column: 1 / -1; display: flex; align-items: center; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: #1f2d4a; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .alt-name:hover { color: #2d6cdf; }
+        .alt-chev { flex: 0 0 auto; font-size: 12px; color: #98a3b8; transition: transform .2s ease; }
+        .alt-list li.is-open .alt-chev { transform: rotate(180deg); }
+        .alt-list li.is-open { border-color: #f0c98f; }
+        /* 펼친 정보 */
+        /* 왼쪽 칸이 좁아서 사진(위) → 정보(아래 전체 폭) 순서로 쌓음 */
+        .alt-detail { grid-column: 1 / -1; margin-top: 6px; padding-top: 8px; border-top: 1px dashed #f0dcc0; }
+        .alt-detail[hidden] { display: none; }
+        /* 카카오 사진은 작은 썸네일(130px)이라 늘리지 않고 작게 */
+        .alt-photo { position: relative; width: 96px; height: 96px; margin: 0 0 8px; border-radius: 8px; overflow: hidden; background: #f1f4f8; }
+        .alt-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .alt-photo figcaption { position: absolute; right: 6px; bottom: 4px; font-size: 10px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+        .alt-facts { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+        .alt-facts div { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px; font-size: 12px; line-height: 1.5; }
+        .alt-facts dt { color: #98a3b8; }
+        .alt-facts dd { margin: 0; color: #1f2d4a; word-break: keep-all; overflow-wrap: anywhere; }
+        .alt-facts a { color: #2d6cdf; }
+        .alt-src { display: block; font-size: 11px; color: #98a3b8; }
+        .alt-good { color: #1f8a4c; }
+        .alt-link { display: inline-block; margin-top: 2px; font-size: 12px; font-weight: 700; color: #2d6cdf; text-decoration: none; }
+        .alt-link:hover { text-decoration: underline; }
+        .alt-meta { min-width: 0; font-size: 11.5px; color: #7b88a1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .alt-save { font-style: normal; font-size: 12.5px; font-weight: 800; color: #1f8a4c; white-space: nowrap; }
+        .alt-swap { padding: 5px 10px; border: 0; border-radius: 8px; background: #2d6cdf; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .alt-swap:hover { background: #2459b8; }
+        .alt-swap:disabled { opacity: .5; cursor: default; }
         .sp-hours.is-warn { background: #fff3e0; color: #c25e00; }
         .sp-hours.is-closed { background: #fdecec; color: #d13438; }
         .sp-hours-summary {
@@ -1687,6 +1757,21 @@
 
                 {% if member and member.m_id == travel.member_id %}
                 <div class="trip-head-actions">
+                    {% if my_travels|length > 1 %}
+                    {# 다른 여행으로 이동: 고르면 바로 그 여행 상세로 #}
+                    <label class="trip-switch">
+                        {% include "_icon.html" with name="suitcase" %}
+                        <span class="sr-only">다른 여행으로 이동</span>
+                        <select id="tripSwitch" aria-label="다른 여행으로 이동"
+                                onchange="if (this.value) location.href = this.value;">
+                            {% for t in my_travels %}
+                            <option value="{% url 'travel_detail' t.t_id %}"{% if t.t_id == travel.t_id %} selected{% endif %}>
+                                {{ t.t_title }} · {{ t.t_start|date:"m.d" }}~{{ t.t_end|date:"m.d" }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
                     <button type="button" class="btn btn-secondary route-share-open{% if shared_route %} is-shared{% endif %}"
                             id="routeShareOpen" onclick="openRouteShare()">
                         {% include "_icon.html" with name="chat" %}
@@ -1758,20 +1843,14 @@
                         </div>
                     </section>
 
-                    <!-- 비용 (JS가 선택한 DAY에 맞춰 내용을 채움) -->
-                    <section class="pay-box" id="payBox">
-                        <div class="section-title">
-                            {% include "_icon.html" with name="wallet" %} DAY 1 여행 비용
-                        </div>
-                        <div class="pay-item">
-                            <span>등록된 비용이 없습니다.</span>
-                            <strong>0원</strong>
-                        </div>
-                        <div class="pay-item total-pay">
-                            <span>DAY 1 총 비용</span>
-                            <strong>0원</strong>
-                        </div>
-                    </section>
+                    <!-- 그날 AI 예상 비용 (JS가 채움). 예전 'DAY n 여행 비용'(지출 기록)은 11/09에 없앰 -->
+                    <section class="td-pay-ai" id="payBox" aria-label="그날 예상 비용"></section>
+
+                    <!-- 예산 초과: 같은 분류의 더 싼 대안 (예상 비용 > 총예산일 때만 JS가 채움) -->
+                    <section class="pay-box alt-box" id="altBox" aria-live="polite" hidden></section>
+
+                    <!-- 그날 날씨 + 비 오는 날 실외 장소의 실내 대안 (JS가 채움) -->
+                    <section class="pay-box rain-box" id="rainBox" aria-live="polite" hidden></section>
                 </div>
             </section>
 
@@ -5188,6 +5267,8 @@ function loadDay(day) {
             loadPlaceHours(day);
             renderPayment(data);
             loadPlaceCosts(day);
+            loadBudgetAlternatives();
+            loadDayWeather(day);
 
             const currentDayTitle =
                 document.getElementById(
@@ -6304,7 +6385,229 @@ function renderSchedule(
 
     applySpHours();
     applySpCosts();
+    applySpIndoor();
 }
+
+
+/* =========================================================
+   날씨 · 비 오는 날 실내 대안 (travel_weather / rain_options / budget_swap)
+   날짜 버튼에 날씨, 카드에 실내/실외, 비 오는 날이면 왼쪽에 실외 장소의 실내 대안
+========================================================= */
+
+const WX_MARK = { sun: "☀", cloud: "☁", rain: "☔", snow: "❄" };
+let wxDays = [];          // [{day, date, weather}]
+let wxIndoor = {};        // sp_id → true / false / null
+let wxDay = null;
+let wxPeople = 2;
+let rainOptions = {};     // sp_id → 대안 목록 / "loading" / "error"
+
+function loadDayWeather(day) {
+    fetch(`/travel_weather/${travelId}/${day}/`, { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            if (!data || !data.success || String(currentDay) !== String(day)) {
+                return;
+            }
+            wxDays = data.days || [];
+            wxIndoor = data.places || {};
+            wxPeople = data.people || 2;
+            wxDay = day;
+            rainOptions = {};
+            renderDayWeather();
+            applySpIndoor();
+            renderRainBox();
+        })
+        .catch(function () { /* 날씨는 덤 */ });
+}
+
+function wxText(w) {
+    return `${WX_MARK[w.kind] || "☁"}${w.temp != null ? ` ${w.temp}°` : ""}`;
+}
+
+function currentWeather() {
+    const d = wxDays.find(function (x) { return String(x.day) === String(currentDay); });
+    return d ? d.weather : null;
+}
+
+// 날짜 버튼(DAY 1, DAY 2 …) 아래에 날씨
+function renderDayWeather() {
+    document.querySelectorAll("#dayList .day").forEach(function (btn, i) {
+        btn.querySelectorAll(".day-wx").forEach(function (el) { el.remove(); });
+        const d = wxDays[i];
+        if (d && d.weather) {
+            const w = d.weather;
+            const span = document.createElement("div");
+            span.className = "day-wx" + (w.rainy ? " is-rain" : "") + (w.source === "last_year" ? " is-old" : "");
+            // 예보(16일 안) · 지난 날 실제 날씨 · 먼 날은 작년 같은 날
+            span.textContent = wxText(w) + (w.source === "last_year" ? " 작년" : "");
+            span.title = w.source === "last_year"
+                ? `작년 같은 날 ${w.label || ""} (예보는 여행 16일 전부터 나와요)`
+                : w.source === "past"
+                    ? `그날 실제 날씨: ${w.label || ""}`
+                    : `${w.label || ""}${w.rain_pct != null ? ` · 강수 ${w.rain_pct}%` : ""}`;
+            btn.appendChild(span);
+        }
+    });
+}
+
+// 카드에 실내 / 실외 (비 오는 날이면 실내 강조, 실외 흐리게)
+function applySpIndoor() {
+    const container = document.getElementById("timelineContainer");
+    if (!container) {
+        return;
+    }
+    container.querySelectorAll(".sp-inout").forEach(function (el) { el.remove(); });
+    if (String(wxDay) !== String(currentDay)) {
+        return;
+    }
+    const w = currentWeather();
+    const rainy = !!(w && w.rainy);
+    container.querySelectorAll(".sp-item").forEach(function (item) {
+        const v = wxIndoor[item.dataset.spId];
+        const main = item.querySelector(".sp-main");
+        if (v === undefined || !main) {
+            return;
+        }
+        const tag = document.createElement("span");
+        if (v === null) {
+            // 시장·전망대처럼 곳마다 다른 곳 (서버가 판단 못 함)
+            tag.className = "sp-inout is-mixed";
+            tag.textContent = "실내·실외 섞임";
+            main.appendChild(tag);
+            return;
+        }
+        tag.className = `sp-inout ${v ? "is-in" : "is-out"}${rainy ? " is-rain" : ""}`;
+        tag.textContent = v ? (rainy ? "실내 · 비 와도 OK" : "실내") : (rainy ? "실외 · 비 예보" : "실외");
+        main.appendChild(tag);
+    });
+}
+
+// 왼쪽 상자: 그날 날씨 + (비 오면) 실외 장소마다 실내 대안
+function renderRainBox() {
+    const box = document.getElementById("rainBox");
+    if (!box) {
+        return;
+    }
+    if (String(wxDay) !== String(currentDay)) {
+        box.hidden = true;
+        return;
+    }
+    const w = currentWeather();
+    let html = `<div class="section-title">${tpIcon("calendar")} DAY ${currentDay} 날씨</div>`;
+
+    if (!w) {
+        html += `<p class="rain-line">날씨 예보는 여행 16일 전부터 볼 수 있어요.</p>`;
+        box.innerHTML = html;
+        box.hidden = false;
+        return;
+    }
+
+    const pct = w.rain_pct != null ? ` · 강수 ${w.rain_pct}%` : "";
+    const temp = w.temp != null ? ` ${w.temp}°${w.temp_min != null ? `/${w.temp_min}°` : ""}` : "";
+    const outdoor = spRenderedPlaces.filter(function (sp) { return wxIndoor[String(sp.sp_id)] === false; });
+    const mark = WX_MARK[w.kind] || "☁";
+
+    if (w.source === "last_year") {
+        // 16일보다 먼 여행: 작년 같은 날 날씨 (참고용, 실내 대안은 예보가 나오면)
+        html += `<p class="rain-line">${mark} 작년 이맘때 ${escapeHtml(w.label || "")}${temp}${w.last_year_rain ? " · 작년엔 비·눈이 왔어요" : ""}</p>
+                 <p class="rain-sub">예보는 여행 16일 전부터 나와요. 그때 비 예보가 있으면 실내 대안을 보여 드려요.</p>`;
+        box.innerHTML = html;
+        box.hidden = false;
+        return;
+    }
+    if (w.source === "past") {
+        html += `<p class="rain-line">${mark} 그날 날씨 ${escapeHtml(w.label || "")}${temp}${w.rainy ? " · 비·눈이 왔어요" : ""}</p>`;
+        box.innerHTML = html;
+        box.hidden = false;
+        return;
+    }
+
+    if (!w.rainy) {
+        html += `<p class="rain-line">${WX_MARK[w.kind] || "☁"} ${escapeHtml(w.label || "")}${temp}${pct} · 실외 일정도 괜찮아요</p>`;
+    } else {
+        html += `<p class="rain-line is-rain">${WX_MARK[w.kind] || "☔"} ${escapeHtml(w.label || "비")}${temp}${pct} · ${outdoor.length ? `실외 ${outdoor.length}곳은 실내로 바꿀 수 있어요` : "오늘 일정은 모두 실내예요"}</p>`;
+        outdoor.forEach(function (sp) {
+            const key = String(sp.sp_id);
+            const got = rainOptions[key];
+            html += `<div class="alt-item"><div class="alt-item__head"><span>${escapeHtml(sp.place_name || "")}</span>
+                <button type="button" class="rain-open" data-rain-sp="${key}">${got ? "다시 찾기" : "☔ 실내 대안 보기"}</button></div>`;
+            if (got === "loading") {
+                html += `<p class="alt-empty">근처 실내 장소를 찾는 중이에요...</p>`;
+            } else if (got === "error") {
+                html += `<p class="alt-empty">실내 대안을 찾지 못했어요.</p>`;
+            } else if (Array.isArray(got)) {
+                html += got.length ? `<ul class="alt-list">${got.map(function (o, j) {
+                    const kind = (o.category || "").split(">").pop().trim();
+                    const price = o.cost ? (o.cost.per ? `1인 ${wonText(o.cost.per)}` : "무료") : "가격 정보 없음";
+                    return `<li>
+                        <b class="alt-name" title="${escapeHtml(o.name)}">${escapeHtml(o.name)}</b>
+                        <span class="alt-meta">${escapeHtml(kind)} · ${distanceText(o.distance)} · ${price}</span>
+                        <em class="alt-save"></em>
+                        <button type="button" class="alt-swap rain-swap" data-rain-pick="${key}-${j}">바꾸기</button>
+                    </li>`;
+                }).join("")}</ul>` : `<p class="alt-empty">5km 안에 실내 장소가 없어요.</p>`;
+            }
+            html += `</div>`;
+        });
+    }
+
+    box.innerHTML = html;
+    box.hidden = false;
+}
+
+document.addEventListener("click", function (e) {
+    const open = e.target.closest("[data-rain-sp]");
+    if (open) {
+        const key = open.dataset.rainSp;
+        const sp = spRenderedPlaces.find(function (x) { return String(x.sp_id) === key; });
+        if (!sp || sp.place_lat == null) {
+            rainOptions[key] = "error";
+            renderRainBox();
+            return;
+        }
+        rainOptions[key] = "loading";
+        renderRainBox();
+        const skip = spRenderedPlaces.map(function (x) { return x.place_name; }).join("|");
+        fetch(`/rain_options/?name=${encodeURIComponent(sp.place_name)}&lat=${sp.place_lat}&lon=${sp.place_lon}&people=${wxPeople}&skip=${encodeURIComponent(skip)}`, { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) { rainOptions[key] = data && data.success ? data.options : "error"; })
+            .catch(function () { rainOptions[key] = "error"; })
+            .then(renderRainBox);
+        return;
+    }
+
+    const pick = e.target.closest("[data-rain-pick]");
+    if (!pick) {
+        return;
+    }
+    const [key, j] = pick.dataset.rainPick.split("-");
+    const sp = spRenderedPlaces.find(function (x) { return String(x.sp_id) === key; });
+    const o = (rainOptions[key] || [])[Number(j)];
+    if (!sp || !o || !confirm(`비 예보라 '${sp.place_name}' 대신 실내 '${o.name}'(으)로 바꿀까요?\n그날 시간은 다시 계산돼요.`)) {
+        return;
+    }
+    document.querySelectorAll(".rain-swap").forEach(function (b) { b.disabled = true; });
+    fetch(`/budget_swap/${travelId}/`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRFToken": getCookie("csrftoken") },
+        body: new URLSearchParams({
+            sp_id: sp.sp_id, name: o.name, addr: o.addr || "", kind: o.kind || "관광",
+            lat: o.lat, lon: o.lon, kakao_id: o.kakao_id || "",
+        }),
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (!res.success) {
+                throw new Error(res.message || "바꾸지 못했어요.");
+            }
+            loadDay(currentDay);
+        })
+        .catch(function (err) {
+            alert(err.message || "바꾸지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+            document.querySelectorAll(".rain-swap").forEach(function (b) { b.disabled = false; });
+        });
+});
 
 
 /* =========================================================
@@ -6342,6 +6645,9 @@ function wonText(n) {
 function spCostText(c) {
     if (!c) {
         return "";
+    }
+    if (c.edited) {
+        return `예산 ${wonText(c.amount)} (직접 고침)`;   // 비용 관리에서 회원이 고친 금액
     }
     if (c.unit === "room") {
         const rooms = Math.ceil(spCostPeople / Math.max(1, c.cap || 2));
@@ -6381,6 +6687,193 @@ function applySpCosts() {
         main.appendChild(badge);
     });
 }
+
+/* =========================================================
+   예산 초과 → 같은 분류의 더 싼 대안 (budget_alternatives / budget_swap)
+   여행 전체 예상 비용이 총예산보다 크면, 비싼 장소부터 근처의 싼 곳을 보여주고 '바꾸기'
+========================================================= */
+
+let altData = null;
+let altBusy = false;
+
+function loadBudgetAlternatives() {
+    if (altBusy || !document.getElementById("altBox")) {
+        return;
+    }
+    altBusy = true;
+    fetch(`/budget_alternatives/${travelId}/`, { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(renderBudgetAlternatives)
+        .catch(function () { /* 대안은 덤: 실패해도 일정은 그대로 */ })
+        .finally(function () { altBusy = false; });
+}
+
+function distanceText(m) {
+    return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
+}
+
+function renderBudgetAlternatives(data) {
+    const box = document.getElementById("altBox");
+    if (!box) {
+        return;
+    }
+    altData = data;
+    if (!data || !data.success || !data.over) {
+        box.hidden = true;
+        box.innerHTML = "";
+        return;
+    }
+
+    let html = `
+        <div class="section-title">${tpIcon("bulb")} 예산 초과 · 더 싼 대안</div>
+        <p class="alt-summary">
+            예상 비용 <b>${wonText(data.planned)}</b>이 총예산 ${wonText(data.budget)}보다
+            <b class="alt-over">${wonText(data.over)}</b> 많아요 (${data.people}명 기준).
+            같은 분류의 근처 장소로 바꾸면 줄일 수 있어요.
+        </p>`;
+
+    if (!data.suggestions.length) {
+        html += `<p class="alt-empty">근처에서 같은 분류의 더 싼 곳을 찾지 못했어요. 비용 관리에서 총예산을 다시 정해 보세요.</p>`;
+    }
+
+    data.suggestions.forEach(function (sg, i) {
+        html += `
+            <div class="alt-item">
+                <div class="alt-item__head">
+                    <span><em>DAY ${sg.day}</em> ${escapeHtml(sg.name)}</span>
+                    <strong>${wonText(sg.amount)}</strong>
+                </div>
+                <ul class="alt-list">`;
+        sg.options.forEach(function (o, j) {
+            html += `
+                    <li>
+                        <button type="button" class="alt-name" aria-expanded="false" data-alt-info="${i}-${j}"
+                                title="눌러서 정보 보기">${escapeHtml(o.name)} <span class="alt-chev" aria-hidden="true">⌄</span></button>
+                        <span class="alt-meta">${escapeHtml(o.kind || "")} · ${distanceText(o.distance)} · ${wonText(o.cost.amount)}${o.cost.source === "tour" ? "" : " (예상)"}</span>
+                        <em class="alt-save">-${wonText(o.save)}</em>
+                        <button type="button" class="alt-swap" data-alt="${i}-${j}">바꾸기</button>
+                        <div class="alt-detail" hidden>${altDetailHtml(sg, o)}</div>
+                    </li>`;
+        });
+        html += `</ul></div>`;
+    });
+
+    box.innerHTML = html;
+    box.hidden = false;
+    loadAltReviews(data);
+}
+
+// 대안 가격이 어떻게 나왔는지: "1인 11,000원 × 2명 = 22,000원" / "1박 방 60,000원 × 2개 = 120,000원"
+function altPriceText(c) {
+    if (c.unit === "room") {
+        const rooms = Math.ceil((c.people || 1) / Math.max(1, c.cap || 2));
+        return `1박 방 ${wonText(c.per)} × ${rooms}개 = ${wonText(c.amount)}`;
+    }
+    if (!c.per) {
+        return "무료";
+    }
+    return `1인 ${wonText(c.per)} × ${c.people || 1}명 = ${wonText(c.amount)}`;
+}
+
+const ALT_KAKAO_LINK = /^https?:\/\/(place\.)?map\.kakao\.com\//;
+
+// 대안 줄을 누르면 펼쳐지는 정보: 사진 · 주소 · 분류 · 전화 · 가격 근거 · 지금 장소와 비교 · TRIPA 리뷰 · 카카오맵
+function altDetailHtml(sg, o) {
+    const rows = [];
+    if (o.addr) rows.push(["주소", escapeHtml(o.addr)]);
+    if (o.category) rows.push(["분류", escapeHtml(o.category.split(">").map(function (s) { return s.trim(); }).slice(1).join(" · ") || o.category)]);
+    if (o.phone) rows.push(["전화", `<a href="tel:${escapeHtml(o.phone)}">${escapeHtml(o.phone)}</a>`]);
+    rows.push(["가격", `${altPriceText(o.cost)} <span class="alt-src">${o.cost.source === "tour" ? "관광공사 요금" : "가게 종류로 본 보통 가격 (예상)"}</span>`]);
+    if (o.cost.text) rows.push(["원문", escapeHtml(o.cost.text)]);
+    rows.push(["비교", `지금 '${escapeHtml(sg.name)}' ${wonText(sg.amount)} → ${wonText(o.cost.amount)} <b class="alt-good">${wonText(o.save)} 절약</b>`]);
+    rows.push(["거리", `지금 장소에서 ${distanceText(o.distance)}`]);
+    rows.push(["리뷰", `<span data-alt-review="${escapeHtml(o.kakao_id || "")}">TRIPA 리뷰 없음</span>`]);
+
+    const photo = o.photo && o.photo.url
+        ? `<figure class="alt-photo"><img src="${escapeHtml(o.photo.url)}" alt="${escapeHtml(o.name)} 사진" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()">${o.photo.source === "tour" ? "<figcaption>사진: 한국관광공사</figcaption>" : ""}</figure>`
+        : "";
+    const link = o.url && ALT_KAKAO_LINK.test(o.url)
+        ? `<a class="alt-link" href="${escapeHtml(o.url)}" target="_blank" rel="noopener noreferrer">카카오맵에서 보기 ↗</a>`
+        : "";
+
+    return `${photo}<dl class="alt-facts">${rows.map(function (r) { return `<div><dt>${r[0]}</dt><dd>${r[1]}</dd></div>`; }).join("")}</dl>${link}`;
+}
+
+// TRIPA 회원 리뷰 평균 (리뷰 있는 곳만 돌아옴)
+function loadAltReviews(data) {
+    const ids = [];
+    data.suggestions.forEach(function (sg) { sg.options.forEach(function (o) { if (o.kakao_id) ids.push(o.kakao_id); }); });
+    if (!ids.length) {
+        return;
+    }
+    fetch(`/review_summary/?kakao_ids=${encodeURIComponent(ids.join(","))}`, { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (res) {
+            const found = (res && res.reviews) || {};   // {kakao_id: {rating, count}}
+            Object.keys(found).forEach(function (id) {
+                const s = found[id];
+                document.querySelectorAll(`[data-alt-review="${CSS.escape(id)}"]`).forEach(function (el) {
+                    el.textContent = `★ ${Number(s.rating).toFixed(1)} · TRIPA 리뷰 ${s.count}개`;
+                });
+            });
+        })
+        .catch(function () { /* 리뷰는 덤 */ });
+}
+
+// 이름 줄을 누르면 정보 펼치기/접기
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-alt-info]");
+    if (!btn) {
+        return;
+    }
+    const detail = btn.closest("li").querySelector(".alt-detail");
+    const open = detail.hidden;
+    detail.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    btn.closest("li").classList.toggle("is-open", open);
+});
+
+document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".alt-swap");
+    if (!btn || !altData) {
+        return;
+    }
+    const [i, j] = btn.dataset.alt.split("-").map(Number);
+    const sg = altData.suggestions[i];
+    const o = sg && sg.options[j];
+    if (!o || !confirm(`DAY ${sg.day} '${sg.name}' 대신 '${o.name}'(으)로 바꿀까요?\n예상 ${wonText(o.save)} 줄어요. 그날 시간은 다시 계산돼요.`)) {
+        return;
+    }
+
+    const body = new URLSearchParams({
+        sp_id: sg.sp_id, name: o.name, addr: o.addr || "", kind: o.kind || "",
+        lat: o.lat, lon: o.lon, kakao_id: o.kakao_id || "",
+    });
+    document.querySelectorAll(".alt-swap").forEach(function (b) { b.disabled = true; });
+
+    fetch(`/budget_swap/${travelId}/`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRFToken": getCookie("csrftoken") },
+        body: body,
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (!res.success) {
+                throw new Error(res.message || "바꾸지 못했어요.");
+            }
+            // 바꾼 날로 가서 다시 그림 (loadDay가 예상 비용·대안도 다시 불러옴)
+            if (String(sg.day) === String(currentDay)) {
+                loadDay(currentDay);
+            } else {
+                selectDay(sg.day);
+            }
+        })
+        .catch(function (err) {
+            alert(err.message || "바꾸지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+            document.querySelectorAll(".alt-swap").forEach(function (b) { b.disabled = false; });
+        });
+});
 
 // 왼쪽 'DAY n 여행 비용' 아래: 장소별 AI 예상 비용 + 예상 합계
 function renderPayAi() {
@@ -7209,82 +7702,14 @@ function deleteSchedulePlace(spId) {
 
 function renderPayment(data) {
 
-    const payBox =
-        document.getElementById(
-            "payBox"
-        );
+    // 예전 'DAY n 여행 비용'(기록한 지출)은 없앰 (11/09) → 그날 AI 예상 비용 자리만
+    const payBox = document.getElementById("payBox");
 
     if (!payBox) {
         return;
     }
 
-    let html = `
-        <div class="section-title">
-            ${tpIcon("wallet")} DAY ${data.day} 여행 비용
-        </div>
-    `;
-
-    if (
-        !data.pays
-        || data.pays.length === 0
-    ) {
-
-        html += `
-            <div class="pay-item">
-                <span>
-                    등록된 비용이 없습니다.
-                </span>
-
-                <strong>
-                    0원
-                </strong>
-            </div>
-        `;
-
-    } else {
-
-        data.pays.forEach(
-            function (pay) {
-
-                html += `
-                    <div class="pay-item">
-                        <span>
-                            ${pay.pay_context}
-                        </span>
-
-                        <strong>
-                            ${Number(
-                                pay.pay_pay
-                            ).toLocaleString()}원
-                        </strong>
-                    </div>
-                `;
-            }
-        );
-    }
-
-    html += `
-        <div class="pay-item total-pay">
-
-            <span>
-                DAY ${data.day} 총 비용
-            </span>
-
-            <strong>
-                ${Number(
-                    data.total_pay || 0
-                ).toLocaleString()}원
-            </strong>
-
-        </div>
-    `;
-
-    // AI 예상 비용 자리 (travel_costs 를 받으면 renderPayAi 가 채움)
-    html += `<div class="pay-ai" id="payAi"></div>`;
-
-    payBox.innerHTML =
-        html;
-
+    payBox.innerHTML = `<div class="pay-ai" id="payAi"></div>`;
     renderPayAi();
 }
 

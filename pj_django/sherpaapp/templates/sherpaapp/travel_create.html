@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRIPA - 여행 만들기</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261066">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261074">
 
     <style>
         .search-input-row {
@@ -400,6 +400,7 @@
              data-add-url="{% url 'schedule_place_add' %}"
              data-preview-url="{% url 'travel_chat_preview' %}"
              data-estimate-url="{% url 'budget_estimate' %}"
+             data-rain-url="{% url 'rain_options' %}"
              data-login-url="{% url 'login' %}"
              data-member="{{ member.m_id|default:'guest' }}"
              data-odsay-key="{{ ODSAY_WEB_API_KEY|default:'' }}"
@@ -522,6 +523,6 @@
 </div>
 
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
-<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261048"></script>
+<script src="{% static 'sherpaapp/js/travel_chat.js' %}?v=20261054"></script>
 </body>
 </html>

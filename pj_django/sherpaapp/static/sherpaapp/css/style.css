@@ -4629,6 +4629,8 @@ button.preview-day {
 .bg-ai__btn { margin-left: auto; padding: 7px 12px; border: 0; border-radius: 8px; background: #2d6cdf; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
 .bg-ai__btn:hover { background: #2459b8; }
 .bg-ai__note { margin: 8px 0 0; font-size: 11px; color: #98a3b8; }
+.bg-ai__go { display: block; margin-top: 10px; padding: 8px 10px; border-radius: 9px; background: #fff; border: 1px solid #d6e3fb; text-align: center; font-size: 13px; font-weight: 700; color: #2d6cdf; text-decoration: none; }
+.bg-ai__go:hover { border-color: #2d6cdf; background: #eef4ff; }
 
 .bg-note {
     display: flex;
@@ -4734,6 +4736,13 @@ button.preview-day {
 
 .tc-mappin--stop .tc-mappin__label { background: #2d6cdf; }
 
+/* 추천 카드를 눌러서 지도에 띄운 장소 */
+.tc-mappin--focus .tc-mappin__label { background: #f0a03c; box-shadow: 0 4px 12px rgba(240, 160, 60, .45); }
+.tc-mappin--focus .tc-mappin__dot { background: #f0a03c; width: 14px; height: 14px; }
+.tc-card.is-clickable { cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.tc-card.is-clickable:hover { border-color: #b9cdf3; }
+.tc-card.is-focus { border-color: #f0a03c; box-shadow: 0 0 0 2px rgba(240, 160, 60, .35); }
+
 .tc-plan { margin-top: 18px; padding-top: 16px; border-top: 1px solid #eaeff8; }
 .tc-plan__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .tc-plan__head h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; color: #1f2d4a; }
@@ -4806,6 +4815,42 @@ button.preview-day {
 .tc-tag--stay { display: inline-flex; align-items: center; gap: 3px; background: #efecfc; color: #6b5bd6; }
 .tc-tag--stay .tp-icon { width: 11px; height: 11px; }
 .tc-tag--pin { background: #fff4e0; color: #b46a05; }
+
+/* 추천 카드 실내 / 실외 (indoor), 비·눈 오는 날 강조 */
+.tc-tag--indoor { background: #e8f1ff; color: #2d6cdf; }
+.tc-tag--outdoor { background: #eaf7ef; color: #1f8a4c; }
+.tc-tag--indoor.is-rain { background: #2d6cdf; color: #fff; }
+.tc-tag--outdoor.is-rain { background: #f1f4f8; color: #8a97ad; }
+.tc-tag--mixed { background: #f1f4f8; color: #64748b; }
+
+/* 추천 카드: TRIPA 추천 (팀이 고른 장소, pick) */
+.tc-card.is-pick { border-color: #f5c98b; box-shadow: 0 0 0 1px #fbe3bd inset; background: linear-gradient(180deg, #fffaf2 0%, #fff 60%); }
+.tc-tag--pick { background: #f0a03c; color: #fff; }
+.tc-pick { display: flex; flex-direction: column; gap: 3px; margin: 6px 0 0; padding: 7px 10px; border-radius: 10px; background: #fff7ea; border: 1px solid #f8e2c0; }
+.tc-pick__row { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 6px; font-size: 12px; line-height: 1.5; }
+.tc-pick__row dt { color: #b46a05; font-weight: 700; }
+.tc-pick__row dd { margin: 0; color: #4a3a22; word-break: keep-all; overflow-wrap: anywhere; }
+.tc-pick__memo dd { color: #7a6a52; }
+/* 일정 미리보기: 일차 탭 날씨 · 그날 날씨 한 줄 · 비 오는 날 실내 대안 */
+.tc-tab__wx { display: block; margin-top: 2px; font-size: 11px; font-weight: 700; color: #7b88a1; }
+.tc-tab__wx.is-rain { color: #2459b8; }
+.tc-tab__wx.is-old { font-weight: 600; color: #98a3b8; }
+.tc-tab.is-on .tc-tab__wx { color: rgba(255, 255, 255, .9); }
+.tc-plan__wx { margin: 0 0 8px; padding: 7px 10px; border-radius: 10px; background: #f4f7fd; font-size: 12.5px; color: #5b6b88; }
+.tc-plan__body > .tc-rec__rain { margin: 0 0 8px; }
+.tc-rain { margin-top: 6px; }
+.tc-rain__btn { padding: 4px 10px; border: 1px solid #c9d9f6; border-radius: 999px; background: #eef4ff; color: #2459b8; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tc-rain__btn:hover { border-color: #2d6cdf; }
+.tc-rain__msg { margin: 6px 0 0; font-size: 12px; color: #7b88a1; }
+.tc-rain__opt { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 6px 8px; border: 1px solid #e3eaf7; border-radius: 10px; background: #fff; }
+.tc-rain__img { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: #eef3fb; }
+.tc-rain__info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tc-rain__info strong { font-size: 13px; color: #1f2d4a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-rain__info span { font-size: 11.5px; color: #7b88a1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-rain__pick { flex: 0 0 auto; padding: 5px 10px; border: 0; border-radius: 8px; background: #2d6cdf; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tc-rain__pick:hover { background: #2459b8; }
+
+.tc-rec__rain { margin: 6px 0 0; padding: 7px 10px; border-radius: 10px; background: #eef4ff; border: 1px solid #d6e3fb; font-size: 12.5px; font-weight: 700; color: #2459b8; }
 
 .tc-plan__sum { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid #eaeff8; font-size: 12px; color: #5b6b88; text-align: right; }
 .tc-plan__sum:empty { display: none; }
