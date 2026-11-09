@@ -221,6 +221,29 @@ DATABASES = {
 
 
 # =========================================================
+# Cache (외부 API 결과 저장: 관광공사 운영시간·요금·사진, 날씨, 카카오 경로 등)
+#
+# DB 표(django_cache)에 저장한다. 기본값(프로세스 메모리)은
+#   - 서버의 gunicorn 프로세스 3개가 따로 가지고
+#   - 배포·재시작 때마다 지워져서
+# "7일 캐시"가 실제로는 오래 가지 못했다.
+# 표는 마이그레이션 0015가 만든다 (migrate만 하면 됨).
+# 시험하다 지우고 싶으면:
+#   python manage.py shell -c "from django.core.cache import cache; cache.clear()"
+# =========================================================
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
+        "TIMEOUT": 300,  # 시간을 따로 안 주면 5분 (각 서비스는 보통 직접 정함)
+        "OPTIONS": {
+            "MAX_ENTRIES": 50000,  # 넘으면 오래된 것부터 1/3 지움
+        },
+    }
+}
+
+
+# =========================================================
 # Password validation
 # =========================================================
 
