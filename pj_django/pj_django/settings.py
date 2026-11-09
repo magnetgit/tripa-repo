@@ -136,6 +136,9 @@ AI_BACKUP_MODEL = env(
     default="",
 )
 
+# 임베딩 모델 (설정 A: OpenAI / 설정 B:bge-m3)
+AI_EMBED_MODEL = env("AI_EMBED_MODEL", default="text-embedding-3-small")
+
 
 # =========================================================
 # Application definition
