@@ -901,6 +901,60 @@ class ReviewSummary(models.Model):
 
 
 # ==============================================
+# 리뷰·관광공사 소개글 임베딩 조각
+# ==============================================
+class EmbedChunk(models.Model):
+
+    ec_id = models.AutoField(
+        primary_key=True,
+        db_column='EC_ID'
+    )
+
+    kind = models.CharField(
+        max_length=20,
+        db_column='KIND'
+    )
+
+    ref_id = models.CharField(
+        max_length=64,
+        db_column='REF_ID'
+    )
+
+    seq = models.PositiveSmallIntegerField(
+        default=0,
+        db_column='SEQ'
+    )
+
+    text = models.TextField(
+        db_column='TEXT'
+    )
+
+    vector = models.JSONField(
+        db_column='VECTOR'
+    )
+
+    model = models.CharField(
+        max_length=100,
+        db_column='MODEL'
+    )
+
+    meta = models.JSONField(
+        default=dict,
+        blank=True,
+        db_column='META'
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        db_column='UPDATED_AT'
+    )
+
+    class Meta:
+        db_table = 'embed_chunk'
+        indexes = [models.Index(fields=['kind', 'ref_id']), models.Index(fields=['model'])]
+
+
+# ==============================================
 # 여행 루트 공유 (리뷰 게시판 '여행 루트' 탭)
 # - 주인이 '게시판에 공유'를 누른 여행만 남에게 보임
 # - 다른 회원은 별점(한 사람 1개, 바꿀 수 있음)과 댓글을 남김
