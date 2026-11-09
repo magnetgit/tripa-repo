@@ -2144,6 +2144,37 @@ def check_email(request):
     })
 
 
+# 닉네임 규칙: 앞뒤 공백 빼고 2~10자. 문제가 있으면 안내 문장, 없으면 ''
+def nickname_problem(nickname):
+    nickname = (nickname or '').strip()
+    if len(nickname) < 2 or len(nickname) > 10:
+        return '닉네임은 2~10자로 정해 주세요.'
+    return ''
+
+
+# 비밀번호 규칙 (가입·비밀번호 재설정). 문제가 있으면 안내 문장, 없으면 ''
+def password_problem(pwd, user_id=''):
+    pwd = pwd or ''
+    if len(pwd) < 8 or len(pwd) > 30:
+        return '비밀번호는 8~30자로 정해 주세요.'
+    if re.search(r'\s', pwd):
+        return '비밀번호에 공백(띄어쓰기)은 넣을 수 없어요.'
+    if not re.search(r'[A-Z]', pwd):
+        return '비밀번호에 영문 대문자를 하나 이상 넣어 주세요.'
+    # 영문 소문자
+    if not re.search(r'[a-z]', pwd):
+        return '비밀번호에 영문 소문자를 하나 이상 넣어 주세요.'
+    # 특수문자 (영문·숫자가 아닌 글자)
+    if not re.search(r'[^A-Za-z0-9]', pwd):
+        return '비밀번호에 특수문자(!@# 등)를 하나 이상 넣어 주세요.'
+    if re.search(r'(.)\1\1', pwd):
+        return '같은 글자를 3번 연속으로 쓸 수 없어요.'
+    # 아이디가 들어 있으면 안됨 (대소문자 무시)
+    if user_id and user_id.lower() in pwd.lower():
+        return '비밀번호에 아이디를 넣을 수 없어요.'
+    return ''
+
+
 # ==============================================
 # 회원가입 처리
 # ==============================================
@@ -2215,6 +2246,16 @@ def join_ok(request):
         return HttpResponse("""
             <script>
                 alert('이미 사용 중인 이메일입니다.');
+                history.back();
+            </script>
+        """)
+
+    # 비밀번호·닉네임 규칙
+    problem = password_problem(pwd, user_id) or nickname_problem(nickname)
+    if problem:
+        return HttpResponse(f"""
+            <script>
+                alert('{problem}');
                 history.back();
             </script>
         """)
@@ -2546,6 +2587,16 @@ def pw_find(request):
                 </script>
             """)
 
+        # 비밀번호 규칙
+        problem = password_problem(new_pwd, user_id)
+        if problem:
+            return HttpResponse(f"""
+                <script>
+                    alert('{problem}');
+                    history.back();
+                </script>
+            """)
+
 
         member.pwd = (
             make_password(new_pwd)
@@ -2619,9 +2670,14 @@ def mypage_edit(request):
             name
         )
 
-        member.nickname = (
-            nickname
-        )
+
+        # 닉네임 규칙
+        error = nickname_problem(nickname)
+        if error:
+            return render(request, 'mypage_edit.html', {'member': member, 'error': error, 'avatars': AVATAR_CHOICES})
+
+
+        member.nickname = ((nickname or '').strip())
 
         # 프로필 캐릭터 (목록에 있는 값일 때만 바꿈)
         profile_img = request.POST.get('profile_img')
