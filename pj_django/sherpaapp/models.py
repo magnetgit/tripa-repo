@@ -903,6 +903,9 @@ class ReviewSummary(models.Model):
 # ==============================================
 # 리뷰·관광공사 소개글 임베딩 조각
 # ==============================================
+# 글 조각과 그 벡터(숫자 목록)를 저장하는 표 (embed_chunk)
+# 🟧 리뷰 RAG(kind='review')와 🟩 여행지 정보 RAG(kind='tour')가 같이 쓴다 (TEAM_UPDATES 11/09 공유 정의)
+# 저장·검색은 직접 하지 말고 services/embed_service.py의 save_chunks·search를 쓴다
 class EmbedChunk(models.Model):
 
     ec_id = models.AutoField(
@@ -949,6 +952,7 @@ class EmbedChunk(models.Model):
         db_column='UPDATED_AT'
     )
 
+    # 표 이름과 인덱스: (kind, ref_id)는 옛 조각 지울 때, model은 지금 모델 것만 찾을 때 빠르게
     class Meta:
         db_table = 'embed_chunk'
         indexes = [models.Index(fields=['kind', 'ref_id']), models.Index(fields=['model'])]
