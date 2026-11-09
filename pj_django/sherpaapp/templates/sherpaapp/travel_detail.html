@@ -3892,16 +3892,26 @@ function buildTransitStepsHtml(route) {
                 );
             }
 
-            if (step.boarding_stop) {
+            if (mode === "walk" && (step.boarding_stop || step.alighting_stop)) {
+                // 걷는 구간은 '탑승·하차' 대신 'A → B 걸어서'
                 details.push(
-                    `${escapeHtml(step.boarding_stop)} 탑승`
+                    `${[step.boarding_stop, step.alighting_stop]
+                        .filter(Boolean)
+                        .map(escapeHtml)
+                        .join(" → ")} 걸어서`
                 );
-            }
+            } else {
+                if (step.boarding_stop) {
+                    details.push(
+                        `${escapeHtml(step.boarding_stop)} 탑승`
+                    );
+                }
 
-            if (step.alighting_stop) {
-                details.push(
-                    `${escapeHtml(step.alighting_stop)} 하차`
-                );
+                if (step.alighting_stop) {
+                    details.push(
+                        `${escapeHtml(step.alighting_stop)} 하차`
+                    );
+                }
             }
 
             if (step.arrival_time) {
