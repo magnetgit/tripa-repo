@@ -5780,7 +5780,7 @@ def budget_category(request, travel_id):
     """여행의 카테고리(분류별) 예산
     GET  → {success, budget: {total, limit: {분류: 예산}, by: {분류: 쓴 돈}}}
     GET ?plan=1 → 위 + plan·counts·people·items (장소별 금액, 비용 관리 화면)
-    POST JSON {limit: {sight: 30000, food: 150000, ...}, items: {sp_id: 금액 또는 null}} → 같은 모양
+    POST JSON {limit: {sight: 30000, food: 150000, ...}, items: {sp_id: 금액 또는 null}, total: 총예산(선택)} → 같은 모양
          limit 은 보낸 분류만 저장, items 는 장소별로 고친 금액 (null 이면 AI 금액으로 되돌림)
     분류 키: sight·food·cafe·move·stay·shop·etc (mock.json budget 키)
     """
@@ -5798,13 +5798,17 @@ def budget_category(request, travel_id):
         body = _chat_json_body(request)
         if body is None or not isinstance(body.get('limit'), dict):
             return JsonResponse({'success': False, 'message': 'limit 값이 필요해요.'}, status=400)
-        if not budget_service.clean_limits(body['limit']) and not isinstance(body.get('items'), dict):
+        total = budget_service.clean_limits({'etc': body.get('total')}).get('etc') if 'total' in body else None
+        if not budget_service.clean_limits(body['limit']) and not isinstance(body.get('items'), dict) and total is None:
             return JsonResponse({'success': False, 'message': '저장할 분류 금액이 없어요.'}, status=400)
         if isinstance(body.get('items'), dict):
             _save_budget_items(travel, body['items'])
         limits = budget_service.save_limits(travel, body['limit'])
-        # 비용 관리(11/09)에서는 총예산을 따로 고치지 않고 분류 합계가 곧 총예산
-        travel.t_budget = sum(limits.values())
+        if total is not None:
+            travel.t_budget = total   # 비용 관리에서 총예산을 직접 고침
+        else:
+            # total 을 안 보내면: 여행 만들 때 정한 금액을 지키고, 분류 합계가 더 크면 그만큼 늘린다
+            travel.t_budget = max(travel.t_budget or 0, sum(limits.values()))
         travel.save(update_fields=['t_budget'])
     elif request.method == 'GET':
         limits = budget_service.load_limits(travel)

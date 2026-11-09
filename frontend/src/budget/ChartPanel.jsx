@@ -9,7 +9,7 @@ import { CATS, won } from './cats.js';
 const short = (v) => (Math.abs(v) >= 10000 ? `${Math.round(v / 1000) / 10}만` : String(v));
 const mmdd = (iso) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 
-export default function ChartPanel({ cfg, limits, plan, days, dayAmounts }) {
+export default function ChartPanel({ cfg, limits, total, plan, days, dayAmounts }) {
   const donutRef = useRef(null);
   const dailyRef = useRef(null);
   const catRef = useRef(null);
@@ -17,7 +17,7 @@ export default function ChartPanel({ cfg, limits, plan, days, dayAmounts }) {
 
   // 차트에 쓸 값 (바뀔 때만 다시 그리도록 글자로 묶음)
   const cats = CATS.filter((c) => limits[c.key] || plan[c.key]);
-  const sumLimit = CATS.reduce((s, c) => s + (limits[c.key] || 0), 0);
+  const sumLimit = total || CATS.reduce((s, c) => s + (limits[c.key] || 0), 0);   // 총예산 (화면 위 요약과 같은 값)
   const daily = days.map((iso, i) => ({
     label: `${i + 1}일차 ${mmdd(iso)}`,
     plan: dayAmounts[iso] || 0,
