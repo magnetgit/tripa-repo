@@ -25,6 +25,7 @@ export default function BudgetApp({ cfg }) {
   const [reloadKey, setReloadKey] = useState(0);   // 바꾸기 뒤에 다시 불러올 때 +1
   const [itemInputs, setItemInputs] = useState({}); // 장소별 금액 입력 중
   const [resets, setResets] = useState([]);          // 'AI 금액으로' 되돌린 장소 (저장 때 null)
+  const [totalInput, setTotalInput] = useState('');  // 총예산 입력 중 (숫자 글자)
 
   // 처음 열 때와 장소를 바꾼 뒤: 예산·일정 예상 비용 불러오기
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function BudgetApp({ cfg }) {
         setData(budget);
         setInputs(toInputs(budget.limit));
         setItemInputs(toItemInputs(budget.items));
+        setTotalInput(String(budget.total || 0));
         setResets([]);
         setError('');
       })
@@ -56,7 +58,9 @@ export default function BudgetApp({ cfg }) {
       itemChanges[it.sp_id] = toNumber(text);
     }
   });
+  const total = toNumber(totalInput);   // 총예산 (내가 정한 금액, 분류 합계와 따로)
   const changed = !!data && (
+    total !== (data.total || 0) ||
     CATS.some((c) => limits[c.key] !== ((data.limit || {})[c.key] || 0)) || Object.keys(itemChanges).length > 0
   );
 
@@ -70,8 +74,9 @@ export default function BudgetApp({ cfg }) {
   const plan = data.plan || {};
   const sumLimit = CATS.reduce((s, c) => s + limits[c.key], 0);
   const sumPlan = CATS.reduce((s, c) => s + (plan[c.key] || 0), 0);
-  const overPlan = sumPlan - sumLimit;   // + 면 일정 예상이 예산보다 많음
-  const left = sumLimit - sumPlan;       // 남은 금액 = 총예산 - 일정 예상 (- 면 초과)
+  const unassigned = total - sumLimit;   // + 면 아직 분류에 안 나눈 금액, - 면 분류에 더 많이 나눔
+  const overPlan = sumPlan - total;      // + 면 일정 예상이 예산보다 많음
+  const left = total - sumPlan;          // 남은 금액 = 총예산 - 일정 예상 (- 면 초과)
 
   // 금액이 있는 분류만 기본으로 보여 주고, 나머지는 '다른 분류도 보기'
   // (금액이 0이어도 일정 장소가 있는 분류는 보여 줌 → 가격 모르는 곳을 직접 적을 수 있게)
@@ -104,12 +109,15 @@ export default function BudgetApp({ cfg }) {
     setResets(items.filter((it) => it.edited).map((it) => it.sp_id));
     setMsg('일정 예상 비용(AI)으로 채웠어요. 저장을 눌러야 반영돼요.');
   };
-  const reset = () => { setInputs(toInputs(data.limit)); setItemInputs(toItemInputs(items)); setResets([]); setMsg(''); };
+  const reset = () => {
+    setInputs(toInputs(data.limit)); setItemInputs(toItemInputs(items)); setResets([]);
+    setTotalInput(String(data.total || 0)); setMsg('');
+  };
 
   const save = async () => {
     setSaving(true);
     try {
-      await saveLimits(cfg, limits, itemChanges);
+      await saveLimits(cfg, limits, itemChanges, total);
       setMsg('예산을 저장했어요.');
       load();   // 장소별 금액까지 새로 불러오기
     } catch (err) {
@@ -137,9 +145,24 @@ export default function BudgetApp({ cfg }) {
           <span className="cb-sub">{cfg.place} · {cfg.dates} · {data.people || 1}명 기준</span>
         </div>
 
-        {/* 총예산 = 분류 예산 합계 (따로 고치지 않음, 저장하면 같이 바뀜) */}
+        {/* 총예산은 직접 고침 (여행 만들 때 정한 금액에서 시작), 분류 예산은 그 안에서 나눔 */}
         <dl className="cb-stats">
-          <div><dt>총예산 (분류 합계)</dt><dd className={changed ? 'is-edit' : ''}>{won(sumLimit)}</dd></div>
+          <div>
+            <dt><label htmlFor="cbTotal">총예산 (직접 고치기)</label></dt>
+            <dd>
+              <label className="cb-input cb-input--total">
+                <input
+                  id="cbTotal"
+                  type="text"
+                  inputMode="numeric"
+                  className={total !== (data.total || 0) ? 'is-edit' : ''}
+                  value={total.toLocaleString('ko-KR')}
+                  onChange={(e) => { setTotalInput(e.target.value.replace(/[^\d]/g, '').slice(0, 9)); setMsg(''); }}
+                />
+                <span>원</span>
+              </label>
+            </dd>
+          </div>
           <div><dt>일정 예상 (AI)</dt><dd className={overPlan > 0 ? 'is-over' : ''}>{won(sumPlan)}</dd></div>
           <div><dt>남은 금액</dt><dd className={left < 0 ? 'is-over' : ''}>{left < 0 ? `${won(-left)} 초과` : won(left)}</dd></div>
         </dl>
@@ -147,8 +170,10 @@ export default function BudgetApp({ cfg }) {
         <p className={`cb-note${overPlan > 0 ? ' is-warn' : ''}`}>
           {overPlan > 0
             ? <>일정 예상 비용이 예산보다 <b>{won(overPlan)}</b> 많아요. 빨간 분류의 '더 싼 곳 찾기'로 줄여 보세요.</>
-            : <>일정 예상 비용이 예산 안에 있어요{sumLimit > sumPlan ? <> ({won(sumLimit - sumPlan)} 여유)</> : null}.</>}
-          {changed && <> 저장하면 총예산이 <b>{won(sumLimit)}</b>(으)로 바뀌어요.</>}
+            : <>일정 예상 비용이 예산 안에 있어요{left > 0 ? <> ({won(left)} 여유)</> : null}.</>}
+          {unassigned > 0 && <> 분류에 나눈 금액은 {won(sumLimit)}이고, {won(unassigned)}은 아직 안 나눴어요.</>}
+          {unassigned < 0 && <> <b className="cb-bad">분류 예산 합계({won(sumLimit)})가 총예산보다 {won(-unassigned)} 많아요.</b></>}
+          {changed && <> 저장을 눌러야 반영돼요.</>}
         </p>
       </section>
 
@@ -203,6 +228,7 @@ export default function BudgetApp({ cfg }) {
       <ChartPanel
         cfg={cfg}
         limits={limits}
+        total={total}
         plan={plan}
         days={data.days || []}
         dayAmounts={items.reduce((acc, it) => {

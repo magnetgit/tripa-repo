@@ -233,6 +233,13 @@ urlpatterns = [
         name='travel_weather'
     ),
 
+    # 장소 사이 대중교통 경로 (🟦 카카오 대중교통 길찾기, ODsay 대신)
+    path(
+        'transit_route/',
+        views.transit_route,
+        name='transit_route'
+    ),
+
     # 예산을 넘으면 같은 분류의 더 싼 대안 (🟦 예산 AI)
     path(
         'budget_alternatives/<int:travel_id>/',

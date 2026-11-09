@@ -18,6 +18,8 @@
 .cb-stats dd { margin: 2px 0 0; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cb-stats dd.is-over { color: var(--cb-red); }
 .cb-stats dd.is-edit { color: var(--cb-blue); }
+.cb-input--total input { width: 100%; max-width: 180px; padding: 4px 10px; font-size: 18px; font-weight: 800; background: #fff; }
+.cb-input--total input.is-edit { color: var(--cb-blue); border-color: var(--cb-blue); }
 .cb-note { margin: 10px 0 0; font-size: 13px; color: #4a5b78; }
 .cb-note.is-warn { color: #9a4b00; }
 .cb-note a { color: var(--cb-blue); font-weight: 700; }

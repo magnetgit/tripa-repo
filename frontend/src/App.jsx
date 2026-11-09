@@ -346,7 +346,7 @@ export default function App({ cfg }) {
           onMove: moveItem, onRemove: removeItem, onResetOrder: resetOrder, onRestore: restoreDay, onRefresh: refreshPlan,
         }}
       />
-      <MapPanel state={state} sprite={cfg.sprite} odsayKey={cfg.odsayKey} focus={focus} />
+      <MapPanel state={state} sprite={cfg.sprite} transitUrl={cfg.transitUrl} focus={focus} />
     </>
   );
 }

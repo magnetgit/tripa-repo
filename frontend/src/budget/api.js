@@ -38,13 +38,13 @@ export async function fetchBudget(cfg) {
   return (await readJson(res)).budget;
 }
 
-// POST {limit: {분류: 금액}, items: {sp_id: 금액 | null(AI 금액으로)}} → 저장 후 {total, limit, by}
-export async function saveLimits(cfg, limit, items = {}) {
+// POST {limit: {분류: 금액}, items: {sp_id: 금액 | null(AI 금액으로)}, total: 총예산} → 저장 후 {total, limit, by}
+export async function saveLimits(cfg, limit, items = {}, total = null) {
   const res = await fetch(cfg.categoryUrl, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cfg.csrf },
-    body: JSON.stringify({ limit, items }),
+    body: JSON.stringify(total == null ? { limit, items } : { limit, items, total }),
   });
   return (await readJson(res)).budget;
 }

@@ -24,7 +24,7 @@
     csrf: tokenInput ? tokenInput.value : '',
     prefill: (app.dataset.prefill || '').trim(),
     budget: app.dataset.budget || '',
-    odsayKey: app.dataset.odsayKey || ''
+    transitUrl: app.dataset.transitUrl || ''
   };
 
   // 대화 보관 칸을 회원마다 따로 둔다 (같은 탭에서 다른 계정으로 로그인해도 섞이지 않게)
@@ -1306,20 +1306,23 @@
   var overlays = [];
   var routeDrawToken = 0;   // 지도를 다시 그리면 이전 경로 불러오기 결과는 버림
 
-  /* ---------- 대중교통 실제 경로 (ODsay) ----------
+  /* ---------- 대중교통 실제 경로 (카카오 대중교통 길찾기, 서버 /transit_route/ 호출) ----------
+   * - ODsay 대신 (11/06 결정). 서버가 카카오를 부르고 같은 구간은 7일 저장한다. 키는 브라우저로 안 나감.
    * - 대중교통일 때만, 지금 보는 날짜의 구간만 부른다.
-   * - 받은 구간은 브라우저(localStorage)에 저장해서 같은 구간은 다시 부르지 않는다. (무료 호출 한도 절약)
-   * - 700m 이내는 걷는 거리라 부르지 않는다. (ODsay도 이 거리에서는 오류를 냄)
-   * - 버스·지하철이 지나는 정류장 좌표를 이어 선을 그린다. (추가 호출이 드는 노선 그래픽은 쓰지 않음)
+   * - 받은 구간은 브라우저(localStorage)에도 저장해서 지도를 다시 그릴 때 또 부르지 않는다.
+   * - 700m 이내는 걷는 거리라 부르지 않는다. (서버도 같은 규칙)
    */
-  var ROUTE_STORE = 'tripa_odsay_route_v1';
+  var ROUTE_STORE = 'tripa_transit_route_v1';
   var ROUTE_WALK_METERS = 700;
-  var ROUTE_COLOR = { bus: '#2f9e5b', subway: '#2d6cdf', train: '#7b4bc4', walk: '#8a94a6' };
+  var ROUTE_COLOR = { bus: '#2f9e5b', subway: '#2d6cdf', train: '#7b4bc4', air: '#7b4bc4', transit: '#2d6cdf', walk: '#8a94a6' };
   var routeMemo = loadRouteMemo();
   var routePending = {};    // 같은 구간을 동시에 두 번 부르지 않게
 
   function loadRouteMemo() {
-    try { return JSON.parse(localStorage.getItem(ROUTE_STORE) || '{}') || {}; } catch (e) { return {}; }
+    try {
+      localStorage.removeItem('tripa_odsay_route_v1');   // 예전 ODsay 저장 칸 정리
+      return JSON.parse(localStorage.getItem(ROUTE_STORE) || '{}') || {};
+    } catch (e) { return {}; }
   }
 
   function saveRouteMemo() {
@@ -1347,57 +1350,33 @@
     return state.draft.transport === 'public_transport' || t.indexOf('대중교통') > -1;
   }
 
-  // ODsay 응답 → [{mode, points:[[lat,lon],...]}]  (도보 구간은 앞뒤 대중교통 구간을 이어 줌)
-  function parseTransit(data, a, b) {
-    var path = data && data.result && data.result.path && data.result.path[0];
-    if (!path || !Array.isArray(path.subPath)) return null;
-
-    var segs = [];
-    var last = [Number(a.lat), Number(a.lon)];
-    path.subPath.forEach(function (sec) {
-      var type = Number(sec.trafficType);
-      if (type !== 1 && type !== 2 && type !== 4) return;      // 3 = 도보
-      var pts = [];
-      if (sec.startY != null && sec.startX != null) pts.push([Number(sec.startY), Number(sec.startX)]);
-      var stations = sec.passStopList && Array.isArray(sec.passStopList.stations) ? sec.passStopList.stations : [];
-      stations.forEach(function (s) { if (s.y != null && s.x != null) pts.push([Number(s.y), Number(s.x)]); });
-      if (sec.endY != null && sec.endX != null) pts.push([Number(sec.endY), Number(sec.endX)]);
-      if (pts.length < 2) return;
-      segs.push({ mode: 'walk', points: [last, pts[0]] });
-      segs.push({ mode: type === 1 ? 'subway' : (type === 2 ? 'bus' : 'train'), points: pts });
-      last = pts[pts.length - 1];
-    });
-    if (!segs.length) return null;
-    segs.push({ mode: 'walk', points: [last, [Number(b.lat), Number(b.lon)]] });
-    return segs;
-  }
-
+  // 한 구간 → [{mode, points:[[lat,lon],...]}] (처음·끝 걷는 길 포함). 실패면 null → 직선 점선으로 대신 그림
   function fetchTransit(a, b) {
     var key = routeKey(a, b);
     if (routeMemo[key]) return Promise.resolve(routeMemo[key]);
     if (meters(a, b) <= ROUTE_WALK_METERS) {
       return Promise.resolve([{ mode: 'walk', points: [[a.lat, a.lon], [b.lat, b.lon]] }]);
     }
-    if (!cfg.odsayKey) return Promise.resolve(null);
+    if (!cfg.transitUrl) return Promise.resolve(null);
     if (routePending[key]) return routePending[key];
 
-    var url = 'https://api.odsay.com/v1/api/searchPubTransPathT' +
-      '?SX=' + a.lon + '&SY=' + a.lat + '&EX=' + b.lon + '&EY=' + b.lat +
-      '&apiKey=' + encodeURIComponent(cfg.odsayKey);
+    var url = cfg.transitUrl +
+      '?from=' + Number(a.lat).toFixed(6) + ',' + Number(a.lon).toFixed(6) +
+      '&to=' + Number(b.lat).toFixed(6) + ',' + Number(b.lon).toFixed(6);
 
-    routePending[key] = fetch(url)
+    routePending[key] = fetch(url, { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        var segs = parseTransit(data, a, b);
+        var route = data && data.success && data.route;
+        var segs = route && Array.isArray(route.segments) && route.segments.length ? route.segments : null;
         if (segs) { routeMemo[key] = segs; saveRouteMemo(); }
-        return segs;                          // 실패(한도 초과 등)면 null → 직선 점선으로 대신 그림
+        return segs;
       })
       .catch(function () { return null; })
       .then(function (segs) { delete routePending[key]; return segs; });
 
     return routePending[key];
   }
-
   function drawLine(points, color, dashed) {
     if (!kakao.maps.Polyline) return;
     var line = new kakao.maps.Polyline({
@@ -1515,7 +1494,7 @@
         stops.push({ lat: Number(it.lat), lon: Number(it.lon) });
       });
       if (stops.length > 1 && isTransitPlan()) {
-        // 대중교통: ODsay 실제 경로 (버스·지하철 정류장을 따라)
+        // 대중교통: 카카오 대중교통 실제 노선 (서버 /transit_route/)
         drawTransitDay(stops);
       } else if (path.length > 1 && kakao.maps.Polyline) {
         var line = new kakao.maps.Polyline({

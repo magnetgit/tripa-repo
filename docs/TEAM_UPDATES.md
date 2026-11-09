@@ -10,6 +10,43 @@
 
 ---
 
+## 2026-11-09 · ✅ ODsay 뺌 → 카카오 대중교통 경로(서버) + 📐 공유 정의 `transit_service.transit_route` — 🟦 임영준
+DB 변경 없음 · 기존 응답 키 그대로 · **새 주소 `/transit_route/` + `mock.json`에 `transit_route` 추가** · `.env`의 `ODSAY_WEB_API_KEY`는 이제 안 씀(지워도 됨)
+
+### 📐 공유 정의 (11/09 규칙, 🟧 서버 이동시간도 이걸 써 주세요)
+- `sherpaapp/services/transit_service.py`
+  - `transit_route(from_lat, from_lon, to_lat, to_lon)` → dict, 호출 실패(키 없음·네트워크)면 `None`
+  - 돌려주는 값: `walk`(걷는 구간인지), `minutes`, `distance`(m), `fare`(1인 원, 모르면 None), `transfers`, `label`(예: '버스 141 → 지하철 2호선'), `steps[]`(`mode`·`kind`·`line`·`name`·`from`·`to`·`minutes`·`distance`·`stops`·`guidance`), `segments[]`(`mode`, `points: [[위도, 경도], …]` 지도 선, 처음·끝 걷는 길 포함), `url`(카카오맵 길찾기 링크) — 예시는 `mock.json`의 `transit_route`
+  - 캐시: 키 `transit:위도,경도:위도,경도`(소수 4자리), 7일 (🟧 11/09 결정대로 표 없이 캐시)
+  - 700m 이내는 카카오를 부르지 않고 걷기(`walk: true`). 카카오가 경로를 못 찾으면 2km 안은 걷기, 더 멀면 `None`
+  - `meters(a, b)`: 두 점 (위도, 경도) 직선 거리(m)도 같이 씀
+- `GET /transit_route/?from=위도,경도&to=위도,경도` (로그인 필요) → `{success, route: 위 dict}`
+
+### 바뀐 화면
+- **여행 상세:** 대중교통 여행이면 구간마다 노선·탑승/하차 정류장·환승·**1인 요금**·실제 노선 모양을 처음부터 보여 줘요. ODsay '상세 경로 보기' 버튼·한도 초과 안내는 없어졌어요 (`travel_detail.html` ODsay 코드 약 2,000줄 → 250줄)
+- **채팅·여행 만들기 지도:** 같은 서버 주소로 실제 노선을 그려요 (React `frontend/src/lib/transit.js`, 예전 `travel_chat.js`)
+- 지운 것: `ODSAY_WEB_API_KEY`(settings·context processor·`.env.example`·템플릿 `data-odsay-key`), `frontend/src/lib/odsay.js`
+
+### 🟧 이수한
+- [ ] 서버 일정 시각 계산을 카카오 경로로 맞출 때 `transit_service.transit_route(...)['minutes']` 사용 (확정된 구간만 부르기, 11/09 결정)
+- [ ] 배포 서버 `.env`의 `ODSAY_WEB_API_KEY`는 지워도 돼요 (있어도 안 씀)
+
+### 🟩 서지윤
+- 할 일 없음 (`schedule_service.py` 주석에 ODsay 얘기가 남아 있는데 동작과는 상관없어요)
+
+---
+
+## 2026-11-09 · 비용 관리: 총예산 = 내가 정한 금액 (직접 고치기) — 🟦 임영준
+DB 변경 없음 · 응답 키 그대로 · **요청 키 추가만**
+
+- 전: 총예산 = 분류 예산 합계 → 대화에서 "예산 50만 원"이라고 해도 비용 관리에는 AI 예상 합계(예: 388,000원)가 보였음
+- 지금: 총예산 = `Travel.t_budget` (대화에서 정한 금액, 안 정했으면 적용 때 AI 예상 합계). 비용 관리 위 칸에서 직접 고칠 수 있음
+  - 남은 금액 = 총예산 − 일정 예상, 분류에 안 나눈 금액·분류가 총예산보다 많을 때 경고도 보여 줌
+- `budget_category` POST에 **`total`(선택)** 추가: 보내면 그 값이 총예산. 안 보내면 총예산은 그대로 두고 분류 합계가 더 클 때만 늘림 (전에는 항상 분류 합계로 덮어씀)
+- 🟧🟩 할 일 없음
+
+---
+
 ## 2026-11-09 · 📐 공유: 리뷰 게시판 '장소 리뷰' 탭에 분류 보기·정렬·번호 페이지 (🟦 `review.html`에 칩 추가) — 🟧 이수한
 아직 코드 없음 (먼저 공유, 11/09 규칙). 🟧가 이 모양으로 만들어요. DB·응답 키 변경 없음 (화면 주소의 GET 값과 템플릿 값만 추가).
 

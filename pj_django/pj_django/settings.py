@@ -69,11 +69,6 @@ KAKAO_MAP_API_KEY = env(
     default="",
 )
 
-ODSAY_WEB_API_KEY = env(
-    "ODSAY_WEB_API_KEY",
-    default="",
-)
-
 # 서버에서만 사용하는 REST 키
 # context processor나 HTML에 전달하지 않는다.
 KAKAO_REST_API_KEY = env(
@@ -178,7 +173,6 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "sherpaapp.context_processors.login_member",
                 "sherpaapp.context_processors.kakao_api_key",
-                "sherpaapp.context_processors.odsay_api_key",
             ],
         },
     },
@@ -317,7 +311,7 @@ SESSION_SAVE_EVERY_REQUEST = env.bool(
     default=True,
 )
 
-# ODsay Web API의 Referer 전달과 현재 프로젝트 동작을 유지한다.
+# 외부 지도·API 호출 때 Referer 전달 방식 (카카오 지도 JS 키 도메인 확인에 필요)
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 # 필요하면 운영 .env에서 True로 전환할 수 있다.

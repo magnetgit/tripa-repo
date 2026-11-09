@@ -44,6 +44,7 @@ from .services import region_photo_service
 from .services import hours_service
 from .services import budget_service
 from .services import rain_service
+from .services import transit_service
 
 logger = logging.getLogger(__name__)
 from .services.route_service import get_kakao_route, get_travel_time
@@ -1241,15 +1242,7 @@ def travel_detail(request, travel_id):
         'travel_days': travel_days,
         'place_count': len(visited_places),
         'KAKAO_MAP_API_KEY': settings.KAKAO_MAP_API_KEY,
-
-        # ODsay Basic(Web) 키. 브라우저에서 직접 ODsay를 호출하므로
-        # PythonAnywhere 무료 계정의 outbound allowlist 영향을 받지 않는다.
-        # settings.py에 ODSAY_WEB_API_KEY를 추가하면 활성화된다.
-        'ODSAY_WEB_API_KEY': getattr(
-            settings,
-            'ODSAY_WEB_API_KEY',
-            ''
-        ),
+        # 대중교통 경로는 서버(/transit_route/, 카카오)에서 받으므로 ODsay 키는 더 이상 넘기지 않음 (11/06 결정)
     }
 
     return render(request, 'sherpaapp/travel_detail.html', context)
@@ -2872,7 +2865,7 @@ def get_route_travel_minutes_by_coords(
             )
         )
 
-        # 서버에서 ODsay Web API를 호출하지 않으므로
+        # 여기서는 대중교통 경로를 부르지 않으므로 (화면이 /transit_route/ 로 받음)
         # public_transport는 저장된 계획시간을 우선 사용한다.
         if normalized_transport == 'public_transport':
             return max(
@@ -3995,7 +3988,7 @@ def _build_return_home_point(
 # ==============================================
 # [보관용 / 현재 미사용] Kakao Mobility 대중교통 통합 길찾기
 # - 제휴 API 사용 승인을 받으면 아래 코드를 다시 활성화할 수 있다.
-# - 현재는 무료 ODsay Basic Web API를 브라우저에서 직접 호출한다.
+# - 현재는 카카오 대중교통 길찾기를 서버에서 부른다 (🟦 transit_service, /transit_route/).
 # ==============================================
 # # ==============================================
 # # Kakao Mobility 대중교통 통합 길찾기
@@ -4782,16 +4775,14 @@ def travel_route(
 
         # 대중교통은 서버에서 제휴 API를 호출하지 않는다.
         # 먼저 S/장소/R 좌표를 이용해 임시 경로를 만들고,
-        # travel_detail.html에서 ODsay Basic Web API로 상세 노선을 보강한다.
-        # 이렇게 하면 PythonAnywhere 무료 계정의 외부접속 allowlist와
-        # 서버 고정 IP 문제를 피할 수 있다.
+        # travel_detail.html이 /transit_route/ (카카오 대중교통 길찾기)로 상세 노선을 보강한다.
         if transport == 'public_transport':
             estimated_route = build_estimated_route(
                 start_item,
                 end_item,
-                'ODsay Web API 조회 전 임시 경로'
+                '대중교통 경로 조회 전 임시 경로'
             )
-            estimated_route['api_source'] = 'odsay_web_pending'
+            estimated_route['api_source'] = 'transit_pending'
             estimated_route['transit_api_error'] = False
             routes.append(estimated_route)
             route_points.extend(
@@ -5837,7 +5828,7 @@ def budget_category(request, travel_id):
     """여행의 카테고리(분류별) 예산
     GET  → {success, budget: {total, limit: {분류: 예산}, by: {분류: 쓴 돈}}}
     GET ?plan=1 → 위 + plan·counts·people·items (장소별 금액, 비용 관리 화면)
-    POST JSON {limit: {sight: 30000, food: 150000, ...}, items: {sp_id: 금액 또는 null}} → 같은 모양
+    POST JSON {limit: {sight: 30000, food: 150000, ...}, items: {sp_id: 금액 또는 null}, total: 총예산(선택)} → 같은 모양
          limit 은 보낸 분류만 저장, items 는 장소별로 고친 금액 (null 이면 AI 금액으로 되돌림)
     분류 키: sight·food·cafe·move·stay·shop·etc (mock.json budget 키)
     """
@@ -5855,13 +5846,17 @@ def budget_category(request, travel_id):
         body = _chat_json_body(request)
         if body is None or not isinstance(body.get('limit'), dict):
             return JsonResponse({'success': False, 'message': 'limit 값이 필요해요.'}, status=400)
-        if not budget_service.clean_limits(body['limit']) and not isinstance(body.get('items'), dict):
+        total = budget_service.clean_limits({'etc': body.get('total')}).get('etc') if 'total' in body else None
+        if not budget_service.clean_limits(body['limit']) and not isinstance(body.get('items'), dict) and total is None:
             return JsonResponse({'success': False, 'message': '저장할 분류 금액이 없어요.'}, status=400)
         if isinstance(body.get('items'), dict):
             _save_budget_items(travel, body['items'])
         limits = budget_service.save_limits(travel, body['limit'])
-        # 비용 관리(11/09)에서는 총예산을 따로 고치지 않고 분류 합계가 곧 총예산
-        travel.t_budget = sum(limits.values())
+        if total is not None:
+            travel.t_budget = total   # 비용 관리에서 총예산을 직접 고침
+        else:
+            # total 을 안 보내면: 여행 만들 때 정한 금액을 지키고, 분류 합계가 더 크면 그만큼 늘린다
+            travel.t_budget = max(travel.t_budget or 0, sum(limits.values()))
         travel.save(update_fields=['t_budget'])
     elif request.method == 'GET':
         limits = budget_service.load_limits(travel)
@@ -6096,6 +6091,31 @@ def rain_options(request):
         return JsonResponse({'success': False, 'message': '실내 대안을 찾지 못했어요.'}, status=500)
 
     return JsonResponse({'success': True, 'options': options})
+
+
+# 장소 사이 대중교통 경로 (🟦 transit_service, 카카오 대중교통 길찾기 · ODsay 대신)
+# GET ?from=위도,경도&to=위도,경도 → {success, route: transit_route 결과}
+def transit_route(request):
+    if not _login_member(request):
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    def point(text):
+        parts = (text or '').split(',')
+        if len(parts) != 2:
+            return None
+        lat, lon = _float_or_none(parts[0]), _float_or_none(parts[1])
+        if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return None
+        return lat, lon
+
+    start, end = point(request.GET.get('from')), point(request.GET.get('to'))
+    if not start or not end:
+        return JsonResponse({'success': False, 'message': '출발·도착 위치가 필요해요.'}, status=400)
+
+    route = transit_service.transit_route(start[0], start[1], end[0], end[1])
+    if route is None:
+        return JsonResponse({'success': False, 'message': '대중교통 경로를 찾지 못했어요.'}, status=502)
+    return JsonResponse({'success': True, 'route': route})
 
 
 # GET → {success, people, days: [{day, date, weather}], places: {sp_id: indoor}}  (places 는 그날만)
