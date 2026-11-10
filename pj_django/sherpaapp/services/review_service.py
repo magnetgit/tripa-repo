@@ -10,6 +10,7 @@ from .chat_service import call_llm, ChatError, _parse_json
 PROMPT = """
 여행 장소 리뷰를 읽고 JSON으로만 답할것,
 keywords는 2~8글자 명사구 최대 5개,
+keywords에 리뷰 문장을 그대로 쓰지 말 것 ('~요', '~고', '~도'로 끝나면 안 됨. 예: '양이 많고' → '푸짐한 양', '줄 서도' → '긴 대기 줄'),
 summary는 한국어 한 문장 60자 이내,
 리뷰에 없는 내용은 지어내지 말 것
 예 : {"keywords": ["바다 전망", "사진 맛집"], "summary": "..."}
@@ -52,12 +53,13 @@ def summarize_review(kakao_id):
     if not isinstance(keywords, list):
         keywords = []
     else:
-        keywords = [k.strip() for k in keywords if isinstance(k, str) and k.strip()]
+        keywords = [k.strip() for k in keywords
+                    if isinstance(k, str) and k.strip() and not k.strip().endswith(('요', '다', '고', '도'))]
         keywords = keywords[:5]
     summary = data.get('summary')
     if not isinstance(summary, str):
         summary = ''
-    summary = summary.strip()[:100]
+    summary = summary.strip()[:60]
     ReviewSummary.objects.update_or_create(
         kakao_id=kakao_id,
         defaults={
