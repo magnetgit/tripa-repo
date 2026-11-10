@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-11-10 · 예산 금액 변경 자동 기록 (DB 트리거 → `budget_log` 표, `GET /budget_log/<travel_id>/`) — 🟧 이수한
+**DB 추가:** 마이그레이션 `0018_budgetlog` (새 표 `budget_log` + `travel_budget_item` 트리거 3개). 응답 키는 새 주소라 **추가만**, `mock.json`에 `budget_log` 예시. pull 뒤 `python manage.py migrate` 해 주세요.
+
+- 비용 관리에서 장소 금액을 넣기·고치기·지우기 하면 **DB가 알아서** 한 줄씩 적어요 (파이썬 코드 변경 없음, 같은 금액으로 다시 저장하면 안 적음)
+  - 트리거: `trg_budget_item_ins` / `trg_budget_item_upd` (금액이 달라졌을 때만) / `trg_budget_item_del`
+  - `budget_log` 칸: `BL_ID`, `T_ID`, `SP_ID` (둘 다 FK 아님 → 여행·장소를 지워도 기록은 남음), `P_NAME`(그때 장소 이름), `ACTION`(`insert`/`update`/`delete`), `OLD_AMOUNT`, `NEW_AMOUNT`, `CHANGED_AT`
+- `GET /budget_log/<travel_id>/` (로그인·내 여행만) → 최근 10줄, 최신이 위
+```json
+{"success": true, "logs": [{"name": "해운대블루라인파크", "action": "update", "old": 12000, "new": 15000, "at": "2026-11-10 12:35"}]}
+```
+  - `action`: `insert`(처음 넣음, `old: null`) · `update` · `delete`(`new: null`)
+- 수업 연결: 08/10·08/11 16·17일차 트리거
+
+### 🟦 영준
+- [ ] 비용 관리 화면에 "최근 변경" 몇 줄: `해운대블루라인파크 12,000원 → 15,000원 · 11/10 12:35` (이 주소 사용)
+
+### 🟩 지윤
+- 변경 없음 (관리자 페이지에서 보고 싶으면 `BudgetLog` 모델)
+
+---
+
 ## 2026-11-10 · 축제 이용요금 → 예상 비용 (축제 카드에 `fee` 키) — 🟧 이수한
 DB 변경 없음. 응답 키는 **추가만**(`GET /travel_festivals/<id>/`의 `festivals[]`에 `fee`), `mock.json`에 `festival_fee` 예시.
 
