@@ -1,3 +1,4 @@
+from django.core.mail import send_mail
 from django.contrib.auth.hashers import make_password, check_password
 from datetime import datetime, timedelta, time, date
 import hashlib
@@ -5,6 +6,7 @@ import json
 import logging
 import random
 import re
+import secrets
 from decimal import Decimal
 import requests
 from django.conf import settings
@@ -2326,6 +2328,37 @@ def pw_find(request):
         'new_pwd_check'
     )
 
+    code = (request.POST.get('code') or '').strip()
+
+    # 인증 코드 확인 (pw_code 에서 세션에 넣어 둔 것)
+    saved = request.session.get('pw_reset') or {}
+    now = datetime.now().timestamp()
+
+    if saved.get('user_id') != user_id or now > saved.get('until', 0):
+        return HttpResponse("""
+            <script>
+                alert('인증 코드를 먼저 받아 주세요. (10분이 지났으면 다시 받기)');
+                history.back();
+            </script>
+        """)
+
+    if saved.get('tries', 0) >= PW_CODE_TRIES:
+        return HttpResponse("""
+                <script>
+                    alert('5번 틀렸어요. 인증 코드를 다시 받아 주세요.');
+                    history.back();
+                </script>
+            """)
+
+    if not check_password(code, saved['code']):
+        saved['tries'] = saved.get('tries', 0) + 1
+        request.session['pw_reset'] = saved          # 바꾼 dict 를 세션에 다시 넣기
+        return HttpResponse(f"""
+        <script>
+            alert('인증 코드가 맞지 않아요. ({saved['tries']}/5)');
+            history.back();
+        </script>
+        """)
 
     try:
 
@@ -2366,6 +2399,7 @@ def pw_find(request):
 
 
         member.save()
+        request.session.pop('pw_reset', None)       # 한 번 쓴 코드는 버리기
 
 
         return HttpResponse("""
@@ -2384,6 +2418,47 @@ def pw_find(request):
                 history.back();
             </script>
         """)
+
+
+PW_CODE_SECONDS = 10 * 60     # 코드 유효 시간 (10분)
+PW_CODE_TRIES = 5             # 틀려도 되는 횟수
+PW_CODE_RESEND = 60           # 다시 받으려면 기다리는 시간 (1분)
+
+
+# 비밀번호 찾기 1단계: 아이디·이메일·이름이 맞으면 6자리 코드를 메일로 (TEAM_UPDATES 11/10)
+@require_POST
+def pw_code(request):
+    user_id = (request.POST.get('user_id') or '').strip()
+    email = (request.POST.get('email') or '').strip()
+    name = (request.POST.get('name') or '').strip()
+    now = datetime.now().timestamp()        # time.time() 과 같은 값(1970년부터 흐른 초)
+
+    # 1분 안에 다시 누르면 막기
+    saved = request.session.get('pw_reset') or {}
+    if now - saved.get('sent', 0) < PW_CODE_RESEND:
+        return JsonResponse({'success': False, 'message': '1분 뒤에 다시 받을 수 있어요.'}, status=429)
+
+    member = Member.objects.filter(user_id=user_id, email=email, name=name).first()
+    if member:
+        code = '%06d' % secrets.randbelow(1000000)          # 000000 ~ 999999
+        request.session['pw_reset'] = {
+            'user_id': member.user_id,
+            'code': make_password(code),                           # 코드도 비밀번호처럼 그대로 저장하지 않기
+            'until': now + PW_CODE_SECONDS,
+            'tries': 0,
+            'sent': now,
+        }
+        send_mail(
+            '[TRIPA] 비밀번호 찾기 인증 코드',
+            f'인증 코드: {code}\n10분 안에 입력해 주세요. 직접 요청하지 않았다면 이 메일은 무시해 주세요.',
+            None,                                           # 보내는 사람: settings.DEFAULT_FROM_EMAIL
+            [member.email],
+        )
+    else:
+        request.session['pw_reset'] = {'sent': now}         # 없는 회원도 1분 막기는 똑같이
+
+    # 회원이 있든 없든 같은 문구 (가입 여부가 드러나지 않게)
+    return JsonResponse({'success': True, 'message': '입력한 정보가 맞으면 인증 코드를 메일로 보냈어요.'})
 
 
 # ==============================================

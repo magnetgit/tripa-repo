@@ -73,6 +73,11 @@ urlpatterns = [
         name='pw_find'
     ),
 
+    path(
+        'pw_code/',
+        views.pw_code,
+        name='pw_code'
+    ),
 
     # ==========================================
     # 마이페이지
