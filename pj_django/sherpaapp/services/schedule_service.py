@@ -9,7 +9,8 @@ from ..models import (
     TravelDayPlan,
 )
 
-from .place_service import search_places
+from . import rain_service
+from .place_service import is_junk_kind, kakao_documents, search_places, to_place
 from .hours_service import fit_stay, hhmm, place_hours
 from .route_service import (
     calculate_distance,
@@ -35,6 +36,7 @@ DEFAULT_STAY_TIME = {
 
     # 자동 일정에서 추가 사용
     '숙박': 30,
+    '실내': 90,   # 비 오는 날 넣는 박물관·전시관 같은 실내 후보
 }
 
 
@@ -895,6 +897,101 @@ def hours_badge(kind, hours, arrive_min, stay_min, wait_min=0):
     }
 
 
+# =========================================================
+# 비 오는 날 실내 먼저 (🟩 11/06 결정, 🟦 rain_service 함수를 그대로 씀)
+# =========================================================
+
+def rainy_trip_dates(travel):
+    """여행 날짜 중 비·눈 예보(또는 이미 지난 날 실제로 온 날) → {date, ...}"""
+    try:
+        weather = rain_service.trip_days_weather(
+            travel.t_place,
+            travel.t_start,
+            travel.t_end,
+        )
+    except Exception as e:  # 날씨를 못 읽어도 일정은 만든다
+        print('날씨 조회 실패:', e)
+        return set()
+
+    return {
+        datetime.strptime(day, '%Y-%m-%d').date()
+        for day, info in weather.items()
+        if info and info.get('rainy')
+    }
+
+
+def candidate_indoor(candidate):
+    """후보가 실내면 True (실외 False, 모름 None). 한 번 판단하면 후보에 적어 둔다."""
+    if '_indoor' not in candidate:
+        lat, lon = get_candidate_coordinate(candidate)
+
+        try:
+            candidate['_indoor'] = rain_service.place_indoor(
+                candidate.get('name'),
+                candidate.get('kakao_category') or candidate.get('selected_category') or '',
+                lat,
+                lon,
+                candidate.get('kakao_id'),
+            )
+        except Exception:
+            candidate['_indoor'] = None
+
+    return candidate['_indoor']
+
+
+def indoor_candidates(travel):
+    """비 오는 날에 넣을 여행지 근처 실내 후보 (박물관·미술관·전시관·아쿠아리움·복합쇼핑몰)"""
+    lat, lon = rain_service._coords(travel.t_place, None)
+
+    if lat is None:
+        return []
+
+    found = []
+    seen = set()
+    # '벡스코 제1전시장'·'벡스코 제2전시장'처럼 같은 건물은 한 곳만 (이름 첫 낱말로 봄)
+    seen_heads = set()
+
+    for query, group in rain_service.INDOOR_QUERIES:
+        try:
+            docs = kakao_documents(
+                query, 8, group,
+                x=lon, y=lat, radius=10000, sort='accuracy',
+            )
+        except Exception as e:
+            print(query, '실내 후보 검색 실패:', e)
+            continue
+
+        for doc in docs:
+            if doc.get('id') in seen or is_junk_kind(doc.get('category_name')):
+                continue
+
+            seen.add(doc.get('id'))
+            head = (doc.get('place_name') or '').split(' ')[0]
+
+            if head in seen_heads:
+                continue
+
+            seen_heads.add(head)
+            candidate = to_place(doc, '실내')
+            candidate['selected_category'] = '실내'
+
+            if candidate_indoor(candidate) is True:
+                found.append(candidate)
+
+    print('비 오는 날 실내 후보:', len(found))
+    return remove_duplicate_places(found)
+
+
+def prefer_indoor(possible):
+    """실내 후보가 있으면 실내만, 하나도 없으면 그대로 (그날이 비지 않게)"""
+    indoor = [
+        candidate for candidate in possible
+        if candidate_indoor(candidate) is True
+    ]
+
+    return indoor or possible
+
+
 def find_nearest_candidate(
     candidates,
     used_places,
@@ -1697,8 +1794,10 @@ def fill_activities(
     limit_datetime,
     transport,
     max_activity_count,
-    reach_point=None
+    reach_point=None,
+    rainy=False
 ):
+    """rainy: 비 오는 날이면 넣을 수 있는 곳 중 실내를 먼저 고른다"""
 
     while (
         activity_count
@@ -1816,6 +1915,14 @@ def fill_activities(
         if not possible:
 
             break
+
+
+        # 비 오는 날은 실내 먼저 (실내가 없으면 그대로)
+        if rainy:
+
+            possible = prefer_indoor(
+                possible
+            )
 
 
         # ======================================
@@ -2448,6 +2555,17 @@ def generate_schedule(
 
     used_places = set()
 
+    # 비 오는 날 (예보 16일 안 · 지난 날 실제 날씨). 그날은 실내 후보를 더해서 실내 먼저
+    rainy_dates = rainy_trip_dates(
+        travel
+    )
+    rainy_candidates = (
+        activity_candidates + indoor_candidates(travel)
+        if rainy_dates
+        else activity_candidates
+    )
+    print('비 오는 날:', sorted(rainy_dates))
+
     # =====================================================
     # 4. DAY별 일정
     # =====================================================
@@ -2614,6 +2732,13 @@ def generate_schedule(
         visit_order = 1
         activity_count = 0
 
+        rainy = travel_date in rainy_dates
+        day_candidates = (
+            rainy_candidates
+            if rainy
+            else activity_candidates
+        )
+
         print()
         print(
             f'DAY {day_index + 1}',
@@ -2647,7 +2772,7 @@ def generate_schedule(
         ) = fill_activities(
             travel,
             schedule,
-            activity_candidates,
+            day_candidates,
             used_places,
             current_datetime,
             current_point,
@@ -2661,6 +2786,7 @@ def generate_schedule(
                 if morning_limit == day_end_datetime
                 else None
             ),
+            rainy=rainy,
         )
 
         # =================================================
@@ -2715,7 +2841,7 @@ def generate_schedule(
         ) = fill_activities(
             travel,
             schedule,
-            activity_candidates,
+            day_candidates,
             used_places,
             current_datetime,
             current_point,
@@ -2729,6 +2855,7 @@ def generate_schedule(
                 if afternoon_limit == day_end_datetime
                 else None
             ),
+            rainy=rainy,
         )
 
         # =================================================
@@ -2778,7 +2905,7 @@ def generate_schedule(
         ) = fill_activities(
             travel,
             schedule,
-            activity_candidates,
+            day_candidates,
             used_places,
             current_datetime,
             current_point,
@@ -2790,6 +2917,7 @@ def generate_schedule(
             reach_point=(
                 deadline_point
             ),
+            rainy=rainy,
         )
 
         # =================================================
