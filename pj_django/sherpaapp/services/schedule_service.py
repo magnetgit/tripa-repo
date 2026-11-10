@@ -9,7 +9,9 @@ from ..models import (
     TravelDayPlan,
 )
 
-from .place_service import search_places
+from . import rain_service
+from .place_service import is_junk_kind, kakao_documents, search_places, to_place
+from .hours_service import fit_stay, hhmm, place_hours
 from .route_service import (
     calculate_distance,
     get_travel_time,
@@ -34,6 +36,7 @@ DEFAULT_STAY_TIME = {
 
     # 자동 일정에서 추가 사용
     '숙박': 30,
+    '실내': 90,   # 비 오는 날 넣는 박물관·전시관 같은 실내 후보
 }
 
 
@@ -618,6 +621,376 @@ def calculate_travel_minutes(
 # =========================================================
 # 현재 위치에서 가장 가까운 장소
 # =========================================================
+
+# =========================================================
+# 운영시간 맞추기 (🟩 11/06 결정, 🟦 hours_service.fit_stay를 그대로 씀)
+# =========================================================
+
+# 문 열기 전에 도착하면 이 시간(분)까지는 기다렸다 들어간다. 더 길면 다른 곳을 넣는다.
+MAX_OPEN_WAIT = 60
+
+WEEKDAY_KO = '월화수목금토일'
+
+# 여행 하나를 만드는 동안 같은 장소·날짜의 운영시간을 다시 찾지 않도록 (관광공사 결과는 7일 캐시)
+_HOURS_CACHE = {}
+
+
+def candidate_kind(candidate):
+    """운영시간 판단용 분류 글자 ('음식 음식점 > 한식' → 음식점 마감 1시간 전 규칙)"""
+    return ' '.join(
+        str(candidate.get(key) or '')
+        for key in ('selected_category', 'kind', 'kakao_category')
+    ).strip()
+
+
+def candidate_hours(candidate, day):
+    """후보 장소의 그날 운영시간 (hours_service.place_hours 결과, 모르면 None)"""
+    cache_key = (get_candidate_key(candidate), day)
+
+    if cache_key not in _HOURS_CACHE:
+        lat, lon = get_candidate_coordinate(candidate)
+
+        try:
+            _HOURS_CACHE[cache_key] = place_hours(
+                candidate.get('name'),
+                candidate_kind(candidate),
+                day,
+                lat,
+                lon,
+                candidate.get('kakao_id'),
+            )
+        except Exception as e:  # 운영시간을 못 읽어도 일정은 만든다
+            print(candidate.get('name'), '운영시간 실패:', e)
+            _HOURS_CACHE[cache_key] = None
+
+    return _HOURS_CACHE[cache_key]
+
+
+def fit_opening_hours(candidate, arrival_datetime, stay_minutes):
+    """
+    도착 시각·체류 시간을 운영시간에 맞춘다.
+    → (도착 시각, 체류 분) 또는 None (쉬는 날 · 마감 전에 못 감 · 너무 오래 기다림)
+    """
+    kind = candidate_kind(candidate)
+    hours = candidate_hours(candidate, arrival_datetime.date())
+    arrive_min = arrival_datetime.hour * 60 + arrival_datetime.minute
+
+    fit = fit_stay(kind, hours, arrive_min, stay_minutes)
+
+    # 아직 안 열었으면 여는 시각까지 기다린다 (오래 걸리면 포기)
+    if fit['status'] == 'early':
+        wait = hours['open_min'] - arrive_min
+
+        if wait > MAX_OPEN_WAIT:
+            return None
+
+        arrival_datetime = arrival_datetime + timedelta(minutes=wait)
+        fit = fit_stay(kind, hours, hours['open_min'], stay_minutes)
+
+    if fit['status'] in ('closed', 'late', 'early'):
+        return None
+
+    return arrival_datetime, fit['stay']
+
+
+def fits_before_limit(
+    candidate,
+    finish_datetime,
+    limit_datetime,
+    reach_point,
+    transport
+):
+    """끝나는 시각(+ 다음 고정 장소까지 이동)이 제한 시각 안인지"""
+    if reach_point is not None:
+        finish_datetime = finish_datetime + timedelta(
+            minutes=calculate_travel_minutes(
+                get_candidate_coordinate(candidate),
+                reach_point,
+                transport
+            )
+        )
+
+    return finish_datetime <= limit_datetime
+
+
+def pick_open_candidate(
+    possible,
+    used_places,
+    current_datetime,
+    current_point,
+    transport,
+    stay_minutes=None,
+    target_datetime=None,
+    limit_datetime=None,
+    reach_point=None
+):
+    """
+    가까운 순서로 보면서 운영시간에 맞는 첫 후보를 고른다.
+    → (후보, 도착 시각, 체류 분) 또는 (None, None, None)
+
+    stay_minutes: 정해진 체류(식사 90분), 없으면 분류별 기본 체류
+    target_datetime: 이 시각 전에는 도착하지 않음 (점심 12:30 같은 목표 시각)
+    """
+    remaining = list(possible)
+
+    while remaining:
+        candidate = find_nearest_candidate(
+            remaining,
+            used_places,
+            current_point
+        )
+
+        if candidate is None:
+            break
+
+        remaining.remove(candidate)
+
+        arrival = current_datetime + timedelta(
+            minutes=calculate_travel_minutes(
+                current_point,
+                get_candidate_coordinate(candidate),
+                transport
+            )
+        )
+
+        if target_datetime and arrival < target_datetime:
+            arrival = target_datetime
+
+        stay = stay_minutes
+
+        if stay is None:
+            stay = get_stay_time(
+                candidate.get('selected_category') or '기타'
+            )
+
+        fitted = fit_opening_hours(candidate, arrival, stay)
+
+        if fitted is None:
+            print(candidate.get('name'), '운영시간이 안 맞아 건너뜀:', arrival.strftime('%m-%d %H:%M'))
+            continue
+
+        arrival, stay = fitted
+
+        # 기다리느라 늦게 끝나면 숙소·귀가 시각을 넘을 수 있어서 다시 확인
+        if limit_datetime is not None and not fits_before_limit(
+            candidate,
+            arrival + timedelta(minutes=stay),
+            limit_datetime,
+            reach_point,
+            transport
+        ):
+            continue
+
+        return candidate, arrival, stay
+
+    return None, None, None
+
+
+def move_closed_pins(travel, pins):
+    """
+    담은 장소(사용자가 고른 곳)가 그날 쉬면 여행 중 여는 날로 옮긴다.
+    → (새 pins 목록, {DAY 번호: {'moved': [...], 'excluded': [...]}})
+       응답 키 모양은 TEAM_UPDATES 11/10 '운영시간 안내 응답 키' (mock.json plan.days[])
+    """
+    total_days = (travel.t_end - travel.t_start).days + 1
+    result = []
+    notes = {}
+
+    for pin in pins or []:
+        try:
+            day = int(pin.get('day'))
+        except (TypeError, ValueError):
+            result.append(pin)
+            continue
+
+        if not 1 <= day <= total_days or not pin.get('name'):
+            result.append(pin)
+            continue
+
+        def hours_on(number):
+            try:
+                return place_hours(
+                    pin.get('name'),
+                    pin.get('kind') or '',
+                    travel.t_start + timedelta(days=number - 1),
+                    to_float(pin.get('lat')),
+                    to_float(pin.get('lon')),
+                    pin.get('kakao_id'),
+                )
+            except Exception:
+                return None
+
+        hours = hours_on(day)
+
+        if not hours or not hours.get('closed'):
+            result.append(pin)
+            continue
+
+        # 가까운 날부터 (2일차면 1·3·4일차 순서)
+        others = sorted(
+            (number for number in range(1, total_days + 1) if number != day),
+            key=lambda number: (abs(number - day), number)
+        )
+        open_days = [
+            number for number in others
+            if not (hours_on(number) or {}).get('closed')
+        ]
+
+        day_date = travel.t_start + timedelta(days=day - 1)
+        closed_text = '%s요일 휴무' % WEEKDAY_KO[day_date.weekday()]
+        note = notes.setdefault(day, {'moved': [], 'excluded': []})
+
+        if open_days:
+            to_day = open_days[0]
+            to_date = travel.t_start + timedelta(days=to_day - 1)
+            moved_pin = dict(pin, day=to_day)
+            moved_pin.pop('time', None)   # 원래 날의 시각은 옮긴 날에 안 맞을 수 있어서
+            result.append(moved_pin)
+
+            note['moved'].append({
+                'name': pin['name'],
+                'from_day': day,
+                'to_day': to_day,
+                'message': '%s라 DAY %d(%s)로 옮겼어요' % (
+                    closed_text, to_day, WEEKDAY_KO[to_date.weekday()]
+                ),
+            })
+        else:
+            note['excluded'].append({
+                'name': pin['name'],
+                'reason': 'closed',
+                'message': '%s예요 · 이 여행 기간에는 여는 날이 없어요' % closed_text,
+                'open_days': [],
+            })
+
+    return result, notes
+
+
+def hours_badge(kind, hours, arrive_min, stay_min, wait_min=0):
+    """
+    미리보기 장소 한 곳의 운영시간 안내 (응답 키 items[].hours)
+    → {open, close, estimated, status, wait, message} 또는 None
+    """
+    if not hours or '숙' in (kind or ''):
+        return None
+
+    fit = fit_stay(kind, hours, arrive_min, stay_min)
+
+    # 운영시간 글은 있는데 시각을 못 읽은 곳 (쉬는 날도 아님) → 안내할 게 없음
+    if fit['status'] == 'unknown' and not hours.get('open'):
+        return None
+    message = fit['message']
+    wait = wait_min if wait_min and wait_min > 0 else 0
+
+    if fit['status'] == 'early':
+        message = '%s에 문을 열어요 · 늦게 도착하게 옮겨 보세요' % hours.get('open')
+    elif wait and fit['status'] == 'ok':
+        message = '%s 문 여는 시각까지 %d분 기다려요' % (hours.get('open'), wait)
+
+    return {
+        'open': hours.get('open') or None,
+        'close': hours.get('close') or None,
+        'estimated': bool(hours.get('estimated')),
+        'status': fit['status'],
+        'wait': wait,
+        'message': message,
+    }
+
+
+# =========================================================
+# 비 오는 날 실내 먼저 (🟩 11/06 결정, 🟦 rain_service 함수를 그대로 씀)
+# =========================================================
+
+def rainy_trip_dates(travel):
+    """여행 날짜 중 비·눈 예보(또는 이미 지난 날 실제로 온 날) → {date, ...}"""
+    try:
+        weather = rain_service.trip_days_weather(
+            travel.t_place,
+            travel.t_start,
+            travel.t_end,
+        )
+    except Exception as e:  # 날씨를 못 읽어도 일정은 만든다
+        print('날씨 조회 실패:', e)
+        return set()
+
+    return {
+        datetime.strptime(day, '%Y-%m-%d').date()
+        for day, info in weather.items()
+        if info and info.get('rainy')
+    }
+
+
+def candidate_indoor(candidate):
+    """후보가 실내면 True (실외 False, 모름 None). 한 번 판단하면 후보에 적어 둔다."""
+    if '_indoor' not in candidate:
+        lat, lon = get_candidate_coordinate(candidate)
+
+        try:
+            candidate['_indoor'] = rain_service.place_indoor(
+                candidate.get('name'),
+                candidate.get('kakao_category') or candidate.get('selected_category') or '',
+                lat,
+                lon,
+                candidate.get('kakao_id'),
+            )
+        except Exception:
+            candidate['_indoor'] = None
+
+    return candidate['_indoor']
+
+
+def indoor_candidates(travel):
+    """비 오는 날에 넣을 여행지 근처 실내 후보 (박물관·미술관·전시관·아쿠아리움·복합쇼핑몰)"""
+    lat, lon = rain_service._coords(travel.t_place, None)
+
+    if lat is None:
+        return []
+
+    found = []
+    seen = set()
+    # '벡스코 제1전시장'·'벡스코 제2전시장'처럼 같은 건물은 한 곳만 (이름 첫 낱말로 봄)
+    seen_heads = set()
+
+    for query, group in rain_service.INDOOR_QUERIES:
+        try:
+            docs = kakao_documents(
+                query, 8, group,
+                x=lon, y=lat, radius=10000, sort='accuracy',
+            )
+        except Exception as e:
+            print(query, '실내 후보 검색 실패:', e)
+            continue
+
+        for doc in docs:
+            if doc.get('id') in seen or is_junk_kind(doc.get('category_name')):
+                continue
+
+            seen.add(doc.get('id'))
+            head = (doc.get('place_name') or '').split(' ')[0]
+
+            if head in seen_heads:
+                continue
+
+            seen_heads.add(head)
+            candidate = to_place(doc, '실내')
+            candidate['selected_category'] = '실내'
+
+            if candidate_indoor(candidate) is True:
+                found.append(candidate)
+
+    print('비 오는 날 실내 후보:', len(found))
+    return remove_duplicate_places(found)
+
+
+def prefer_indoor(possible):
+    """실내 후보가 있으면 실내만, 하나도 없으면 그대로 (그날이 비지 않게)"""
+    indoor = [
+        candidate for candidate in possible
+        if candidate_indoor(candidate) is True
+    ]
+
+    return indoor or possible
+
 
 def find_nearest_candidate(
     candidates,
@@ -1421,8 +1794,10 @@ def fill_activities(
     limit_datetime,
     transport,
     max_activity_count,
-    reach_point=None
+    reach_point=None,
+    rainy=False
 ):
+    """rainy: 비 오는 날이면 넣을 수 있는 곳 중 실내를 먼저 고른다"""
 
     while (
         activity_count
@@ -1542,17 +1917,27 @@ def fill_activities(
             break
 
 
+        # 비 오는 날은 실내 먼저 (실내가 없으면 그대로)
+        if rainy:
+
+            possible = prefer_indoor(
+                possible
+            )
+
+
         # ======================================
         # 현재 위치에서 가장 가까운 장소
         # ======================================
 
-        candidate = (
-            find_nearest_candidate(
-
-                possible,
-                used_places,
-                current_point
-            )
+        # (쉬는 날 · 마감 전에 못 감 · 오래 기다림이면 다음으로 가까운 곳)
+        candidate, arrival, stay = pick_open_candidate(
+            possible,
+            used_places,
+            current_datetime,
+            current_point,
+            transport,
+            limit_datetime=limit_datetime,
+            reach_point=reach_point,
         )
 
 
@@ -1580,7 +1965,9 @@ def fill_activities(
             visit_order,
             current_datetime,
             current_point,
-            transport
+            transport,
+            forced_arrival=arrival,
+            stay_time_override=stay
         )
 
 
@@ -1611,13 +1998,14 @@ def add_meal(
     target_datetime
 ):
 
-    candidate = (
-        find_nearest_candidate(
-
-            meal_candidates,
-            used_places,
-            current_point
-        )
+    candidate, arrival, stay = pick_open_candidate(
+        meal_candidates,
+        used_places,
+        current_datetime,
+        current_point,
+        transport,
+        stay_minutes=90,
+        target_datetime=target_datetime,
     )
 
 
@@ -1652,10 +2040,10 @@ def add_meal(
         transport,
 
         forced_arrival=
-            target_datetime,
+            arrival,
 
         stay_time_override=
-            90
+            stay
     )
 
 
@@ -1973,10 +2361,17 @@ def add_meal_before_deadline(
             candidate
         )
 
-    candidate = find_nearest_candidate(
+    # 가까운 곳부터, 운영시간에 맞는 음식점 (마감 1시간 전까지 도착)
+    candidate, arrival, stay = pick_open_candidate(
         possible,
         used_places,
+        current_datetime,
         current_point,
+        transport,
+        stay_minutes=90,
+        target_datetime=target_datetime,
+        limit_datetime=fixed_datetime if fixed_point is not None else None,
+        reach_point=fixed_point,
     )
 
     if candidate is None:
@@ -2000,8 +2395,8 @@ def add_meal_before_deadline(
         current_datetime,
         current_point,
         transport,
-        forced_arrival=target_datetime,
-        stay_time_override=90,
+        forced_arrival=arrival,
+        stay_time_override=stay,
     )
 
 
@@ -2065,6 +2460,7 @@ def generate_schedule(
 
     # 여행마다 좌표/이동시간 캐시를 새로 시작한다.
     _TRAVEL_MINUTES_CACHE.clear()
+    _HOURS_CACHE.clear()
 
     print()
     print('=================================')
@@ -2158,6 +2554,17 @@ def generate_schedule(
     )
 
     used_places = set()
+
+    # 비 오는 날 (예보 16일 안 · 지난 날 실제 날씨). 그날은 실내 후보를 더해서 실내 먼저
+    rainy_dates = rainy_trip_dates(
+        travel
+    )
+    rainy_candidates = (
+        activity_candidates + indoor_candidates(travel)
+        if rainy_dates
+        else activity_candidates
+    )
+    print('비 오는 날:', sorted(rainy_dates))
 
     # =====================================================
     # 4. DAY별 일정
@@ -2325,6 +2732,13 @@ def generate_schedule(
         visit_order = 1
         activity_count = 0
 
+        rainy = travel_date in rainy_dates
+        day_candidates = (
+            rainy_candidates
+            if rainy
+            else activity_candidates
+        )
+
         print()
         print(
             f'DAY {day_index + 1}',
@@ -2358,7 +2772,7 @@ def generate_schedule(
         ) = fill_activities(
             travel,
             schedule,
-            activity_candidates,
+            day_candidates,
             used_places,
             current_datetime,
             current_point,
@@ -2372,6 +2786,7 @@ def generate_schedule(
                 if morning_limit == day_end_datetime
                 else None
             ),
+            rainy=rainy,
         )
 
         # =================================================
@@ -2426,7 +2841,7 @@ def generate_schedule(
         ) = fill_activities(
             travel,
             schedule,
-            activity_candidates,
+            day_candidates,
             used_places,
             current_datetime,
             current_point,
@@ -2440,6 +2855,7 @@ def generate_schedule(
                 if afternoon_limit == day_end_datetime
                 else None
             ),
+            rainy=rainy,
         )
 
         # =================================================
@@ -2489,7 +2905,7 @@ def generate_schedule(
         ) = fill_activities(
             travel,
             schedule,
-            activity_candidates,
+            day_candidates,
             used_places,
             current_datetime,
             current_point,
@@ -2501,6 +2917,7 @@ def generate_schedule(
             reach_point=(
                 deadline_point
             ),
+            rainy=rainy,
         )
 
         # =================================================

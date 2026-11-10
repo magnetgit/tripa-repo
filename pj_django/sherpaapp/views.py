@@ -9,6 +9,7 @@ import re
 import secrets
 from decimal import Decimal
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -36,6 +37,8 @@ from .services.schedule_service import (
     get_or_create_place,
     get_day_start_time,
     get_travel_day_plans,
+    hours_badge as schedule_hours_badge,
+    move_closed_pins,
     resolve_effective_accommodations,
 )
 from .services.review_service import summarize_review
@@ -5423,7 +5426,9 @@ def _chat_apply_order(travel, order):
 
 def _chat_finish_schedule(travel, draft, removed, order, with_images=False):
     """자동으로 만든 일정 위에 사용자가 고른 것(담은 장소, 삭제, 순서)을 얹는다."""
-    failed = _chat_add_pins(travel, draft.get('pins') or [], with_images)
+    # 🟩 담은 장소가 그날 쉬면 여는 날로 옮김 (안내는 미리보기 days[].moved·excluded)
+    pins, travel.hours_notes = move_closed_pins(travel, draft.get('pins') or [])
+    failed = _chat_add_pins(travel, pins, with_images)
     _chat_apply_removed(travel, removed)
     _chat_apply_order(travel, order)
 
@@ -5496,6 +5501,52 @@ def _chat_preview_days(travel, draft):
         })
 
     return days
+
+
+def _chat_attach_hours(travel, days):
+    """미리보기 날마다 운영시간 안내를 붙인다 — items[].hours, excluded, moved (🟩 schedule_service, mock.json)
+
+    롤백(transaction) 밖에서 불러야 한다. 안에서 여러 스레드가 캐시 표를 읽으면 잠금을 기다리느라 50초씩 멈춘다.
+    """
+    notes = getattr(travel, 'hours_notes', None) or {}
+    jobs = [(day, item) for day in days for item in day['items'] if not item['is_stay']]
+
+    def one(job):
+        day, item = job
+        try:
+            return hours_service.place_hours(
+                item['name'], item['kind'], date.fromisoformat(day['date']),
+                item['lat'], item['lon'], item['kakao_id'],
+            )
+        except Exception:  # 한 곳이 실패해도 나머지는 보여준다
+            chat_logger.warning('AI 대화 미리보기 운영시간 실패: %s', item['name'], exc_info=True)
+            return None
+
+    with ThreadPoolExecutor(max_workers=hours_service.WORKERS) as pool:
+        found = {id(item): hours for (_, item), hours in zip(jobs, pool.map(one, jobs))}
+
+    def minutes(text):
+        return int(text[:2]) * 60 + int(text[3:5]) if text else None
+
+    for day in days:
+        day['excluded'] = (notes.get(day['day']) or {}).get('excluded', [])
+        day['moved'] = (notes.get(day['day']) or {}).get('moved', [])
+        previous_leave = minutes(day['start_time'])
+
+        for item in day['items']:
+            arrive = minutes(item['arrive'])
+            hours = found.get(id(item))
+            wait = 0
+
+            # 앞 장소에서 떠나 이동해도 여는 시각보다 일찍 닿아서 기다린 시간
+            if hours and arrive is not None and previous_leave is not None and arrive == hours.get('open_min'):
+                wait = max(arrive - (previous_leave + (item['move'] or 0)), 0)
+
+            item['hours'] = (
+                schedule_hours_badge(item['kind'], hours, arrive, item['stay'], wait)
+                if arrive is not None else None
+            )
+            previous_leave = minutes(item['leave']) or previous_leave
 
 
 @require_POST
@@ -5575,6 +5626,12 @@ def travel_chat_preview(request):
     except Exception:
         chat_logger.exception('AI 대화 일정 미리보기 실패')
         return _chat_error('일정 미리보기를 만들지 못했어요. 잠시 후 다시 시도해 주세요.', 500)
+
+    # 장소마다 운영시간 안내 + 담은 장소를 옮겼거나 못 넣은 안내 (🟩, mock.json plan.days[])
+    try:
+        _chat_attach_hours(travel, days)
+    except Exception:
+        chat_logger.exception('AI 대화 미리보기 운영시간 안내 실패')
 
     # 장소마다 사진 1장 (mock.json 의 stops[].photo). 롤백 밖에서 해야 찾은 사진이 저장된다.
     # 새로 찾는 건 한 번에 PREVIEW_PHOTO_NEW곳까지 (응답이 늦어지지 않게)
