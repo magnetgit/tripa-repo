@@ -908,6 +908,45 @@
             white-space: normal;
         }
 
+        /* 이동 구간 길찾기 링크 (대중교통 여행) */
+        .route-link-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .route-link {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 4px 10px;
+            border: 1px solid #dbe3ee;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #334155;
+            font-size: 11px;
+            font-weight: 800;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .route-link:hover {
+            background: #f1f5f9;
+        }
+
+        .route-link--kakao {
+            border-color: #fde68a;
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+        .route-link--naver {
+            border-color: #bbf7d0;
+            background: #f0fdf4;
+            color: #166534;
+        }
+
         .route-detail-actions {
             display: flex;
             flex-wrap: wrap;
@@ -3851,6 +3890,62 @@ function escapeHtml(value) {
 }
 
 
+// 이동 구간 길찾기 링크 (카카오맵·네이버지도, 대중교통 탭으로 열림)
+// 카카오: /link/by/traffic/이름,위도,경도/이름,위도,경도
+// 네이버: /p/directions/x,y,이름,,/x,y,이름,,/-/transit  (x,y 는 네이버 지도 좌표 = 웹 메르카토르 미터)
+function routeMapPlaceName(name, fallback) {
+    // 쉼표·슬래시는 주소 구분자라 빼고 넣는다
+    return String(name || fallback).replace(/[,/]/g, " ").trim() || fallback;
+}
+
+function naverMapXY(lat, lon) {
+    const R = 20037508.34;
+    const x = (Number(lon) * R) / 180;
+    const y = (Math.log(Math.tan(((90 + Number(lat)) * Math.PI) / 360)) / (Math.PI / 180)) * R / 180;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+}
+
+function buildRouteLinksHtml(route) {
+    const points = route && Array.isArray(route.points) ? route.points : [];
+
+    if (points.length < 2) {
+        return "";
+    }
+
+    const a = points[0];
+    const b = points[points.length - 1];
+
+    if ([a.lat, a.lon, b.lat, b.lon].some(function (v) { return Number.isNaN(Number(v)); })) {
+        return "";
+    }
+
+    const fromName = routeMapPlaceName(route.from_place, "출발");
+    const toName = routeMapPlaceName(route.to_place, "도착");
+
+    const kakaoUrl =
+        "https://map.kakao.com/link/by/traffic/"
+        + `${encodeURIComponent(fromName)},${Number(a.lat)},${Number(a.lon)}/`
+        + `${encodeURIComponent(toName)},${Number(b.lat)},${Number(b.lon)}`;
+
+    const naverUrl =
+        "https://map.naver.com/p/directions/"
+        + `${naverMapXY(a.lat, a.lon)},${encodeURIComponent(fromName)},,/`
+        + `${naverMapXY(b.lat, b.lon)},${encodeURIComponent(toName)},,/-/transit`;
+
+    return `
+        <span class="route-link-actions">
+            <a class="route-link route-link--kakao" href="${escapeHtml(kakaoUrl)}"
+               target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();">
+                카카오맵 길찾기
+            </a>
+            <a class="route-link route-link--naver" href="${escapeHtml(naverUrl)}"
+               target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();">
+                네이버지도 길찾기
+            </a>
+        </span>
+    `;
+}
+
 function buildTransitStepsHtml(route) {
 
     if (
@@ -4074,6 +4169,14 @@ function buildTransportSegmentHtml(
             buildTransitStepsHtml(
                 matchedRoute
             );
+
+        // 대중교통 여행이면 카카오맵·네이버지도 길찾기 링크 (api_source 는 enrichRouteDataWithTransit 가 붙임)
+        if (String(matchedRoute.api_source || "").startsWith("kakao_publictraffic")) {
+            transitDetailHtml +=
+                buildRouteLinksHtml(
+                    matchedRoute
+                );
+        }
 
     }
 
