@@ -10,6 +10,15 @@
 
 ---
 
+## 2026-11-10 · `place_search` 화면 삭제 (10/30 안건 7 결정대로) — 🟧 이수한
+DB·응답 키 변경 없음. 화면 주소만 없어져요.
+
+- 지움: 뷰 `place_search`·`place_search_search`, 주소 `place_search/`·`place_search_search`, 템플릿 `place_search.html`
+- **남김**: `schedule_place_search`(여행 상세에서 장소 찾아 넣기)와 그 안의 `_search_kakao_places`, 장소 검색 창 CSS(`.place-search-*`, 여행 만들기·상세에서 씀)
+- 템플릿에서 지운 주소 이름을 쓰는 곳 없음 확인, `/place_search/` → 404, `/schedule_place_search/` → 200
+
+---
+
 ## 2026-11-09 · 📐 공유: 추천 점수 키워드 보너스용 `draft` 인자 (🟩 `chat_service.py` 호출 한 줄에 추가만) — 🟧 이수한
 아직 코드 없음 (먼저 공유, 11/09 규칙). 🟧 추천 점수 PR에 같이 들어가요.
 
@@ -1658,7 +1667,7 @@ python manage.py makemigrations --check
 
 ### 🟧 백엔드
 - [ ] `managed=True` 전환 → 리뷰·카테고리 예산·회원 선택 컬럼 추가
-- [ ] `place_search`·`place_search_search` 주소·뷰·템플릿 삭제 (남은 `{% url 'place_search' %}` 없는지 확인)
+- [x] `place_search`·`place_search_search` 주소·뷰·템플릿 삭제 (남은 `{% url 'place_search' %}` 없는지 확인) → ✅ 11/10 삭제 (🟧)
 - [ ] 팝업용 장소 정보(사진 1장·주소·영업시간·게시판 평점)를 **고른 장소 하나만** 돌려주는 API
 
 ### 🟩 AI
@@ -1742,7 +1751,7 @@ python manage.py makemigrations --check
 - [ ] **방문 인증 규칙**: '적용하기'로 저장한 여행(`travel`/`travel_day_plan`)의 장소에만 리뷰 허용, 같은 여행·장소는 1개
 - [ ] 게시판 API: 목록(분류·정렬·지역), 쓰기, 도움돼요 토글, 장소별 평균·리뷰 수 집계
 - [ ] 카테고리 예산 저장: 여행별 카테고리 금액, `pay`에 `PAY_CATEGORY`(stay·move·food·cafe·ticket) 연결, `mock.json`의 `budget`과 같은 키로 응답
-- [ ] `place_search` 화면: 메뉴에서만 빠짐. 주소·뷰를 지울지 팀 결정 후 처리 (지울 때 다른 템플릿의 `{% url 'place_search' %}`가 남아 있지 않은지 확인)
+- [x] `place_search` 화면: 메뉴에서만 빠짐. 주소·뷰를 지울지 팀 결정 후 처리 → ✅ 11/10 삭제 (지울 때 다른 템플릿의 `{% url 'place_search' %}`가 남아 있지 않은지 확인)
 - [ ] 앱 대비: HTTPS 배포, 화면이 쓰는 데이터는 JSON API로 (자세한 건 `APP_GUIDE.md`)
 - [ ] 카카오맵: 배포 도메인이 정해지면 카카오 콘솔 JavaScript SDK 도메인에 등록. 웹 지도·앱 지도가 같은 JSON(이름·위도·경도·순서·날짜)을 받게 유지 (`APP_GUIDE.md` '지도 주의점')
 

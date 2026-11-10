@@ -91,22 +91,6 @@ urlpatterns = [
     ),
 
 
-    # ==========================================
-    # 장소 검색
-    # ==========================================
-
-    path(
-        'place_search/',
-        views.place_search,
-        name='place_search'
-    ),
-
-    path(
-        'place_search_search',
-        views.place_search_search,
-        name='place_search_search'
-    ),
-
 
     # ==========================================
     # 여행
