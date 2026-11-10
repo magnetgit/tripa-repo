@@ -46,5 +46,9 @@
   "budget_log": {"_설명": "GET /budget_log/<travel_id>/ 최근 10줄, 최신이 위 (11/10). action insert면 old null, delete면 new null",
                  "success": true,
                  "logs": [{"name": "해운대블루라인파크", "action": "update", "old": 12000, "new": 15000, "at": "2026-11-10 12:35"},
-                          {"name": "해운대블루라인파크", "action": "insert", "old": null, "new": 12000, "at": "2026-11-10 12:30"}]}
+                          {"name": "해운대블루라인파크", "action": "insert", "old": null, "new": 12000, "at": "2026-11-10 12:30"}]},
+  "same_stay": {"_설명": "같은 날 같은 숙소 두 번째 줄(귀가)의 stops[].cost (11/10). 숙박비는 첫 줄(체크인)에만, 합계도 한 번",
+                "stops": [{"name": "신라스테이 해운대", "is_stay": true, "cost": {"amount": 90000, "cat": "stay", "source": "tour", "per": 90000, "unit": "room", "cap": 2, "people": 2, "text": "디럭스 1박"}},
+                          {"name": "광안리해수욕장", "is_stay": false, "cost": {"amount": 0, "cat": "sight", "source": "estimate", "per": 0, "unit": "person", "cap": 1, "people": 2, "text": ""}},
+                          {"name": "신라스테이 해운대", "is_stay": true, "cost": {"amount": 0, "cat": "stay", "source": "tour", "per": 90000, "unit": "room", "cap": 2, "people": 2, "text": "디럭스 1박", "same_stay": true}}]}
 }
