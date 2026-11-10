@@ -30,4 +30,4 @@
 ## 확인 (11/10)
 - 한 번 실행: `sherpa_schema_20261110_103640_test.sql.gz` 36KB, `gunzip -t` 통과, 표 30개
 - `crontab -l`에 등록, `cron` 서비스 active, `deploy.sh`·`backup_db.sh` 문법 검사 통과
-- 배포 때 백업은 다음 배포에서 처음 돌아요
+- 배포 때 백업: 11/10 #87 배포에서 `sherpa_schema_20261110_115531_deploy.sql.gz` 36KB 생성 확인 (그 뒤 migrate)
