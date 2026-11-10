@@ -1836,21 +1836,24 @@ def travel_reschedule(request, travel_id):
 # 여행 삭제
 # ==============================================
 
+@require_POST
 def travel_delete(
     request,
     travel_id
 ):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
 
     travel = get_object_or_404(
         Travel,
         t_id=travel_id
     )
 
+    if travel.member_id != member.m_id:
+        return HttpResponseForbidden('내 여행만 지울 수 있어요.')
 
-    if request.method == 'POST':
-
-        travel.delete()
-
+    travel.delete()
 
     return redirect(
         'travel_list'
