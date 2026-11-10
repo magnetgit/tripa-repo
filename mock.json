@@ -42,5 +42,9 @@
   "festival_fee": {"_설명": "GET /travel_festivals/<id>/ 의 festivals[] 각각에 붙는 fee (11/10). per·amount null = 금액 모름, paid true = 유료",
                    "festivals": [{"title": "2027 ACE Fair", "fee": {"per": 10000, "amount": 20000, "people": 2, "paid": true, "text": "[현장등록] - 성인 10,000원 - 청소년 5,000원"}},
                                  {"title": "서울빛초롱축제", "fee": {"per": 0, "amount": 0, "people": 2, "paid": false, "text": "무료"}},
-                                 {"title": "크리스마스 빌리지 부산 2026", "fee": {"per": null, "amount": null, "people": 2, "paid": true, "text": "유료"}}]}
+                                 {"title": "크리스마스 빌리지 부산 2026", "fee": {"per": null, "amount": null, "people": 2, "paid": true, "text": "유료"}}]},
+  "budget_log": {"_설명": "GET /budget_log/<travel_id>/ 최근 10줄, 최신이 위 (11/10). action insert면 old null, delete면 new null",
+                 "success": true,
+                 "logs": [{"name": "해운대블루라인파크", "action": "update", "old": 12000, "new": 15000, "at": "2026-11-10 12:35"},
+                          {"name": "해운대블루라인파크", "action": "insert", "old": null, "new": 12000, "at": "2026-11-10 12:30"}]}
 }
