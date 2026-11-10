@@ -908,6 +908,45 @@
             white-space: normal;
         }
 
+        /* 이동 구간 길찾기 링크 (대중교통 여행) */
+        .route-link-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .route-link {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 4px 10px;
+            border: 1px solid #dbe3ee;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #334155;
+            font-size: 11px;
+            font-weight: 800;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .route-link:hover {
+            background: #f1f5f9;
+        }
+
+        .route-link--kakao {
+            border-color: #fde68a;
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+        .route-link--naver {
+            border-color: #bbf7d0;
+            background: #f0fdf4;
+            color: #166534;
+        }
+
         .route-detail-actions {
             display: flex;
             flex-wrap: wrap;
@@ -1575,6 +1614,15 @@
         .sp-hours-summary b { font-weight: 800; }
         .sp-hours-summary ul { margin: 4px 0 0; padding-left: 16px; }
         .sp-hours-summary li { margin: 1px 0; }
+        .sp-hours-fit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+        .sp-hours-fit button {
+            padding: 6px 12px; border: 0; border-radius: 9px; background: #e8710a; color: #fff;
+            font-size: 12.5px; font-weight: 800; cursor: pointer;
+        }
+        .sp-hours-fit button:disabled { opacity: .6; cursor: default; }
+        .sp-hours-fit small { color: #9a4b00; font-size: 11.5px; }
+        .sp-hours-result { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: #f1f5f9; color: #334155; font-size: 12.5px; line-height: 1.5; }
+        .sp-hours-result ul { margin: 2px 0 0; padding-left: 16px; }
 
         /* 끌고 있는 장소가 운영시간 밖 자리에 오면 회색 */
         .sp-item.sp-drag-off .sp-card {
@@ -3851,6 +3899,62 @@ function escapeHtml(value) {
 }
 
 
+// 이동 구간 길찾기 링크 (카카오맵·네이버지도, 대중교통 탭으로 열림)
+// 카카오: /link/by/traffic/이름,위도,경도/이름,위도,경도
+// 네이버: /p/directions/x,y,이름,,/x,y,이름,,/-/transit  (x,y 는 네이버 지도 좌표 = 웹 메르카토르 미터)
+function routeMapPlaceName(name, fallback) {
+    // 쉼표·슬래시는 주소 구분자라 빼고 넣는다
+    return String(name || fallback).replace(/[,/]/g, " ").trim() || fallback;
+}
+
+function naverMapXY(lat, lon) {
+    const R = 20037508.34;
+    const x = (Number(lon) * R) / 180;
+    const y = (Math.log(Math.tan(((90 + Number(lat)) * Math.PI) / 360)) / (Math.PI / 180)) * R / 180;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+}
+
+function buildRouteLinksHtml(route) {
+    const points = route && Array.isArray(route.points) ? route.points : [];
+
+    if (points.length < 2) {
+        return "";
+    }
+
+    const a = points[0];
+    const b = points[points.length - 1];
+
+    if ([a.lat, a.lon, b.lat, b.lon].some(function (v) { return Number.isNaN(Number(v)); })) {
+        return "";
+    }
+
+    const fromName = routeMapPlaceName(route.from_place, "출발");
+    const toName = routeMapPlaceName(route.to_place, "도착");
+
+    const kakaoUrl =
+        "https://map.kakao.com/link/by/traffic/"
+        + `${encodeURIComponent(fromName)},${Number(a.lat)},${Number(a.lon)}/`
+        + `${encodeURIComponent(toName)},${Number(b.lat)},${Number(b.lon)}`;
+
+    const naverUrl =
+        "https://map.naver.com/p/directions/"
+        + `${naverMapXY(a.lat, a.lon)},${encodeURIComponent(fromName)},,/`
+        + `${naverMapXY(b.lat, b.lon)},${encodeURIComponent(toName)},,/-/transit`;
+
+    return `
+        <span class="route-link-actions">
+            <a class="route-link route-link--kakao" href="${escapeHtml(kakaoUrl)}"
+               target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();">
+                카카오맵 길찾기
+            </a>
+            <a class="route-link route-link--naver" href="${escapeHtml(naverUrl)}"
+               target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();">
+                네이버지도 길찾기
+            </a>
+        </span>
+    `;
+}
+
 function buildTransitStepsHtml(route) {
 
     if (
@@ -4074,6 +4178,14 @@ function buildTransportSegmentHtml(
             buildTransitStepsHtml(
                 matchedRoute
             );
+
+        // 대중교통 여행이면 카카오맵·네이버지도 길찾기 링크 (api_source 는 enrichRouteDataWithTransit 가 붙임)
+        if (String(matchedRoute.api_source || "").startsWith("kakao_publictraffic")) {
+            transitDetailHtml +=
+                buildRouteLinksHtml(
+                    matchedRoute
+                );
+        }
 
     }
 
@@ -5223,6 +5335,93 @@ function hoursFit(h, arrive, leave) {
     return "ok";
 }
 
+// 음식점은 마감 1시간 전, 카페·그 밖은 30분 전까지 도착 (hours_service.last_arrival 과 같은 규칙)
+const SP_FOOD_WORDS = ["음식", "식당", "맛집", "한식", "중식", "일식", "양식", "분식", "고기", "횟집"];
+const SP_CAFE_WORDS = ["카페", "커피", "디저트", "베이커리"];
+
+function spIsFood(kind) {
+    const k = String(kind || "");
+    return SP_FOOD_WORDS.some(function (w) { return k.includes(w); })
+        && !SP_CAFE_WORDS.some(function (w) { return k.includes(w); });
+}
+
+function spMinText(minutes) {
+    const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
+    return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+// 문은 열려 있지만 마감 직전에 도착하면 안내 문구, 아니면 ""
+function spDeadlineAdvice(h, kind, arrive) {
+    if (!h || h.closed || h.open_min == null || h.close_min == null || arrive == null) {
+        return "";
+    }
+    if (h.open_min === 0 && h.close_min >= 24 * 60) {
+        return "";
+    }
+    if (String(kind || "").includes("숙박")) {
+        return "";
+    }
+    let a = arrive;
+    if (h.close_min > 24 * 60 && a + 24 * 60 <= h.close_min && a < h.open_min) {
+        a += 24 * 60;
+    }
+    const food = spIsFood(kind);
+    const last = h.close_min - (food ? 60 : 30);
+    if (a <= last || a >= h.close_min) {
+        return "";
+    }
+    return `마감(${spMinText(h.close_min)})까지 ${h.close_min - a}분뿐이라 ${food ? "식사할" : "둘러볼"} 시간이 부족해요`
+        + ` → ${spMinText(last)} 전에 도착 추천`;
+}
+
+let spFitResult = null;   // '운영시간에 맞추기' 결과 (다시 그린 뒤 한 번 보여 줌)
+
+function fitStaysToHours(button) {
+    const day = currentDay;
+    if (button) {
+        button.disabled = true;
+        button.textContent = "맞추는 중...";
+    }
+    fetch(`/travel_fit_hours/${travelId}/${day}/`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRFToken": getCookie("csrftoken") }
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                throw new Error((data && data.message) || "맞추지 못했어요.");
+            }
+            spFitResult = { day: day, changed: data.changed || [], warnings: data.warnings || [] };
+            loadDay(day);   // 바뀐 체류·시간으로 다시 그림
+        })
+        .catch(function (error) {
+            alert(error.message || "운영시간에 맞추지 못했어요.");
+            if (button) {
+                button.disabled = false;
+                button.textContent = "운영시간에 맞추기";
+            }
+        });
+}
+
+function spFitResultHtml() {
+    if (!spFitResult || String(spFitResult.day) !== String(currentDay)) {
+        return "";
+    }
+    const r = spFitResult;
+    spFitResult = null;
+    const rows = r.changed.map(function (c) {
+        return `<li><b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.message)}</li>`;
+    });
+    const left = r.warnings.map(function (w) {
+        return `<li><b>${escapeHtml(w.name)}</b> · ${escapeHtml(w.message)}</li>`;
+    });
+    return `<div class="sp-hours-result">`
+        + (rows.length ? `<b>운영시간에 맞췄어요 (${rows.length}곳)</b><ul>${rows.join("")}</ul>` : `<b>줄일 체류가 없었어요.</b>`)
+        + (left.length ? `<b>체류로는 못 맞추는 곳</b> (자리를 옮겨 주세요)<ul>${left.join("")}</ul>` : "")
+        + `</div>`;
+}
+
 function spStayMinutes(sp) {
     const stay = Number(sp && sp.stay_time || 0);
     return stay > 0 ? stay : 60;
@@ -5274,6 +5473,7 @@ function applySpHours() {
     spRenderedPlaces.forEach(function (sp) { byId[String(sp.sp_id)] = sp; });
     const slots = spSlotTimes();
     const warns = [];
+    let fixable = 0;   // '운영시간에 맞추기'로 고칠 수 있는 곳 (마감을 넘는 체류)
     let known = 0;
 
     container.querySelectorAll(".sp-item").forEach(function (item, index) {
@@ -5296,6 +5496,11 @@ function applySpHours() {
         const leave = timelineTimeToMinutes(sp.start_time);
         const fit = hoursFit(h, arrive, leave);
         const range = hoursRangeText(h);
+        // 문은 열려 있어도 마감 직전 도착 (음식점 1시간·그 밖 30분 전 넘김)
+        const deadline = fit === "closed" || fit === "early" ? "" : spDeadlineAdvice(h, sp.place_kind, arrive);
+        if (fit === "late" && !deadline && arrive != null && arrive < h.close_min) {
+            fixable++;   // 도착은 괜찮은데 체류가 마감을 넘음 → 줄이면 맞음
+        }
 
         let cls = "is-ok";
         let text = range ? `운영 ${range}` : "";
@@ -5309,11 +5514,19 @@ function applySpHours() {
         } else if (fit === "closed") {
             cls = "is-closed";
             text = spHoursAdvice(h, fit);
-        } else if (fit === "ok" && !h.estimated) {
+        } else if (fit === "ok" && !h.estimated && !deadline) {
             text = `✓ ${text}`;
+        }
+        if (deadline) {
+            cls = "is-warn";
+            text = `${text} · ${deadline}`;
         }
         if (!text) {
             return;
+        }
+
+        if (deadline) {
+            warns.push(`<li><b>${escapeHtml(sp.place_name || "")}</b> · ${escapeHtml(deadline)}</li>`);
         }
 
         if (fit === "early" || fit === "late" || fit === "closed") {
@@ -5354,9 +5567,19 @@ function applySpHours() {
     summary.className = "sp-hours-summary" + (warns.length ? " is-warn" : "");
     summary.innerHTML = warns.length
         ? `<span>⚠</span><div><b>운영시간이 안 맞는 곳 ${warns.length}곳</b>`
-            + `<ul>${warns.join("")}</ul></div>`
+            + `<ul>${warns.join("")}</ul>`
+            + (fixable
+                ? `<div class="sp-hours-fit"><button type="button" onclick="fitStaysToHours(this)">운영시간에 맞추기</button>`
+                    + `<small>마감을 넘는 체류 ${fixable}곳을 마감 시각까지로 줄여요 (뒤 일정 시각은 그대로)</small></div>`
+                : "")
+            + `</div>`
         : `<span>✓</span><div><b>운영시간 확인 완료</b> · 정보가 있는 ${known}곳 모두 문 여는 시간에 가요</div>`;
     container.insertBefore(summary, container.firstChild);
+
+    const result = spFitResultHtml();
+    if (result) {
+        summary.insertAdjacentHTML("beforebegin", result);
+    }
 }
 
 // 끄는 중: 지금 자리의 도착 시각이 운영시간 밖이면 회색 + 안내

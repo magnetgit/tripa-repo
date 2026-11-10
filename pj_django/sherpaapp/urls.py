@@ -249,6 +249,13 @@ urlpatterns = [
         name='travel_hours'
     ),
 
+    # 여행 상세 '운영시간에 맞추기' 버튼 (🟦 마감 넘는 체류 줄이기)
+    path(
+        'travel_fit_hours/<int:travel_id>/<int:day>/',
+        views.travel_fit_hours,
+        name='travel_fit_hours'
+    ),
+
     # 예산 AI (🟦): 초안 예상 비용, 여행별 카테고리 예산 (GET 읽기 / POST 저장)
     path(
         'budget_estimate/',
