@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-11-10 · 비밀번호 찾기: 다시 받기 대기 1분 → 5초 + "터미널에 메일이 안 보여요" 확인 순서 — 🟧 이수한
+DB·주소·응답 키 변경 없음. `PW_CODE_RESEND = 5` (버튼 연타 막기), 막히면 `message`: "잠시 뒤에 다시 받을 수 있어요." (429). **코드 입력 시간은 10분 그대로.** 다시 받기 대기는 화면에 시간 표시 안 해요 (서버 `message`만 보여 주기).
+
+### 🟦 영준 — runserver 터미널에 인증 코드 메일이 안 보일 때 (위에서부터 확인)
+1. **회원 정보가 하나라도 다름** (가장 흔함): 아이디·이메일·이름이 **셋 다 정확히** 맞아야 메일을 보내요. 안 맞아도 화면 문구는 "입력한 정보가 맞으면 …보냈어요"로 **똑같이** 떠요 (가입 여부가 안 드러나게 일부러). 내 PC DB에 그 회원이 있는지:
+   ```bash
+   python manage.py shell -c "from sherpaapp.models import Member; print(Member.objects.filter(user_id='아이디', email='이메일', name='이름').exists())"
+   ```
+   `False`면 이게 원인 (내 PC DB 회원 정보는 서버·다른 사람 PC와 달라요)
+2. **최신 코드가 아님**: `git pull origin main` 했는지. 브라우저 F12 → Network 탭에서 `pw_code` 요청 상태: `200` 서버까지 감 / `404` 코드 없음(pull 필요) / `403` CSRF 토큰이 안 실림(`new FormData(form)`의 form 안에 `{% csrf_token %}` 있는지)
+3. **다른 터미널을 봄**: 메일 내용은 `python manage.py runserver`를 실행한 **그 터미널**에 찍혀요. VS Code ▶ 실행·디버그로 켰으면 **"디버그 콘솔"** 탭
+4. **메일 설정 자체 확인**: 아래를 친 터미널에 `Subject: 시험`이 보이면 메일 설정은 정상 → 원인은 1~3번
+   ```bash
+   python manage.py shell -c "from django.core.mail import send_mail; send_mail('시험', '터미널에 보이면 성공', None, ['test@example.com'])"
+   ```
+- `.env`에 `EMAIL_HOST_USER`가 있으면 터미널 대신 **진짜 메일**로 가요 (그때는 받을 회원 이메일이 실제 주소여야 함, 데모 회원 `demo_..@example.com`은 도착 안 함)
+
+---
+
 ## 2026-11-10 · 데모 데이터 더 자세하게: 회원 80명·리뷰 1,650개, 동행·나이대·장소·계절에 맞는 리뷰 — 🟧 이수한
 DB·응답 키 변경 없음. `seed_demo`만 바뀜. 로컬에서 새로 만들려면 `python manage.py seed_demo --reset` (데모 회원 `demo_`만 지우고 다시 만들어요).
 
