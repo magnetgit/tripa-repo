@@ -419,11 +419,19 @@ def plan_budget(days, people):
 
     by = {c: 0 for c in CATEGORIES}
     items, unknown = [], []
+    seen_stays = set()      # 이미 숙박비를 센 (날짜, 숙소) 짝
     for (day, item), price in zip(rows, prices):
         item['cost'] = to_cost(price, people)
         if not price:
             unknown.append(item.get('name'))
             continue
+        if item.get('is_stay'):
+            key = (day,item.get('name'))        # 같은 숙소인지 알아볼 값
+            if key in seen_stays:
+                item['cost']['amount'] = 0
+                item['cost']['same_stay'] = True
+                continue    # 합계(by)·items에 더하지 않기
+            seen_stays.add(key) 
         amount = item['cost']['amount']
         by[price['cat']] += amount
         items.append({'name': item.get('name'), 'day': day, 'cat': price['cat'], 'amount': amount,
