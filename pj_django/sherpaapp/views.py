@@ -1,3 +1,4 @@
+from django.core.mail import send_mail
 from django.contrib.auth.hashers import make_password, check_password
 from datetime import datetime, timedelta, time, date
 import hashlib
@@ -5,6 +6,7 @@ import json
 import logging
 import random
 import re
+import secrets
 from decimal import Decimal
 import requests
 from django.conf import settings
@@ -165,248 +167,11 @@ def travel_create(request):
     except Member.DoesNotExist:
         return redirect('login')
 
-    # ==========================================
-    # 여행 저장
-    # ==========================================
-    if request.method == 'POST':
-        title = request.POST.get('t_title')
-        place = request.POST.get('t_place')
-        start_str = request.POST.get('t_start')
-        end_str = request.POST.get('t_end')
-        start_place = request.POST.get('start_place')
-        start_addr = request.POST.get('start_addr')
-        start_lat = request.POST.get('start_lat') or None
-        start_lon = request.POST.get('start_lon') or None
-        start_time = request.POST.get('start_time') or None
-        plan_dates = request.POST.getlist('plan_date[]')
-
-        stay_names = request.POST.getlist('stay_name[]')
-        stay_addrs = request.POST.getlist('stay_addr[]')
-        stay_lats = request.POST.getlist('stay_lat[]')
-        stay_lons = request.POST.getlist('stay_lon[]')
-
-        arrival_times = request.POST.getlist('stay_arrival_time[]')
-        departure_times = request.POST.getlist('day_departure_time[]')
-
-        # 날짜 문자열 -> date 객체
-        try:
-            start = datetime.strptime(start_str, '%Y-%m-%d').date()
-            end = datetime.strptime(end_str, '%Y-%m-%d').date()
-        except (TypeError, ValueError):
-            categories = Category.objects.all().order_by('c_id')
-            return render(
-                request,
-                'sherpaapp/travel_create.html',
-                {
-                    'member': member,
-                    'categories': categories,
-                    'error': '여행 날짜를 올바르게 입력해주세요.',
-                }
-            )
-
-        # 시작일은 오늘보다 과거일 수 없음
-        if start < date.today():
-            categories = Category.objects.all().order_by('c_id')
-            return render(
-                request,
-                'sherpaapp/travel_create.html',
-                {
-                    'member': member,
-                    'categories': categories,
-                    'error': '여행 시작일은 오늘 이후로 선택해주세요.',
-                }
-            )
-
-        # 종료일은 시작일과 같거나 이후여야 함
-        # 시작일 == 종료일이면 당일 여행으로 허용
-        if end < start:
-            categories = Category.objects.all().order_by('c_id')
-            return render(
-                request,
-                'sherpaapp/travel_create.html',
-                {
-                    'member': member,
-                    'categories': categories,
-                    'error': '여행 종료일은 시작일과 같거나 이후로 선택해주세요.',
-                }
-            )
-
-        traffic = ','.join(
-            value for value in request.POST.getlist('traffic')
-            if value
-        )
-
-        # ======================================
-        # 선택한 여행 컨셉 조회
-        #
-        # 현재 템플릿(name="categories", value=C_ID)과
-        # 예전 템플릿(name="concept", value=C_NAME)을
-        # 둘 다 지원한다.
-        # ======================================
-        category_ids = [
-            value
-            for value in request.POST.getlist('categories')
-            if value
-        ]
-
-        concept_names = [
-            value.strip()
-            for value in request.POST.getlist('concept')
-            if value and value.strip()
-        ]
-
-        selected_categories = []
-
-        if category_ids:
-            selected_categories = list(
-                Category.objects.filter(
-                    c_id__in=category_ids
-                ).order_by('c_id')
-            )
-        elif concept_names:
-            selected_categories = list(
-                Category.objects.filter(
-                    c_name__in=concept_names
-                ).order_by('c_id')
-            )
-
-        # 컨셉이 하나도 전달되지 않았으면 자동 추천을 만들 수 없음
-        if not selected_categories:
-            categories = Category.objects.all().order_by('c_id')
-            return render(
-                request,
-                'sherpaapp/travel_create.html',
-                {
-                    'member': member,
-                    'categories': categories,
-                    'error': '여행 컨셉을 1개 이상 선택해주세요.',
-                }
-            )
-
-        # ======================================
-        # TRAVEL 생성
-        # ======================================
-        travel = Travel.objects.create(
-            member=member,
-            t_title=title,
-            t_place=place,
-            t_start=start,
-            t_end=end,
-            t_day=start,
-            t_way=traffic,
-            t_budget=100000,
-            start_place=start_place,
-            start_addr=start_addr,
-            start_lat=start_lat,
-            start_lon=start_lon,
-            start_time=start_time,
-        )
-
-        # ======================================
-        # 중요: 자동 일정 생성 전에
-        # TRAVEL_CATEGORY를 먼저 저장해야 함.
-        # generate_schedule()은 이 값을 읽어
-        # 추천 장소를 검색한다.
-        # ======================================
-        for category in selected_categories:
-            TravelCategory.objects.get_or_create(
-                travel=travel,
-                category=category,
-            )
-
-        print(
-            '자동 일정 생성 카테고리:',
-            [category.c_name for category in selected_categories]
-        )
-
-        # ==============================================
-        # 날짜별 숙소 / 출발시간 저장
-        # ==============================================
-
-        for index, plan_date_str in enumerate(plan_dates):
-
-            if not plan_date_str:
-                continue
-
-            plan_date = datetime.strptime(
-                plan_date_str,
-                '%Y-%m-%d'
-            ).date()
-
-            stay_name = (
-                stay_names[index].strip()
-                if index < len(stay_names)
-                else ''
-            )
-
-            stay_addr = (
-                stay_addrs[index].strip()
-                if index < len(stay_addrs)
-                else ''
-            )
-
-            stay_lat = (
-                stay_lats[index].strip()
-                if index < len(stay_lats)
-                else ''
-            )
-
-            stay_lon = (
-                stay_lons[index].strip()
-                if index < len(stay_lons)
-                else ''
-            )
-
-            arrival_time = (
-                arrival_times[index].strip()
-                if index < len(arrival_times)
-                else ''
-            )
-
-            departure_time = (
-                departure_times[index].strip()
-                if index < len(departure_times)
-                else ''
-            )
-
-            TravelDayPlan.objects.create(
-                travel=travel,
-                plan_date=plan_date,
-
-                accommodation_name=stay_name or None,
-                accommodation_addr=stay_addr or None,
-                accommodation_lat=stay_lat or None,
-                accommodation_lon=stay_lon or None,
-
-                arrival_time=arrival_time or None,
-                departure_time=departure_time or None,
-            )        
-
-        # ======================================
-        # 자동 일정 생성
-        # ======================================
-        generate_schedule(travel)
-
-        return redirect(
-            'travel_detail',
-            travel_id=travel.t_id
-        )
-
-    # ==========================================
-    # GET - 카테고리 목록
-    # ==========================================
-    categories = Category.objects.all().order_by('c_id')
-
-    # 기본은 AI 대화 방식, ?mode=manual 이면 예전 직접 선택 방식
-    mode = 'manual' if request.GET.get('mode') == 'manual' else 'chat'
-
     return render(
         request,
         'sherpaapp/travel_create.html',
         {
             'member': member,
-            'categories': categories,
-            'mode': mode,
             **_parse_plan_query(request),
         }
     )
@@ -1836,21 +1601,24 @@ def travel_reschedule(request, travel_id):
 # 여행 삭제
 # ==============================================
 
+@require_POST
 def travel_delete(
     request,
     travel_id
 ):
+    member = _login_member(request)
+    if not member:
+        return redirect('login')
 
     travel = get_object_or_404(
         Travel,
         t_id=travel_id
     )
 
+    if travel.member_id != member.m_id:
+        return HttpResponseForbidden('내 여행만 지울 수 있어요.')
 
-    if request.method == 'POST':
-
-        travel.delete()
-
+    travel.delete()
 
     return redirect(
         'travel_list'
@@ -2560,6 +2328,37 @@ def pw_find(request):
         'new_pwd_check'
     )
 
+    code = (request.POST.get('code') or '').strip()
+
+    # 인증 코드 확인 (pw_code 에서 세션에 넣어 둔 것)
+    saved = request.session.get('pw_reset') or {}
+    now = datetime.now().timestamp()
+
+    if saved.get('user_id') != user_id or now > saved.get('until', 0):
+        return HttpResponse("""
+            <script>
+                alert('인증 코드를 먼저 받아 주세요. (10분이 지났으면 다시 받기)');
+                history.back();
+            </script>
+        """)
+
+    if saved.get('tries', 0) >= PW_CODE_TRIES:
+        return HttpResponse("""
+                <script>
+                    alert('5번 틀렸어요. 인증 코드를 다시 받아 주세요.');
+                    history.back();
+                </script>
+            """)
+
+    if not check_password(code, saved['code']):
+        saved['tries'] = saved.get('tries', 0) + 1
+        request.session['pw_reset'] = saved          # 바꾼 dict 를 세션에 다시 넣기
+        return HttpResponse(f"""
+        <script>
+            alert('인증 코드가 맞지 않아요. ({saved['tries']}/5)');
+            history.back();
+        </script>
+        """)
 
     try:
 
@@ -2600,6 +2399,7 @@ def pw_find(request):
 
 
         member.save()
+        request.session.pop('pw_reset', None)       # 한 번 쓴 코드는 버리기
 
 
         return HttpResponse("""
@@ -2618,6 +2418,47 @@ def pw_find(request):
                 history.back();
             </script>
         """)
+
+
+PW_CODE_SECONDS = 10 * 60     # 코드 유효 시간 (10분)
+PW_CODE_TRIES = 5             # 틀려도 되는 횟수
+PW_CODE_RESEND = 60           # 다시 받으려면 기다리는 시간 (1분)
+
+
+# 비밀번호 찾기 1단계: 아이디·이메일·이름이 맞으면 6자리 코드를 메일로 (TEAM_UPDATES 11/10)
+@require_POST
+def pw_code(request):
+    user_id = (request.POST.get('user_id') or '').strip()
+    email = (request.POST.get('email') or '').strip()
+    name = (request.POST.get('name') or '').strip()
+    now = datetime.now().timestamp()        # time.time() 과 같은 값(1970년부터 흐른 초)
+
+    # 1분 안에 다시 누르면 막기
+    saved = request.session.get('pw_reset') or {}
+    if now - saved.get('sent', 0) < PW_CODE_RESEND:
+        return JsonResponse({'success': False, 'message': '1분 뒤에 다시 받을 수 있어요.'}, status=429)
+
+    member = Member.objects.filter(user_id=user_id, email=email, name=name).first()
+    if member:
+        code = '%06d' % secrets.randbelow(1000000)          # 000000 ~ 999999
+        request.session['pw_reset'] = {
+            'user_id': member.user_id,
+            'code': make_password(code),                           # 코드도 비밀번호처럼 그대로 저장하지 않기
+            'until': now + PW_CODE_SECONDS,
+            'tries': 0,
+            'sent': now,
+        }
+        send_mail(
+            '[TRIPA] 비밀번호 찾기 인증 코드',
+            f'인증 코드: {code}\n10분 안에 입력해 주세요. 직접 요청하지 않았다면 이 메일은 무시해 주세요.',
+            None,                                           # 보내는 사람: settings.DEFAULT_FROM_EMAIL
+            [member.email],
+        )
+    else:
+        request.session['pw_reset'] = {'sent': now}         # 없는 회원도 1분 막기는 똑같이
+
+    # 회원이 있든 없든 같은 문구 (가입 여부가 드러나지 않게)
+    return JsonResponse({'success': True, 'message': '입력한 정보가 맞으면 인증 코드를 메일로 보냈어요.'})
 
 
 # ==============================================

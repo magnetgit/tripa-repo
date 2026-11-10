@@ -325,6 +325,18 @@ CSRF_COOKIE_SECURE = env.bool(
     default=False,
 )
 
+# 메일 (비밀번호 찾기 인증 코드)
+# .env에 EMAIL_HOST_USER가 없으면 메일을 실제로 보내지 않고 runserver 터미널에 찍는다
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST_USER
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = True
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "TRIPA <no-reply@tripa.local>")
 
 # =========================================================
 # 기타
