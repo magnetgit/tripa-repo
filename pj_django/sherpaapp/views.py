@@ -1573,6 +1573,84 @@ def travel_hours(request, travel_id, day):
     })
 
 
+def _time_minutes(value):
+    """TimeField 값 → 분 (없으면 None)"""
+    return value.hour * 60 + value.minute if value else None
+
+
+# 여행 상세 '운영시간에 맞추기' 버튼 (🟦 hours_service.fit_stay, 11/06 결정)
+# POST → 그날 장소마다 마감을 넘는 체류를 마감 시각까지로 줄임 (뒤 일정 시각은 그대로)
+#   {success, day, changed: [{sp_id, name, before, after, message}],
+#    warnings: [{sp_id, name, status, message}]}   (warnings: 마감 직전 도착·휴무처럼 체류로는 못 맞추는 곳)
+def travel_fit_hours(request, travel_id, day):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': '허용되지 않는 요청입니다.'}, status=405)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    schedules = list(Schedule.objects.filter(travel=travel).order_by('s_day'))
+    if day < 1 or day > len(schedules):
+        return JsonResponse({'success': False, 'message': '존재하지 않는 DAY입니다.'}, status=404)
+    schedule = schedules[day - 1]
+
+    def places():
+        return list(
+            SchedulePlace.objects.filter(schedule=schedule)
+            .select_related('place').order_by('visit_order', 'sp_id')
+        )
+
+    try:
+        hours = hours_service.schedule_hours(places(), schedule.s_day)
+    except Exception:
+        logger.exception('운영시간 실패 travel=%s day=%s', travel_id, day)
+        return JsonResponse({'success': False, 'message': '운영시간을 불러오지 못했어요.'}, status=502)
+
+    # 마감을 넘는 체류만 마감 시각까지 줄이고 그 장소 떠나는 시각만 고친다.
+    # 뒤 일정 시각은 그대로 둔다 (다시 계산하면 점심·저녁이 앞으로 당겨짐 → 빈 시간은 자유 시간)
+    changed = []
+    with transaction.atomic():
+        for sp in places():
+            fit = hours_service.fit_stay(
+                sp.place.p_kind, hours.get(sp.sp_id), _time_minutes(sp.arrive_time), sp.stay_time,
+            )
+            if fit['status'] != 'shortened' or fit['stay'] == sp.stay_time:
+                continue
+            changed.append({
+                'sp_id': sp.sp_id, 'name': sp.place.p_name,
+                'before': sp.stay_time or 60, 'after': fit['stay'], 'message': fit['message'],
+            })
+            sp.stay_time = fit['stay']
+            sp.start_time = (
+                datetime.combine(schedule.s_day, sp.arrive_time) + timedelta(minutes=fit['stay'])
+            ).time()
+            sp.save(update_fields=['stay_time', 'start_time'])
+
+    warnings = []
+    for sp in places():
+        fit = hours_service.fit_stay(
+            sp.place.p_kind, hours.get(sp.sp_id), _time_minutes(sp.arrive_time), sp.stay_time,
+        )
+        if fit['status'] in ('late', 'closed'):
+            warnings.append({
+                'sp_id': sp.sp_id, 'name': sp.place.p_name,
+                'status': fit['status'], 'message': fit['message'],
+            })
+
+    return JsonResponse({
+        'success': True,
+        'day': day,
+        'changed': changed,
+        'warnings': warnings,
+    })
+
+
 # 여행 상세: 그날 장소마다 AI 예상 비용 (여행 만들 때와 같은 가격 × 비용 관리에서 계산한 인원) — 🟦 예산 AI
 # GET → {success, day, people, places: {sp_id: cost}, planned, by}  (cost 모양은 mock.json places.items[].cost)
 def travel_costs(request, travel_id, day):
