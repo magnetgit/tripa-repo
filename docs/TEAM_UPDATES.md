@@ -10,6 +10,39 @@
 
 ---
 
+## 2026-11-10 · 체류 시간을 운영시간에 맞추기 + '운영시간에 맞추기' 버튼 + 📐 공유 정의 `hours_service.fit_stay` — 🟦 임영준
+DB·기존 응답 키 변경 없음 · **새 주소 `travel_fit_hours/<travel_id>/<day>/` (POST)** · `hours_service.py`에 함수 추가만
+
+### 📐 공유 정의 (11/06 결정: 🟩 일정 만들기도 같은 함수를 써요)
+- `hours_service.last_arrival(kind, close_min)` → 이 시각(분)까지 도착해야 함: **음식점 마감 60분 전, 카페·그 밖 30분 전**
+- `hours_service.fit_stay(kind, hours, arrive_min, stay_min)` → `{'status', 'stay', 'last_arrival', 'message'}`
+  - `hours`: `place_hours(...)` 결과(없으면 None), `arrive_min`: 도착(분, 09:30 → 570), `stay_min`: 체류(분)
+  - `status`: `ok` · `shortened`(마감을 넘는 체류 → `stay`가 줄인 값, 예: "마감(18:00)에 맞춰 체류 120분 → 90분") · `late`(마감 직전 도착이라 옮겨야 함, 예: "마감(21:00)까지 50분뿐이라 식사할 시간이 부족해요 · 20:00 전에 도착하게 옮겨 보세요") · `closed`(휴무) · `early`(아직 안 엶, 여기선 안 고침) · `unknown`(모름·24시간·숙소)
+  - `is_food(kind)`: 음식·식당·맛집·한식… (카페·디저트는 아님)
+
+### 화면 (여행 상세)
+- 마감 직전 도착(음식점 1시간·그 밖 30분 전 넘김)도 주황 경고 + 맨 위 요약에 포함
+- 마감을 넘는 체류가 있으면 요약에 **'운영시간에 맞추기'** 버튼 → 그 장소 체류를 마감 시각까지로 줄이고 떠나는 시각만 고침. **뒤 일정 시각은 그대로**(다시 계산하면 점심·저녁이 앞당겨져서), 빈 시간은 자유 시간
+  - 결과 안내: 줄인 곳 + "체류로는 못 맞추는 곳"(마감 직전 도착·휴무 → 자리 옮기기)
+- `POST travel_fit_hours/<id>/<day>/` (주인만) → `{success, day, changed: [{sp_id, name, before, after, message}], warnings: [{sp_id, name, status, message}]}`
+- 아직 안 한 것: "사용자가 직접 고친 체류는 줄이지 않기"(11/06) — 직접 고쳤는지 기록하는 칸이 없어서, 버튼을 누를 때만 줄여요
+
+### 🟩 지윤
+- [ ] 처음 일정 만들 때 운영시간 맞추기에 `fit_stay`·`last_arrival` 그대로 써 주세요 (이름·받는 값 바꿀 땐 알려 줘)
+
+---
+
+## 2026-11-10 · 여행 상세: 이동 구간마다 카카오맵·네이버지도 길찾기 링크 (대중교통 여행) — 🟦 임영준
+DB·응답 키·주소 변경 없음 (화면만, `travel_detail.html`)
+
+- 대중교통 여행이면 이동 구간 칸 아래에 **카카오맵 길찾기 · 네이버지도 길찾기** 버튼 (새 탭, 대중교통 탭으로 열림)
+  - 카카오: `https://map.kakao.com/link/by/traffic/출발이름,위도,경도/도착이름,위도,경도`
+  - 네이버: `https://map.naver.com/p/directions/x,y,출발이름,,/x,y,도착이름,,/-/transit` (x,y는 네이버 지도 좌표 = 위도·경도를 웹 메르카토르 미터로 바꾼 값)
+- 출발·도착은 그 구간 경로(`from_place`·`to_place`, `points` 처음·끝) 그대로. 자동차·도보 여행에는 안 나와요
+- 🟧🟩 할 일 없음
+
+---
+
 ## 2026-11-10 · 로컬 LLM 비교: 리뷰 키워드 요약 GPT vs qwen3·EXAONE·Llama (`compare_review_llm` 명령 추가) — 🟧 이수한
 코드·DB·응답 키 변경 없음 (시험 명령 추가만). 전체 표: [`docs/reports/review_llm_compare.md`](reports/review_llm_compare.md)
 

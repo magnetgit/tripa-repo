@@ -246,3 +246,77 @@ def schedule_hours(schedule_places, day):
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         rows = list(pool.map(one, list(schedule_places)))
     return {sp_id: info for sp_id, info in rows if info}
+
+
+# =========================================================
+# 체류 시간을 운영시간에 맞추기 (11/06 결정, 🟦 · 🟩 일정 만들기도 같이 씀)
+# =========================================================
+
+FOOD_WORDS = TYPICAL_HOURS[1][0]   # 음식·식당·맛집·한식 …
+FOOD_LAST_ORDER = 60               # 음식점은 마감 1시간 전까지 도착
+OTHER_LAST_ENTRY = 30              # 카페·관광지·그 밖은 30분 전까지
+
+
+def is_food(kind):
+    return any(w in (kind or '') for w in FOOD_WORDS) and not any(w in (kind or '') for w in TYPICAL_HOURS[0][0])
+
+
+def last_arrival(kind, close_min):
+    """이 시각(분)까지는 도착해야 함: 음식점 마감 60분 전, 그 밖 30분 전"""
+    return close_min - (FOOD_LAST_ORDER if is_food(kind) else OTHER_LAST_ENTRY)
+
+
+def fit_stay(kind, hours, arrive_min, stay_min):
+    """도착 시각·체류 시간을 운영시간에 맞춰 본다.
+
+    kind: 장소 분류('음식', '카페', '관광' …), hours: place_hours(...) 결과(없으면 None)
+    arrive_min: 도착 시각(분, 09:30 → 570), stay_min: 체류(분)
+    → {'status', 'stay', 'last_arrival', 'message'}
+       status: 'ok' 그대로 · 'shortened' 마감에 맞춰 체류를 줄임(stay 가 새 값)
+               'late' 마감 직전 도착이라 체류로는 못 맞춤(옮겨야 함) · 'closed' 휴무
+               'early' 아직 안 엶(여기서는 안 고침) · 'unknown' 운영시간 모름·숙소
+    """
+    result = {'status': 'unknown', 'stay': stay_min, 'last_arrival': None, 'message': ''}
+    if not hours or arrive_min is None or '숙박' in (kind or ''):
+        return result
+    if hours.get('closed'):
+        rest = hours.get('rest') or ''
+        result.update(status='closed', message='이날 휴무예요' + (' (%s)' % rest if rest else ''))
+        return result
+
+    open_min, close_min = hours.get('open_min'), hours.get('close_min')
+    if open_min is None or close_min is None or (open_min == 0 and close_min >= 24 * 60):
+        return result   # 모르거나 24시간
+
+    arrive = arrive_min
+    # 새벽까지 하는 곳(11:00~02:00)에 새벽에 가는 경우
+    if close_min > 24 * 60 and arrive + 24 * 60 <= close_min and arrive < open_min:
+        arrive += 24 * 60
+    if arrive < open_min:
+        result['status'] = 'early'
+        return result
+
+    last = last_arrival(kind, close_min)
+    result['last_arrival'] = last
+    food = is_food(kind)
+    if arrive > last:
+        left = max(close_min - arrive, 0)
+        what = '식사할' if food else '둘러볼'
+        result.update(
+            status='late',
+            message='마감(%s)까지 %d분뿐이라 %s 시간이 부족해요 · %s 전에 도착하게 옮겨 보세요'
+                    % (hhmm(close_min), left, what, hhmm(last)),
+        )
+        return result
+
+    stay = stay_min if stay_min and stay_min > 0 else 60
+    if arrive + stay > close_min:
+        new_stay = close_min - arrive
+        result.update(
+            status='shortened', stay=new_stay,
+            message='마감(%s)에 맞춰 체류 %d분 → %d분' % (hhmm(close_min), stay, new_stay),
+        )
+        return result
+
+    result['status'] = 'ok'
+    return result
