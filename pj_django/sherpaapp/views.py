@@ -38,6 +38,7 @@ from .services.schedule_service import (
 )
 from .services.review_service import summarize_review
 from .services import chat_service
+from .services import transit_service
 from .services.photo_service import attach_photos, place_photo_url
 from .services import festival_service
 from .services import region_photo_service
@@ -2808,13 +2809,13 @@ def get_route_travel_minutes_by_coords(
             )
         )
 
-        # 여기서는 대중교통 경로를 부르지 않으므로 (화면이 /transit_route/ 로 받음)
-        # public_transport는 저장된 계획시간을 우선 사용한다.
+        # 대중교통은 화면과 같은 카카오 대중교통 경로(🟦 transit_service)로 시간을 맞춘다.
+        # 같은 구간은 캐시 7일, 700m 안은 도보. 못 찾으면 저장된 계획시간.
         if normalized_transport == 'public_transport':
-            return max(
-                int(fallback_minutes or 0),
-                0
-            )
+            route = transit_service.transit_route(start_lat, start_lon, end_lat, end_lon)
+            if route and route.get('minutes'):
+                return int(route['minutes'])
+            return max(int(fallback_minutes or 0), 0)
 
         route_data = get_kakao_route(
             start_lat=start_lat,
