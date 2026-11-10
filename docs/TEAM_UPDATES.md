@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-11-10 · 🆕 비슷한 장소 찾기 (리뷰 RAG) `GET /similar_places/` — 🟧 이수한
+DB 변경 없음(0016 `embed_chunk` 표 그대로). 응답 키는 새 주소라 **추가만**, `mock.json`에 `similar_places` 예시.
+
+- 장소별 리뷰를 한 덩어리로 임베딩해 저장(`embed_service.index_reviews`, `kind='review'`, 장소 하나 = 조각 하나) → 저장된 숫자끼리 코사인으로 비슷한 장소 (`embed_service.similar_places(kakao_id, top_k=5)`, OpenAI 호출 없음, 0.03초)
+- `GET /similar_places/?kakao_id=…&top_k=5` → `{success, kakao_id, places: [{kakao_id, name, score}]}` (점수 높은 순, 최대 10, 저장 안 된 장소면 `places: []`, kakao_id 없으면 400)
+- 리뷰가 늘면 `python manage.py index_reviews`로 다시 저장 (리뷰 2개 이상 장소만, 같은 장소는 옛 조각 지우고 새로)
+- 예: 해운대해수욕장 → 일광(0.89)·송도·송정해수욕장, 모모스 영도 → 카페385·카페만디·블랙업커피, 부산박물관 → 근현대역사관·동래읍성지
+- 수업 연결: 09/30 49일차 임베딩·코사인 유사도, 10/01 50일차 RAG
+
+### 🟦 영준 (선택)
+- [ ] 장소 정보·리뷰 화면에 "리뷰가 비슷한 장소" 카드 (이 주소 사용)
+
+### 🟩 지윤
+- 여행지 RAG(`kind='tour'`)와 같은 표·함수예요. `search(질문, kind='tour')`는 리뷰 조각을 안 섞어요
+
+---
+
 ## 2026-11-10 · 일정 시간 다시 계산할 때 대중교통은 카카오 경로 시간으로 — 🟧 이수한
 DB·응답 키 변경 없음. `views.get_route_travel_minutes_by_coords`의 대중교통 부분만 바뀜.
 

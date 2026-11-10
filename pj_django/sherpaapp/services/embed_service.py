@@ -3,7 +3,7 @@ import math
 import requests
 from django.conf import settings
 from django.db import transaction
-from sherpaapp.models import EmbedChunk
+from sherpaapp.models import EmbedChunk, Review
 
 
 TIMEOUT = 30
@@ -90,3 +90,49 @@ def _cosine(a, b):
     if not na or not nb:
         return 0
     return dot / (na * nb)
+
+
+# 장소별 리뷰를 한 덩어리 글로 묶어 임베딩해 저장 (kind='review'). 저장한 장소 수를 돌려준다
+# kakao_ids를 주면 그 장소만, 안 주면 리뷰 2개 이상인 모든 장소
+def index_reviews(kakao_ids=None, min_reviews=2):
+    rows = Review.objects.exclude(kakao_id__isnull=True)
+    if kakao_ids:
+        rows = rows.filter(kakao_id__in=[str(k) for k in kakao_ids])
+
+    # 1) 장소별로 리뷰 모으기  {kakao_id: {'name': 이름, 'texts': [글, …]}}
+    places = {}
+    for r in rows.values('kakao_id', 'place_name', 'content', 'tags'):
+        p = places.setdefault(r['kakao_id'], {'name': r['place_name'], 'texts': []})
+        p['texts'].append(r['content'] + ' ' + ' '.join(r['tags'] or []))
+
+    # 2) 장소마다 한 덩어리 글로 저장
+    done = 0
+    for kid, p in places.items():
+        if len(p['texts']) < min_reviews:
+            continue
+        text = p['name'] + ': ' + ' / '.join(p['texts'])[:2000]
+        save_chunks('review', kid, [text], meta={'name': p['name'], 'count': len(p['texts'])})
+        done += 1
+    return done
+
+
+# 이 장소와 리뷰가 비슷한 장소 top_k개 (리뷰 묶음 조각끼리 코사인). 아직 저장 안 된 장소면 []
+def similar_places(kakao_id, top_k=5):
+    # 1) 이 장소의 조각 (지금 모델로 저장된 것)
+    me = EmbedChunk.objects.filter(kind='review', ref_id=str(kakao_id), model=_model()).first()
+    if not me:
+        return []
+
+    # 2) 나를 뺀 다른 장소들과 비교
+    found = []
+    others = EmbedChunk.objects.filter(kind='review', model=_model()).exclude(ref_id=me.ref_id)
+    for r in others:
+        found.append({
+            'kakao_id': r.ref_id,
+            'name': r.meta.get('name'),
+            'score': round(_cosine(me.vector, r.vector), 3),
+        })
+
+    # 3) 점수 높은 순 → 앞에서 top_k개
+    found.sort(key=lambda d: d['score'], reverse=True)
+    return found[:top_k]
