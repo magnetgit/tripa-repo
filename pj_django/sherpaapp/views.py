@@ -2461,6 +2461,28 @@ def pw_code(request):
     return JsonResponse({'success': True, 'message': '입력한 정보가 맞으면 인증 코드를 메일로 보냈어요.'})
 
 
+# 비밀번호 찾기 2단계 (🟦 [확인] 버튼): 코드가 맞는지만 확인 → 맞으면 화면이 새 비밀번호 칸을 열어 줌
+# 비밀번호는 안 바꾸고 코드도 안 지움 (실제 변경은 pw_find 가 코드를 한 번 더 확인)
+# 틀린 횟수는 pw_find 와 같은 tries 를 씀 → 둘을 합쳐 5번
+@require_POST
+def pw_code_check(request):
+    user_id = (request.POST.get('user_id') or '').strip()
+    code = (request.POST.get('code') or '').strip()
+    saved = request.session.get('pw_reset') or {}
+    now = datetime.now().timestamp()
+
+    if saved.get('user_id') != user_id or now > saved.get('until', 0):
+        return JsonResponse({'success': False, 'message': '인증 코드를 먼저 받아 주세요. (10분이 지났으면 다시 받기)'})
+    if saved.get('tries', 0) >= PW_CODE_TRIES:
+        return JsonResponse({'success': False, 'message': '5번 틀렸어요. 인증 코드를 다시 받아 주세요.'})
+    if not check_password(code, saved['code']):
+        saved['tries'] = saved.get('tries', 0) + 1
+        request.session['pw_reset'] = saved
+        return JsonResponse({'success': False, 'message': f"인증 코드가 맞지 않아요. ({saved['tries']}/{PW_CODE_TRIES})"})
+
+    return JsonResponse({'success': True, 'message': '인증됐어요. 새 비밀번호를 입력해 주세요.'})
+
+
 # ==============================================
 # 내정보 수정
 # ==============================================

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=6">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=8">
 </head>
 
 <body class="auth-page--find auth-ticket">
@@ -124,9 +124,9 @@
 
     <!-- 비밀번호 찾기 -->
     <section class="auth-panel" id="panelPw" role="tabpanel" aria-labelledby="tabPw" hidden>
-        <p class="auth-panel__desc">아이디·이메일·이름이 모두 맞으면 새 비밀번호로 바꿀 수 있어요.</p>
+        <p class="auth-panel__desc">아이디·이메일·이름을 넣고 인증 코드를 받은 뒤, 메일로 온 코드와 새 비밀번호를 입력해 주세요.</p>
 
-        <form action="{% url 'pw_find' %}" method="post" onsubmit="return checkPwForm(this);">
+        <form action="{% url 'pw_find' %}" method="post" id="pwForm" onsubmit="return checkPwForm(this);">
             {% csrf_token %}
 
             <div class="field">
@@ -159,7 +159,26 @@
                 </div>
             </div>
 
+            <!-- 인증 코드: 버튼으로 메일 받기 (POST pw_code) → 6자리 입력 -->
             <div class="field">
+                <label for="pwCode">인증 코드</label>
+                <div class="field-row">
+                    <div class="field-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>
+                        </svg>
+                        <input type="text" id="pwCode" name="code" placeholder="6자리 숫자"
+                               inputmode="numeric" maxlength="6" pattern="[0-9]{6}"
+                               autocomplete="one-time-code" title="메일로 받은 6자리 숫자" required>
+                    </div>
+                    <button type="button" class="btn-side" id="pwCodeBtn">인증 코드 받기</button>
+                </div>
+                <span id="pwCodeMsg" class="field-msg" aria-live="polite"></span>
+                <button type="button" class="btn-side btn-code-check" id="pwCheckBtn">인증 코드 확인</button>
+            </div>
+
+            <!-- 새 비밀번호: 인증 코드 확인이 끝나야 열림 -->
+            <div class="field" id="pwNewField" hidden>
                 <label for="newPwd">새 비밀번호</label>
                 <div class="field-stack">
                     <div class="field-box">
@@ -179,7 +198,7 @@
                 <span id="newPwdMsg" class="field-msg" aria-live="polite"></span>
             </div>
 
-            <button type="submit" class="btn-submit">비밀번호 변경</button>
+            <button type="submit" class="btn-submit" id="pwSubmit" hidden>비밀번호 변경</button>
         </form>
     </section>
 
@@ -244,7 +263,122 @@
     newPwd.addEventListener('input', showPwMatch);
     newPwdCheck.addEventListener('input', showPwMatch);
 
+    // 인증 코드 받기: 아이디·이메일·이름을 서버(pw_code)로 보내고 답 문구를 칸 아래에 보여 줌
+    var pwForm = document.getElementById('pwForm');
+    var pwCode = document.getElementById('pwCode');
+    var pwCodeBtn = document.getElementById('pwCodeBtn');
+    var pwCodeMsg = document.getElementById('pwCodeMsg');
+    var codeTimer = null;
+
+    function showCodeMsg(text, ok) {
+        pwCodeMsg.textContent = text;
+        pwCodeMsg.classList.remove('is-ok', 'is-bad');
+        pwCodeMsg.classList.add(ok ? 'is-ok' : 'is-bad');
+    }
+
+    // 잠깐 버튼 막고 남은 초 보여 주기 (서버 PW_CODE_RESEND = 5초와 같게)
+    var RESEND_SECONDS = 5;
+    function waitResend(seconds) {
+        clearInterval(codeTimer);
+        pwCodeBtn.disabled = true;
+        pwCodeBtn.textContent = '다시 받기 (' + seconds + ')';
+        codeTimer = setInterval(function () {
+            seconds--;
+            if (seconds <= 0) {
+                clearInterval(codeTimer);
+                pwCodeBtn.disabled = false;
+                pwCodeBtn.textContent = '다시 받기';
+                return;
+            }
+            pwCodeBtn.textContent = '다시 받기 (' + seconds + ')';
+        }, 1000);
+    }
+
+    pwCodeBtn.addEventListener('click', function () {
+        // 아이디·이메일·이름 중 빈 칸이 있으면 그 칸 안내를 띄우고 멈춤
+        var need = ['pwId', 'pwEmail', 'pwName'].map(function (id) { return document.getElementById(id); });
+        for (var i = 0; i < need.length; i++) {
+            if (!need[i].reportValidity()) return;
+        }
+
+        pwCodeBtn.disabled = true;
+        pwCodeBtn.textContent = '보내는 중...';
+        setCodeOk(false);   // 새 코드를 받으면 다시 확인해야 함
+
+        fetch("{% url 'pw_code' %}", { method: 'POST', body: new FormData(pwForm) })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                showCodeMsg(data.message || '잠시 뒤 다시 시도해 주세요.', data.success);
+                if (data.success) pwCode.focus();
+                waitResend(RESEND_SECONDS);
+            })
+            .catch(function () {
+                showCodeMsg('인증 코드를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.', false);
+                pwCodeBtn.disabled = false;
+                pwCodeBtn.textContent = '인증 코드 받기';
+            });
+    });
+
+    // 인증 코드 확인: 맞으면 새 비밀번호 칸과 변경 버튼을 열어 줌
+    var pwCheckBtn = document.getElementById('pwCheckBtn');
+    var pwNewField = document.getElementById('pwNewField');
+    var pwSubmit = document.getElementById('pwSubmit');
+    var codeOk = false;
+
+    function setCodeOk(ok) {
+        codeOk = ok;
+        pwNewField.hidden = !ok;
+        pwSubmit.hidden = !ok;
+        pwCheckBtn.textContent = ok ? '✓ 인증 완료' : '인증 코드 확인';
+        pwCheckBtn.classList.toggle('is-done', ok);
+        placeNotch();
+    }
+
+    function checkCode() {
+        if (!pwCode.value) { pwCode.focus(); return; }
+        if (!pwCode.checkValidity()) {
+            showCodeMsg('메일로 받은 6자리 숫자를 입력해 주세요.', false);
+            pwCode.focus();
+            return;
+        }
+        pwCheckBtn.disabled = true;
+        fetch("{% url 'pw_code_check' %}", { method: 'POST', body: new FormData(pwForm) })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                showCodeMsg(data.message, data.success);
+                setCodeOk(data.success);
+                if (data.success) newPwd.focus();
+            })
+            .catch(function () {
+                showCodeMsg('확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.', false);
+            })
+            .finally(function () { pwCheckBtn.disabled = false; });
+    }
+
+    pwCheckBtn.addEventListener('click', checkCode);
+
+    // 코드 칸에서 Enter → 폼 제출 대신 코드 확인
+    pwCode.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); checkCode(); }
+    });
+
+    // 코드 칸에는 숫자만 남기기 + 코드를 바꾸면 다시 확인해야 함
+    pwCode.addEventListener('input', function () {
+        pwCode.value = pwCode.value.replace(/[^0-9]/g, '').slice(0, 6);
+        if (codeOk) setCodeOk(false);
+    });
+
+    // 아이디를 바꿔도 다시 확인
+    document.getElementById('pwId').addEventListener('input', function () {
+        if (codeOk) setCodeOk(false);
+    });
+
     function checkPwForm() {
+        if (!codeOk) {
+            showCodeMsg('인증 코드를 먼저 확인해 주세요.', false);
+            pwCode.focus();
+            return false;
+        }
         if (newPwd.value !== newPwdCheck.value) {
             showPwMatch();
             newPwdCheck.focus();

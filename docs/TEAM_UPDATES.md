@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-11-10 · 비밀번호 찾기 화면: 인증 코드 받기·확인 → 새 비밀번호 칸 열기 + 새 주소 `pw_code_check/` — 🟦 임영준
+DB·기존 주소·응답 키 변경 없음 · **새 주소 `POST pw_code_check/` (추가만, `views.py`)** · `pw_code`·`pw_find`는 안 건드림
+
+- `idpw.html` 비밀번호 찾기 순서: 아이디·이메일·이름 → **[인증 코드 받기]** (`pw_code`) → 코드 6자리 → **[인증 코드 확인]** (`pw_code_check`) → 맞으면 **새 비밀번호 칸·[비밀번호 변경] 버튼이 열림** → `pw_find`
+  - 확인 전에는 새 비밀번호 칸·변경 버튼이 숨어 있음. 확인 뒤 코드·아이디를 바꾸거나 코드를 다시 받으면 다시 닫힘
+  - 다시 받기 버튼 대기는 서버 `PW_CODE_RESEND`와 같은 5초 (`idpw.html`의 `RESEND_SECONDS`)
+- `POST pw_code_check/` (`views.pw_code_check`): `user_id`·`code` → `{success, message}`
+  - 코드만 확인하고 **비밀번호는 안 바꾸고 코드도 안 지움** (실제 변경 때 `pw_find`가 한 번 더 확인)
+  - 틀린 횟수는 `pw_find`와 같은 세션 `tries` → 둘을 합쳐 5번
+  - 문구: 맞음 "인증됐어요. 새 비밀번호를 입력해 주세요." / 틀림 "인증 코드가 맞지 않아요. (n/5)" / 코드 없음·10분 지남·5번 틀림은 `pw_find`와 같은 문구
+- `auth.css`에 `.btn-code-check` 추가 → `idpw.html`의 `?v=8`
+
+### 🟧 수한
+- [ ] `pw_code_check` 확인 (`pw_find` 코드 확인과 같은 규칙인지). 화면이 들어왔으니 서버 배포 + 서버 메일 계정 설정
+
+---
+
 ## 2026-11-10 · 비밀번호 찾기: 다시 받기 대기 1분 → 5초 + "터미널에 메일이 안 보여요" 확인 순서 — 🟧 이수한
 DB·주소·응답 키 변경 없음. `PW_CODE_RESEND = 5` (버튼 연타 막기), 막히면 `message`: "잠시 뒤에 다시 받을 수 있어요." (429). **코드 입력 시간은 10분 그대로.** 다시 받기 대기는 화면에 시간 표시 안 해요 (서버 `message`만 보여 주기).
 
@@ -54,9 +71,9 @@ DB 변경 없음. 11/10 설계(바로 아래 항목) 그대로. **pull 뒤 로�
 - 확인(되돌림): 코드 없이·틀린 코드·다른 아이디·맞는 코드+재사용·5번 틀림 모두 기대대로
 
 ### 🟦 영준 — `templates/idpw.html` 비밀번호 찾기 (Claude Code에 부탁해도 돼요)
-- [ ] 안내 문구(127줄): "아이디·이메일·이름을 넣고 인증 코드를 받은 뒤, 메일로 온 코드와 새 비밀번호를 입력해 주세요."
-- [ ] 이름 칸 다음(160줄)에 **인증 코드 칸** `name="code"` (6자리 숫자, `inputmode="numeric"` `maxlength="6"` `autocomplete="one-time-code"`) + **[인증 코드 받기] 버튼 `type="button"`** (폼 안이라 type 없으면 제출돼요)
-- [ ] 버튼 → `fetch("{% url 'pw_code' %}", {method: "POST", body: new FormData(form)})` → 응답 `message`를 칸 아래에 표시 (FormData에 csrf·아이디·이메일·이름이 같이 들어가요, 429도 `message`가 와요)
+- [x] 안내 문구(127줄): "아이디·이메일·이름을 넣고 인증 코드를 받은 뒤, 메일로 온 코드와 새 비밀번호를 입력해 주세요."
+- [x] 이름 칸 다음(160줄)에 **인증 코드 칸** `name="code"` (6자리 숫자, `inputmode="numeric"` `maxlength="6"` `autocomplete="one-time-code"`) + **[인증 코드 받기] 버튼 `type="button"`** (폼 안이라 type 없으면 제출돼요)
+- [x] 버튼 → `fetch("{% url 'pw_code' %}", {method: "POST", body: new FormData(form)})` → 응답 `message`를 칸 아래에 표시 (FormData에 csrf·아이디·이메일·이름이 같이 들어가요, 429도 `message`가 와요)
 - 확인: runserver 터미널에 찍힌 코드로 비밀번호 바꾸기까지. 끝나면 🟧가 서버 배포 + 서버 메일 계정 설정
 
 ---
@@ -75,7 +92,7 @@ DB 변경 없음 (코드는 세션에 10분만). 코드는 다음 PR. **지금�
 - 서버만 Gmail 계정 + **앱 비밀번호**(16자리) 넣기 (🟧가 서버 `.env`에 직접, 코드·GitHub에는 절대 안 넣음). `.env.example`에 빈 칸 추가
 
 ### 🟦 영준
-- [ ] `idpw.html` 비밀번호 찾기에 [인증 코드 받기] 버튼(`fetch` `POST /pw_code/`, 위 응답의 `message` 표시) + `code` 입력칸(6자리 숫자) — 🟧가 같이 할 수도 있어요, 편한 쪽 댓글
+- [x] `idpw.html` 비밀번호 찾기에 [인증 코드 받기] 버튼(`fetch` `POST /pw_code/`, 위 응답의 `message` 표시) + `code` 입력칸(6자리 숫자) — 🟧가 같이 할 수도 있어요, 편한 쪽 댓글
 
 ### 🟩 지윤
 - 변경 없음
