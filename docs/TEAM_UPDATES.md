@@ -10,8 +10,8 @@
 
 ---
 
-## 2026-11-10 · 📐 공유: 일정 만들 때 운영시간 안내 응답 키 (`hours`·`excluded`·`moved`) — 🟩 서지윤
-아직 코드 없음 (먼저 공유, 11/09 규칙). 응답 키 **추가만** · `mock.json` `plan.days[]`에 예시 추가. 🟩 운영시간 일정 생성 PR에서 값을 채워요.
+## 2026-11-10 · 일정을 처음 만들 때부터 운영시간·쉬는 날 고려 + 📐 안내 응답 키 (`hours`·`excluded`·`moved`) — 🟩 서지윤
+DB 변경 없음 · 응답 키 **추가만** (`mock.json` `plan.days[]`) · 🟩 `schedule_service.py` + 🟧 `views.py` 세 군데 조금
 
 ### 쓰는 함수 (새 함수 없음)
 - 🟦 `hours_service.place_hours`·`fit_stay`·`last_arrival` **그대로** 써요 (이름·받는 값 안 바꿈)
@@ -25,12 +25,33 @@
 ### 응답 키 (AI 대화 미리보기 `days[]` = `mock.json` `plan.days[]`)
 | 키 | 모양 | 뜻 |
 |---|---|---|
-| `items[].hours` (`stops[].hours`) | `{open, close, estimated, status, wait, message}` 또는 `null` | `open`·`close` `"10:00"`, `estimated` 보통 영업시간으로 짐작, `status` = `fit_stay` 값(`ok`·`shortened`·`unknown`), `wait` 문 열기를 기다린 분(없으면 0), `message` 안내 한 줄(없으면 `""`). 모르면 `null` |
+| `items[].hours` (`stops[].hours`) | `{open, close, estimated, status, wait, message}` 또는 `null` | `open`·`close` `"10:00"`, `estimated` 보통 영업시간으로 짐작, `status` = `fit_stay` 값(자동으로 넣은 곳은 `ok`·`shortened`·`unknown`, 담은 장소·순서를 바꾼 날은 `late`·`early`·`closed`도 나올 수 있음 → 경고로), `wait` 문 열기를 기다린 분(없으면 0), `message` 안내 한 줄(없으면 `""`). 모르면 `null` |
 | `excluded` (이미 있는 키) | `[{name, reason, message, open_days}]` | 그날 못 넣은 곳. `reason`: `closed`(휴무) · `late`(마감 전 도착 못 함) · 기존 `weekly_off`·`monthly_off`·`holiday`. `open_days`: 이 여행에서 여는 날 번호 `[1]`(없으면 `[]`) |
 | `moved` (새 키) | `[{name, from_day, to_day, message}]` | 쉬는 날이라 다른 날로 옮긴 담은 장소. 없으면 `[]` |
 
 - 문장 예: `"10:00 문 여는 시각까지 20분 기다려요"`, `"마감(18:00)에 맞춰 체류 120분 → 90분"`, `"월요일 휴무라 DAY 2(화)로 옮겼어요"`, `"이 여행에서는 DAY 1(목)에 갈 수 있어요"`
 - 화면은 `message`를 그대로 보여 줘도 되고, `status`·`reason`으로 직접 만들어도 돼요
+
+### 코드 (🟩 `services/schedule_service.py`, 함수 추가 + 고르는 곳만 바꿈)
+- `fill_activities`(관광)·`add_meal_before_deadline`·`add_meal`(식사): 가까운 곳부터 보면서 **운영시간이 맞는 첫 곳** (`pick_open_candidate`) → `save_schedule_place(forced_arrival=기다린 도착, stay_time_override=줄인 체류)`
+- 새 함수: `candidate_hours`(후보 운영시간, 여행 하나 만드는 동안 메모리 캐시) · `fit_opening_hours`(기다리기·줄이기·못 넣음) · `move_closed_pins`(담은 장소 옮기기 → 안내) · `hours_badge`(미리보기 `hours` 한 칸)
+- 숙소 줄은 검사 안 함 (`fit_stay`가 숙박은 `unknown`)
+
+### 🟧 `views.py` (세 군데, 기존 동작 그대로)
+- `_chat_finish_schedule`: `_chat_add_pins` 전에 `move_closed_pins` 한 줄 → 미리보기·적용 둘 다 옮긴 날로 들어감 (안내는 `travel.hours_notes`에 잠깐 담음, DB 저장 안 함)
+- 새 `_chat_attach_hours(travel, days)`: `travel_chat_preview`에서 **롤백 밖**에서 불러 `hours`·`excluded`·`moved`를 붙임
+  - ⚠ 알아 둘 것: 롤백(`transaction.atomic`) **안에서** 스레드 여러 개로 `place_hours`(DB 캐시 표)를 읽으면 잠금을 기다리느라 **50초씩 멈춰요** (처음에 그래서 167초 → 롤백 밖으로 옮겨 8초)
+- `_chat_preview_days`는 안 바꿈 (예산 등 다른 곳도 그대로)
+
+### 시험 (부산 11/15(일)~17(화), 역사·카페·랜드마크, 담은 장소 부산박물관 2일차(월))
+- 운영시간 검사를 끄면 일요일 휴무 식당·여는 시각 전 카페가 들어감 → 켜면 자동으로 넣은 곳 운영시간 문제 **0곳**
+- 부산박물관(매주 월요일 휴무) → DAY 1(일)로 옮김 + `moved` 안내
+- 작은 경우 16개 통과: 40분 기다림 · 90분이면 안 넣음 · 음식점 마감 1시간 전 · 체류 줄이기 · 여는 날 없는 담은 장소는 `excluded`
+- 미리보기 8초 (검사 없을 때 5초, 처음 보는 장소는 관광공사를 한 번 더 부름)
+
+### 아직 안 한 것 / 알아 둘 것
+- 담은 장소를 넣은 날은 🟧 `recalculate_schedule_timeline`이 뒤 시각을 다시 계산해서 **기다린 시간·점심 12:30 같은 빈 시간이 당겨질 수 있어요** (원래 있던 동작, 그날은 `hours`가 `early` 경고로 알려 줌)
+- 미리보기 롤백 안에서 찾은 운영시간은 캐시에 안 남아요 (실제 적용 때는 남음)
 
 ### 확인
 - [ ] 🟦 미리보기·일정 화면에서 이 키 써 주기 (모양 바꾸고 싶으면 PR 댓글)
@@ -56,7 +77,7 @@ DB·기존 응답 키 변경 없음 · **새 주소 `travel_fit_hours/<travel_id
 - 아직 안 한 것: "사용자가 직접 고친 체류는 줄이지 않기"(11/06) — 직접 고쳤는지 기록하는 칸이 없어서, 버튼을 누를 때만 줄여요
 
 ### 🟩 지윤
-- [ ] 처음 일정 만들 때 운영시간 맞추기에 `fit_stay`·`last_arrival` 그대로 써 주세요 (이름·받는 값 바꿀 땐 알려 줘)
+- [x] 처음 일정 만들 때 운영시간 맞추기에 `fit_stay`·`last_arrival` 그대로 써 주세요 (이름·받는 값 바꿀 땐 알려 줘)
 
 ---
 
