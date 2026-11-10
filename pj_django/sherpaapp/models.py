@@ -799,6 +799,52 @@ class TravelBudgetItem(models.Model):
         db_table = 'travel_budget_item'
 
 
+class BudgetLog(models.Model):
+
+    bl_id = models.AutoField(
+        primary_key=True,
+        db_column='BL_ID'
+    )
+
+    travel_id = models.IntegerField(
+        db_column='T_ID'
+    )
+
+    sp_id = models.IntegerField(
+        db_column='SP_ID'
+    )
+
+    p_name = models.CharField(
+        max_length=100,
+        db_column='P_NAME'
+    )
+
+    action = models.CharField(
+        max_length=10,
+        db_column='ACTION'
+    )
+
+    old_amount = models.IntegerField(
+        db_column='OLD_AMOUNT',
+        null=True,
+        blank=True
+    )
+
+    new_amount = models.IntegerField(
+        db_column='NEW_AMOUNT',
+        null=True,
+        blank=True
+    )
+
+    changed_at = models.DateTimeField(
+        db_column='CHANGED_AT'
+    )
+
+    class Meta:
+        db_table = 'budget_log'
+        ordering = ['-bl_id']
+
+
 # ==============================================
 # 비용
 # ==============================================

@@ -43,7 +43,52 @@ DB·응답 키·주소 변경 없음 (화면만, `travel_detail.html`)
 
 ---
 
-## 2026-11-10 · 축제 이용요금 → 예상 비용 (축제 카드에 `fee` 키 추가 예정) — 🟧 이수한
+## 2026-11-10 · 체크인하고 다시 나가기: 숙소 두 줄 규칙 + 숙박비 한 번만 (`cost.same_stay` 키 추가 예정) — 🟧 이수한
+DB 변경 없음. 응답 키는 **추가만**(`cost.same_stay`), `mock.json`에 `same_stay` 예시. 🟩 일정 구조 작업 전에 먼저 정해 두는 규칙이에요 (11/09 결정, PR #59).
+
+**숙소 두 줄 규칙 (새 칸 없이)**
+- 같은 날(`Schedule`) 안에 **같은 숙소**(`P_ID` 같음, `p_kind`에 `숙`)가 두 번 나오면 **앞 줄 = 체크인(짐 두기), 뒤 줄 = 귀가**
+- 다음 날 출발점은 그대로 전날 숙소 (지금과 같음)
+- 🟩 `schedule_service`에서 귀가 줄을 만들 때 **같은 `Place`를 다시 쓰면** 이 규칙이 그대로 맞아요 (새 숙소 `Place`를 또 만들지 않기)
+
+**지금 확인한 문제:** 숙소가 하루에 두 줄이면 숙박비가 두 번 잡혀요 (`plan_budget`): 신라스테이 해운대 2명 1박 90,000원 → 두 줄이면 180,000원
+
+**고칠 것 (🟧, `budget_service.plan_budget`)**: 같은 날 같은 숙소의 두 번째 줄부터는 금액 0, `cost`에 `same_stay: true`
+```json
+"cost": {"amount": 0, "cat": "stay", "source": "tour", "per": 90000, "unit": "room", "cap": 2, "people": 2, "text": "…", "same_stay": true}
+```
+- 첫 줄(체크인)은 지금과 같은 `cost` (`same_stay` 키 없음). 합계(`planned`, `by.stay`)는 한 번만
+
+### 🟦 영준
+- [ ] `cost.same_stay`가 `true`인 숙소 줄은 금액 대신 "숙박비는 체크인 줄에" 같은 안내 (키 이름 위 그대로)
+
+### 🟩 지윤
+- [ ] 귀가 줄은 같은 숙소 `Place`로 (위 규칙). 다른 방법이 필요하면 TEAM_UPDATES에 먼저 적어 주세요
+
+---
+
+## 2026-11-10 · 예산 금액 변경 자동 기록 (DB 트리거 → `budget_log` 표, `GET /budget_log/<travel_id>/`) — 🟧 이수한
+**DB 추가:** 마이그레이션 `0018_budgetlog` (새 표 `budget_log` + `travel_budget_item` 트리거 3개). 응답 키는 새 주소라 **추가만**, `mock.json`에 `budget_log` 예시. pull 뒤 `python manage.py migrate` 해 주세요.
+
+- 비용 관리에서 장소 금액을 넣기·고치기·지우기 하면 **DB가 알아서** 한 줄씩 적어요 (파이썬 코드 변경 없음, 같은 금액으로 다시 저장하면 안 적음)
+  - 트리거: `trg_budget_item_ins` / `trg_budget_item_upd` (금액이 달라졌을 때만) / `trg_budget_item_del`
+  - `budget_log` 칸: `BL_ID`, `T_ID`, `SP_ID` (둘 다 FK 아님 → 여행·장소를 지워도 기록은 남음), `P_NAME`(그때 장소 이름), `ACTION`(`insert`/`update`/`delete`), `OLD_AMOUNT`, `NEW_AMOUNT`, `CHANGED_AT`
+- `GET /budget_log/<travel_id>/` (로그인·내 여행만) → 최근 10줄, 최신이 위
+```json
+{"success": true, "logs": [{"name": "해운대블루라인파크", "action": "update", "old": 12000, "new": 15000, "at": "2026-11-10 12:35"}]}
+```
+  - `action`: `insert`(처음 넣음, `old: null`) · `update` · `delete`(`new: null`)
+- 수업 연결: 08/10·08/11 16·17일차 트리거
+
+### 🟦 영준
+- [ ] 비용 관리 화면에 "최근 변경" 몇 줄: `해운대블루라인파크 12,000원 → 15,000원 · 11/10 12:35` (이 주소 사용)
+
+### 🟩 지윤
+- 변경 없음 (관리자 페이지에서 보고 싶으면 `BudgetLog` 모델)
+
+---
+
+## 2026-11-10 · 축제 이용요금 → 예상 비용 (축제 카드에 `fee` 키) — 🟧 이수한
 DB 변경 없음. 응답 키는 **추가만**(`GET /travel_festivals/<id>/`의 `festivals[]`에 `fee`), `mock.json`에 `festival_fee` 예시.
 
 **지금 확인한 것 (실제 축제 79개로 시험)**
@@ -62,6 +107,9 @@ DB 변경 없음. 응답 키는 **추가만**(`GET /travel_festivals/<id>/`의 `
 | 유료인데 금액 안 적힘 | `null` | `null` | `true` |
 | 요금 정보 없음 | `null` | `null` | `false` (`text: ''`) |
 - 관광공사 실패·키 없음이면 `fee: null` (목록은 그대로)
+- **들어감:** `budget_service.festival_fee(content_id)`(축제 하나, 캐시 7일) · `festival_fees(festivals, people)`(목록에 `fee`, 6개씩 동시에) → `views.travel_festivals`에서 축제 시간 다음에 붙여요. 실패해도 목록은 그대로
+- 확인: 데모 여행(12/20, 3명) 축제 3개 모두 `fee` 붙음 · 2027 ACE Fair 10,000원 × 3 = 30,000원 · 렉키의 수상한 피크닉 9,000원 × 3 = 27,000원 · 처음 2.8초, 다음부터 캐시
+- 수업 연결: 08/24·08/25 25·26일차 공공 API
 
 ### 🟦 영준
 - [ ] 축제 카드에 요금 한 줄: `1인 10,000원 · 2명 20,000원` / `무료` / `유료 · 금액은 홈페이지` (`text`는 마우스 올리면 보이게 해도 좋아요). 키 이름은 위 표 그대로

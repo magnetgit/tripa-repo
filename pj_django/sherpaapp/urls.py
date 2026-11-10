@@ -276,6 +276,12 @@ urlpatterns = [
     ),
 
     path(
+        'budget_log/<int:travel_id>/',
+        views.budget_log,
+        name='budget_log'
+    ),
+
+    path(
         'travel_delete/<int:travel_id>/',
         views.travel_delete,
         name='travel_delete'

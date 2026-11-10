@@ -54,6 +54,7 @@ from .models import TravelCategory
 from .models import TravelDayPlan
 from .models import TravelBudget
 from .models import TravelBudgetItem
+from .models import BudgetLog
 from .models import SharedRoute, RouteRating, RouteComment
 
 # ==============================================
@@ -1537,7 +1538,37 @@ def travel_festivals(request, travel_id):
     except Exception:
         logger.exception('축제 시간 실패 travel=%s', travel_id)
 
+    # 축제 요금 (fee: 1인 금액 × 비용 관리 인원) - 실패해도 목록은 보여준다
+    try:
+        festivals = budget_service.festival_fees(festivals, _budget_people(request, travel.t_id))
+    except Exception:
+        logger.exception('축제 요금 실패 travel=%s', travel_id)
+
     return JsonResponse({'success': True, 'festivals': festivals})
+
+
+# 비용 관리: 예산 금액 변경 기록 최근 10줄 (트리거가 budget_log 에 적은 것)
+def budget_log(request, travel_id):
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+
+    travel = Travel.objects.filter(t_id=travel_id).first()
+    if not travel:
+        return JsonResponse({'success': False, 'message': '여행을 찾을 수 없습니다.'}, status=404)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+
+    rows = BudgetLog.objects.filter(travel_id=travel_id)[:10]     # Meta ordering 이 '-bl_id' 라 최신이 위
+    logs = [{
+        'name': row.p_name,
+        'action': row.action,
+        'old': row.old_amount,
+        'new': row.new_amount,
+        'at': row.changed_at.strftime('%Y-%m-%d %H:%M'),
+    } for row in rows]
+
+    return JsonResponse({'success': True, 'logs': logs})
 
 
 # 여행 상세: 그날 일정 장소들의 운영시간 (관광공사 + 식당·카페는 보통 영업시간 예상)
