@@ -38,6 +38,7 @@ from .services.schedule_service import (
 )
 from .services.review_service import summarize_review
 from .services import chat_service
+from .services import embed_service
 from .services import transit_service
 from .services.photo_service import attach_photos, place_photo_url
 from .services import festival_service
@@ -5738,6 +5739,19 @@ def review_keywords(request):
             'summary': result['summary'],
             'count': result['count']
         })
+
+
+# 이 장소와 리뷰가 비슷한 장소 (🟧 RAG). ?kakao_id=…&top_k=5
+def similar_places(request):
+    kakao_id = request.GET.get('kakao_id')
+    if not kakao_id:
+        return JsonResponse({'success': False, 'message': 'kakao_id가 필요합니다.'}, status=400)
+    try:
+        top_k = min(int(request.GET.get('top_k', 5)), 10)
+    except ValueError:
+        top_k = 5
+    places = embed_service.similar_places(kakao_id, top_k=top_k)
+    return JsonResponse({'success': True, 'kakao_id': kakao_id, 'places': places})
 
 
 # =========================================================

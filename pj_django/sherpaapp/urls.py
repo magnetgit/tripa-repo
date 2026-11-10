@@ -326,6 +326,12 @@ urlpatterns = [
     ),
 
     path(
+        'similar_places/',
+        views.similar_places,
+        name='similar_places'
+    ),
+
+    path(
         'schedule_place_time_update/',
         views.schedule_place_time_update,
         name='schedule_place_time_update'
