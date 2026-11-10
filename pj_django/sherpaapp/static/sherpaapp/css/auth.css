@@ -686,6 +686,22 @@ body {
     background: transparent;
 }
 
+/* 비밀번호 찾기: [인증 코드 확인] 버튼 (확인 전에는 새 비밀번호 칸 숨김) */
+#panelPw [hidden] { display: none; }
+
+.auth-ticket .btn-code-check {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 9px 14px;
+}
+
+.auth-ticket .btn-code-check.is-done {
+    color: #1f9d55;
+    border-color: #9fd8b8;
+    background: #effaf3;
+}
+
 .auth-ticket .field-msg {
     font-family: var(--hand);
     font-size: 21px;
