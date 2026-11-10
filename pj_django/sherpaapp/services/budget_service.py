@@ -160,6 +160,50 @@ def _tour_price(name, lat, lon):
     return {'per': fee, 'unit': 'person', 'cap': 1, 'text': short}
 
 
+def festival_fee(content_id):
+    """축제 하나 → {'per': 1인 금액 또는 None, 'paid': 유료인지, 'text': 원문 80자}. 모르면 None"""
+    cache_key = _key('festival_fee', content_id)
+    saved = cache.get(cache_key)
+    if saved is not None:
+        return saved or None
+    try:
+        intro = _tour_get('detailIntro2', contentId=content_id, contentTypeId=FESTIVAL)
+    except requests.RequestException:
+        logger.warning('관광공사 축제 요금 조회 실패: %s', content_id)
+        return None
+    intro = intro[0] if intro else {}
+    text = next((intro.get(k) for k in FEE_KEYS if intro.get(k)), '') or ''
+    per = parse_fee(text)   # 금액이면 숫자, '무료'면 0, 못 읽으면 None
+    short = re.sub(r'\s+', ' ', re.sub(r'<br\s*/?>', ' ', text)).strip()[:80]
+    paid = (per is not None and per > 0) or (per is None and '유료' in text)
+    result = {'per': per, 'paid': paid, 'text': short}
+    cache.set(cache_key, result, CACHE_SECONDS)
+    return result
+
+
+def festival_fees(festivals, people):
+    """축제 목록 각각에 'fee' 키를 붙인다 (mock.json festival_fee)"""
+    people = clean_people(people)
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        fees = list(pool.map(festival_fee, [f.get('id') for f in festivals]))
+    for f, fee in zip(festivals, fees):
+        if fee is None:
+            f['fee'] = None
+        else:
+            if fee['per'] is None:
+                amount = None
+            else:
+                amount = fee['per'] * people
+            f['fee'] = {
+                'per': fee['per'],
+                'amount': amount,
+                'people': people,
+                'paid': fee['paid'],
+                'text': fee['text'],
+            }
+    return festivals
+
+
 def _typical_price(name, kind):
     """보통 가격으로 짐작 → {'per', 'unit', 'cap'} 또는 None"""
     words = '%s %s' % (name or '', kind or '')

@@ -1537,6 +1537,12 @@ def travel_festivals(request, travel_id):
     except Exception:
         logger.exception('축제 시간 실패 travel=%s', travel_id)
 
+    # 축제 요금 (fee: 1인 금액 × 비용 관리 인원) - 실패해도 목록은 보여준다
+    try:
+        festivals = budget_service.festival_fees(festivals, _budget_people(request, travel.t_id))
+    except Exception:
+        logger.exception('축제 요금 실패 travel=%s', travel_id)
+
     return JsonResponse({'success': True, 'festivals': festivals})
 
 
