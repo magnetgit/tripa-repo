@@ -10,6 +10,30 @@
 
 ---
 
+## 2026-11-10 · 체크인하고 다시 나가기: 숙소 두 줄 규칙 + 숙박비 한 번만 (`cost.same_stay` 키 추가 예정) — 🟧 이수한
+DB 변경 없음. 응답 키는 **추가만**(`cost.same_stay`), `mock.json`에 `same_stay` 예시. 🟩 일정 구조 작업 전에 먼저 정해 두는 규칙이에요 (11/09 결정, PR #59).
+
+**숙소 두 줄 규칙 (새 칸 없이)**
+- 같은 날(`Schedule`) 안에 **같은 숙소**(`P_ID` 같음, `p_kind`에 `숙`)가 두 번 나오면 **앞 줄 = 체크인(짐 두기), 뒤 줄 = 귀가**
+- 다음 날 출발점은 그대로 전날 숙소 (지금과 같음)
+- 🟩 `schedule_service`에서 귀가 줄을 만들 때 **같은 `Place`를 다시 쓰면** 이 규칙이 그대로 맞아요 (새 숙소 `Place`를 또 만들지 않기)
+
+**지금 확인한 문제:** 숙소가 하루에 두 줄이면 숙박비가 두 번 잡혀요 (`plan_budget`): 신라스테이 해운대 2명 1박 90,000원 → 두 줄이면 180,000원
+
+**고칠 것 (🟧, `budget_service.plan_budget`)**: 같은 날 같은 숙소의 두 번째 줄부터는 금액 0, `cost`에 `same_stay: true`
+```json
+"cost": {"amount": 0, "cat": "stay", "source": "tour", "per": 90000, "unit": "room", "cap": 2, "people": 2, "text": "…", "same_stay": true}
+```
+- 첫 줄(체크인)은 지금과 같은 `cost` (`same_stay` 키 없음). 합계(`planned`, `by.stay`)는 한 번만
+
+### 🟦 영준
+- [ ] `cost.same_stay`가 `true`인 숙소 줄은 금액 대신 "숙박비는 체크인 줄에" 같은 안내 (키 이름 위 그대로)
+
+### 🟩 지윤
+- [ ] 귀가 줄은 같은 숙소 `Place`로 (위 규칙). 다른 방법이 필요하면 TEAM_UPDATES에 먼저 적어 주세요
+
+---
+
 ## 2026-11-10 · 예산 금액 변경 자동 기록 (DB 트리거 → `budget_log` 표, `GET /budget_log/<travel_id>/`) — 🟧 이수한
 **DB 추가:** 마이그레이션 `0018_budgetlog` (새 표 `budget_log` + `travel_budget_item` 트리거 3개). 응답 키는 새 주소라 **추가만**, `mock.json`에 `budget_log` 예시. pull 뒤 `python manage.py migrate` 해 주세요.
 
