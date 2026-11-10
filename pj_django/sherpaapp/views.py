@@ -2422,7 +2422,7 @@ def pw_find(request):
 
 PW_CODE_SECONDS = 10 * 60     # 코드 유효 시간 (10분)
 PW_CODE_TRIES = 5             # 틀려도 되는 횟수
-PW_CODE_RESEND = 60           # 다시 받으려면 기다리는 시간 (1분)
+PW_CODE_RESEND = 5           # 다시 받으려면 기다리는 시간 (5초, 버튼 두번 눌림 막기)
 
 
 # 비밀번호 찾기 1단계: 아이디·이메일·이름이 맞으면 6자리 코드를 메일로 (TEAM_UPDATES 11/10)
@@ -2433,10 +2433,10 @@ def pw_code(request):
     name = (request.POST.get('name') or '').strip()
     now = datetime.now().timestamp()        # time.time() 과 같은 값(1970년부터 흐른 초)
 
-    # 1분 안에 다시 누르면 막기
+    # 5초 안에 다시 누르면 막기 (버튼 연타)
     saved = request.session.get('pw_reset') or {}
     if now - saved.get('sent', 0) < PW_CODE_RESEND:
-        return JsonResponse({'success': False, 'message': '1분 뒤에 다시 받을 수 있어요.'}, status=429)
+        return JsonResponse({'success': False, 'message': '잠시 뒤에 다시 받을 수 있어요.'}, status=429)
 
     member = Member.objects.filter(user_id=user_id, email=email, name=name).first()
     if member:
@@ -2455,7 +2455,7 @@ def pw_code(request):
             [member.email],
         )
     else:
-        request.session['pw_reset'] = {'sent': now}         # 없는 회원도 1분 막기는 똑같이
+        request.session['pw_reset'] = {'sent': now}         # 없는 회원도 5초 막기는 똑같이
 
     # 회원이 있든 없든 같은 문구 (가입 여부가 드러나지 않게)
     return JsonResponse({'success': True, 'message': '입력한 정보가 맞으면 인증 코드를 메일로 보냈어요.'})
