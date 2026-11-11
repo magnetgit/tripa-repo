@@ -373,6 +373,13 @@ class TravelDayPlan(models.Model):
         blank=True
     )
 
+    # 숙소에 들렀다(체크인·짐 두기) 다시 나갈 시각 (🟩 11/11). 비면 숙소 도착(arrival_time)이 그날 끝
+    checkin_time = models.TimeField(
+        db_column='CHECKIN_TIME',
+        null=True,
+        blank=True
+    )
+
     class Meta:
         db_table = 'travel_day_plan'
         ordering = ['plan_date']
