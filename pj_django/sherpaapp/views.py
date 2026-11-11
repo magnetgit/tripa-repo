@@ -5142,6 +5142,7 @@ def _chat_create_travel(member, draft):
                 accommodation_lon=_decimal_or_none(stay.get('lon')),
                 arrival_time=stay.get('arrival_time') or None,
                 departure_time=stay.get('departure_time') or None,
+                checkin_time=stay.get('checkin_time') or None,   # 🟩 체크인하고 다시 나가기
             )
 
             # 숙소 장소를 kakao_id와 함께 먼저 만들어 둔다.
@@ -5489,6 +5490,16 @@ def _chat_preview_days(travel, draft):
                 'pin': (index + 1, place.p_name) in pin_keys,
                 'kakao_id': place.p_kakao_id or None,
             })
+
+        # 같은 숙소가 하루에 두 줄이면 앞 줄 = 체크인, 뒤 줄 = 귀가 (🟧 11/10 규칙, mock.json stay_role)
+        stay_rows = [item for item in items if item['is_stay']]
+
+        for item in items:
+            item['stay_role'] = None
+
+        if len(stay_rows) >= 2 and stay_rows[0]['name'] == stay_rows[-1]['name']:
+            stay_rows[0]['stay_role'] = 'checkin'
+            stay_rows[-1]['stay_role'] = 'return'
 
         days.append({
             'day': index + 1,

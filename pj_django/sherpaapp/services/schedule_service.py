@@ -111,6 +111,39 @@ def get_stay_time(category_name):
     )
 
 
+# 컨셉과 상관없이 오래 머무는 곳 (카카오 분류·이름에 이 말이 있으면)
+# 예: 컨셉 '랜드마크'로 찾은 롯데월드 어드벤처 → 카카오 분류 '관광,명소 > 테마파크' → 240분
+LONG_STAY_WORDS = (
+    (('테마파크', '놀이공원', '놀이동산', '워터파크'), 240),
+    (('동물원', '식물원', '수목원'), 150),
+    (('아쿠아리움',), 120),
+)
+
+# 카카오가 '테마파크'로 나눠도 잠깐 타고 끝나는 곳 (이름에 이 말이 있으면 길게 안 잡음)
+# 예: '해운대블루라인파크 미포정거장', '스카이라인 루지 부산'
+SHORT_RIDE_WORDS = ('정거장', '루지', '케이블카', '레일바이크', '짚라인', '모노레일', '열차')
+
+
+def get_candidate_stay_time(candidate):
+    """후보 하나의 체류 시간(분): 컨셉 기본값, 놀이공원처럼 오래 있는 곳이면 더 길게"""
+    base = get_stay_time(
+        candidate.get('selected_category') or '기타'
+    )
+    text = ' '.join(
+        str(candidate.get(key) or '')
+        for key in ('kakao_category', 'name')
+    )
+
+    if any(word in (candidate.get('name') or '') for word in SHORT_RIDE_WORDS):
+        return base
+
+    for words, minutes in LONG_STAY_WORDS:
+        if any(word in text for word in words):
+            return max(base, minutes)
+
+    return base
+
+
 # =========================================================
 # 여행 날짜 생성
 # =========================================================
@@ -759,9 +792,7 @@ def pick_open_candidate(
         stay = stay_minutes
 
         if stay is None:
-            stay = get_stay_time(
-                candidate.get('selected_category') or '기타'
-            )
+            stay = get_candidate_stay_time(candidate)
 
         fitted = fit_opening_hours(candidate, arrival, stay)
 
@@ -1107,9 +1138,7 @@ def can_visit_before_fixed_time(
 
 
     stay_time = (
-        get_stay_time(
-            category_name
-        )
+        get_candidate_stay_time(candidate)
     )
 
 
@@ -1383,9 +1412,7 @@ def save_schedule_place(
     if stay_time_override is None:
 
         stay_time = (
-            get_stay_time(
-                category_name
-            )
+            get_candidate_stay_time(candidate)
         )
 
     else:
@@ -1851,13 +1878,8 @@ def fill_activities(
 
 
             stay_time = (
-                get_stay_time(
-
-                    candidate.get(
-                        'selected_category'
-                    )
-                    or
-                    '기타'
+                get_candidate_stay_time(
+                    candidate
                 )
             )
 
@@ -2094,7 +2116,7 @@ def add_checkin(
             checkin_datetime,
 
         stay_time_override=
-            30
+            CHECKIN_STAY_MINUTES
     )
 
 
@@ -2104,6 +2126,12 @@ def add_checkin(
 # =========================================================
 
 DEFAULT_ACCOMMODATION_ARRIVAL = time(20, 0)
+
+# 체크인하고 다시 나가는 날, 귀가 시각을 안 정했으면 (저녁까지 먹고 들어오게)
+CHECKIN_RETURN_DEFAULT = time(21, 30)
+
+# 체크인(짐 두기)에 머무는 시간
+CHECKIN_STAY_MINUTES = 30
 
 
 def build_accommodation_candidate(
@@ -2262,6 +2290,23 @@ def get_day_accommodation_arrival_time(
             else None
         )
         or DEFAULT_ACCOMMODATION_ARRIVAL
+    )
+
+
+def get_day_checkin_time(
+    travel_date,
+    day_plan_map,
+):
+    """그날 숙소에 들렀다 다시 나갈 시각 (TravelDayPlan.checkin_time, 없으면 None)"""
+
+    plan = day_plan_map.get(
+        travel_date
+    )
+
+    return normalize_time(
+        getattr(plan, 'checkin_time', None)
+        if plan
+        else None
     )
 
 
@@ -2669,6 +2714,46 @@ def generate_schedule(
                 )
 
         # ---------------------------------------------
+        # 체크인하고 다시 나가기 (🟩 11/11)
+        # 출발 → 관광 → 체크인(짐 두기) → 관광·식사 → 숙소로 귀가
+        # 체크인 시각은 막지 않음 (11/05 결정, 체크인 전 짐 맡기기)
+        # ---------------------------------------------
+        checkin_datetime = None
+
+        if accommodation and accommodation_point is not None:
+
+            checkin_time = get_day_checkin_time(
+                travel_date,
+                day_plan_map,
+            )
+
+            if checkin_time:
+
+                checkin_datetime = datetime.combine(
+                    travel_date,
+                    checkin_time,
+                )
+
+                plan = day_plan_map.get(travel_date)
+
+                # 귀가 시각을 안 정했으면 저녁까지 먹고 21:30
+                if not normalize_time(getattr(plan, 'arrival_time', None)):
+
+                    accommodation_datetime = datetime.combine(
+                        travel_date,
+                        CHECKIN_RETURN_DEFAULT,
+                    )
+
+                # 출발 전이거나 귀가보다 늦은 체크인은 무시 (지금처럼 숙소 도착 = 하루 끝)
+                if not (
+                    current_datetime
+                    < checkin_datetime
+                    < accommodation_datetime
+                ):
+
+                    checkin_datetime = None
+
+        # ---------------------------------------------
         # 마지막 DAY은 사용자가 지정한 RETURN_TIME까지
         # 최초 출발지로 돌아갈 수 있어야 한다.
         # ---------------------------------------------
@@ -2755,6 +2840,95 @@ def generate_schedule(
             else None,
         )
 
+        # 한 DAY 동안 바뀌는 값 (아래 도우미 함수들이 같이 고침)
+        day = {
+            'datetime': current_datetime,
+            'point': current_point,
+            'visit_order': visit_order,
+            'activity_count': activity_count,
+            'checkin_pending': checkin_datetime is not None,
+        }
+
+        # 체크인하고 나가는 날은 관광 한 곳 더 (저녁 시간이 생겨서)
+        max_activity = (
+            MAX_ACTIVITY_PER_DAY + 1
+            if checkin_datetime
+            else MAX_ACTIVITY_PER_DAY
+        )
+
+        def fill(limit, reach):
+            (
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
+                day['activity_count'],
+            ) = fill_activities(
+                travel,
+                schedule,
+                day_candidates,
+                used_places,
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
+                day['activity_count'],
+                limit,
+                travel.t_way,
+                max_activity,
+                reach_point=reach,
+                rainy=rainy,
+            )
+
+        def do_checkin():
+            """숙소에 들러 짐 두기 (그 시각보다 일찍 오면 기다림). 귀가 줄과 같은 숙소 Place를 씀"""
+            (
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
+            ) = add_checkin(
+                travel,
+                schedule,
+                accommodation,
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
+                travel.t_way,
+                checkin_datetime,
+            )
+            day['checkin_pending'] = False
+
+        def fill_until(limit, reach):
+            """limit 까지 관광을 채운다. 그 안에 체크인 시각이 있으면 체크인까지 채우고, 체크인하고, 나머지를 채운다"""
+            if day['checkin_pending'] and checkin_datetime <= limit:
+                fill(checkin_datetime, accommodation_point)
+                do_checkin()
+
+            fill(limit, reach)
+
+        def meal(target):
+            """점심·저녁. 식사 뒤 갈 곳(체크인 전이면 숙소 체크인, 아니면 숙소 귀가·집)까지 갈 수 있는 음식점만"""
+            if day['checkin_pending']:
+                fixed_datetime, fixed_point = checkin_datetime, accommodation_point
+            else:
+                fixed_datetime, fixed_point = deadline_datetime, deadline_point
+
+            (
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
+            ) = add_meal_before_deadline(
+                travel,
+                schedule,
+                meal_candidates,
+                used_places,
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
+                travel.t_way,
+                target,
+                fixed_datetime=fixed_datetime,
+                fixed_point=fixed_point,
+            )
+
         # =================================================
         # 오전 관광
         # =================================================
@@ -2764,29 +2938,11 @@ def generate_schedule(
             day_end_datetime,
         )
 
-        (
-            current_datetime,
-            current_point,
-            visit_order,
-            activity_count,
-        ) = fill_activities(
-            travel,
-            schedule,
-            day_candidates,
-            used_places,
-            current_datetime,
-            current_point,
-            visit_order,
-            activity_count,
+        fill_until(
             morning_limit,
-            travel.t_way,
-            MAX_ACTIVITY_PER_DAY,
-            reach_point=(
-                deadline_point
-                if morning_limit == day_end_datetime
-                else None
-            ),
-            rainy=rainy,
+            deadline_point
+            if morning_limit == day_end_datetime
+            else None,
         )
 
         # =================================================
@@ -2797,32 +2953,11 @@ def generate_schedule(
             lunch_datetime
             <
             day_end_datetime
-            and current_datetime.time()
+            and day['datetime'].time()
             <
             time(15, 0)
         ):
-
-            (
-                current_datetime,
-                current_point,
-                visit_order,
-            ) = add_meal_before_deadline(
-                travel,
-                schedule,
-                meal_candidates,
-                used_places,
-                current_datetime,
-                current_point,
-                visit_order,
-                travel.t_way,
-                lunch_datetime,
-                fixed_datetime=(
-                    deadline_datetime
-                ),
-                fixed_point=(
-                    deadline_point
-                ),
-            )
+            meal(lunch_datetime)
 
         # =================================================
         # 오후 관광
@@ -2833,29 +2968,11 @@ def generate_schedule(
             day_end_datetime,
         )
 
-        (
-            current_datetime,
-            current_point,
-            visit_order,
-            activity_count,
-        ) = fill_activities(
-            travel,
-            schedule,
-            day_candidates,
-            used_places,
-            current_datetime,
-            current_point,
-            visit_order,
-            activity_count,
+        fill_until(
             afternoon_limit,
-            travel.t_way,
-            MAX_ACTIVITY_PER_DAY,
-            reach_point=(
-                deadline_point
-                if afternoon_limit == day_end_datetime
-                else None
-            ),
-            rainy=rainy,
+            deadline_point
+            if afternoon_limit == day_end_datetime
+            else None,
         )
 
         # =================================================
@@ -2866,62 +2983,31 @@ def generate_schedule(
             dinner_datetime
             <
             day_end_datetime
-            and current_datetime.time()
+            and day['datetime'].time()
             <
             time(21, 0)
         ):
+            # 저녁 시각보다 체크인이 먼저면 체크인부터
+            if day['checkin_pending'] and checkin_datetime <= dinner_datetime:
+                do_checkin()
 
-            (
-                current_datetime,
-                current_point,
-                visit_order,
-            ) = add_meal_before_deadline(
-                travel,
-                schedule,
-                meal_candidates,
-                used_places,
-                current_datetime,
-                current_point,
-                visit_order,
-                travel.t_way,
-                dinner_datetime,
-                fixed_datetime=(
-                    deadline_datetime
-                ),
-                fixed_point=(
-                    deadline_point
-                ),
-            )
+            meal(dinner_datetime)
 
         # =================================================
         # 저녁 이후 / 숙소 전 남는 시간
         # =================================================
 
-        (
-            current_datetime,
-            current_point,
-            visit_order,
-            activity_count,
-        ) = fill_activities(
-            travel,
-            schedule,
-            day_candidates,
-            used_places,
-            current_datetime,
-            current_point,
-            visit_order,
-            activity_count,
+        fill_until(
             day_end_datetime,
-            travel.t_way,
-            MAX_ACTIVITY_PER_DAY,
-            reach_point=(
-                deadline_point
-            ),
-            rainy=rainy,
+            deadline_point,
         )
 
+        # 그래도 체크인을 못 했으면(장소가 없던 날) 귀가 전에 체크인
+        if day['checkin_pending']:
+            do_checkin()
+
         # =================================================
-        # 해당 DAY 숙소 도착
+        # 해당 DAY 숙소 도착 (체크인한 날은 '귀가' 줄, 같은 숙소 Place)
         # =================================================
 
         if (
@@ -2930,16 +3016,16 @@ def generate_schedule(
         ):
 
             (
-                current_datetime,
-                current_point,
-                visit_order,
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
             ) = add_accommodation_arrival(
                 travel,
                 schedule,
                 accommodation,
-                current_datetime,
-                current_point,
-                visit_order,
+                day['datetime'],
+                day['point'],
+                day['visit_order'],
                 travel.t_way,
                 accommodation_datetime,
             )
