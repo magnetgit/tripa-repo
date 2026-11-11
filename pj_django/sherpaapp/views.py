@@ -2199,6 +2199,20 @@ def build_travel_record(member):
 
     avg_budget = travels.aggregate(avg=Avg('t_budget'))['avg'] or 0
 
+    # 여행 수·총예산 합계 한 번에 (SELECT COUNT(*), SUM(T_BUDGET) FROM travel WHERE M_ID = …)
+    totals = travels.aggregate(n=Count('t_id'), budget=Sum('t_budget'))
+
+    # 지역별 (수업 08/05·08/06 13·14일차 집계·GROUP BY)
+    # SELECT T_PLACE, COUNT(*), SUM(T_BUDGET), AVG(T_BUDGET) FROM travel WHERE M_ID = … GROUP BY T_PLACE ORDER BY COUNT(*) DESC
+    regions = list(
+        travels
+        .exclude(t_place__isnull=True).exclude(t_place='')
+        .values('t_place')
+        .annotate(n=Count('t_id'), budget=Sum('t_budget'), avg=Avg('t_budget'))
+        .order_by('-n', 't_place')[:6]          # 자주 간 지역(top_place)과 같은 순서
+    )
+    top_n = regions[0]['n'] if regions else 0
+
     top_place = (
         travels
         .values('t_place')
@@ -2228,6 +2242,16 @@ def build_travel_record(member):
         'top_place_count': top_place['n'] if top_place else 0,
         'top_concept': top_concept['category__c_name'] if top_concept else '',
         'top_concept_count': top_concept['n'] if top_concept else 0,
+        'travel_count': totals['n'] or 0,
+        'total_budget': '{:,}'.format(totals['budget'] or 0),
+        # 지역별 표: 여행 수 막대 길이(가장 많은 지역 = 100%)
+        'regions': [{
+            'place': r['t_place'],
+            'count': r['n'],
+            'budget': '{:,}'.format(r['budget'] or 0),
+            'avg': '{:,}'.format(round(r['avg'] or 0)),
+            'bar': round(r['n'] * 100 / top_n) if top_n else 0,
+        } for r in regions],
     }
 
 
