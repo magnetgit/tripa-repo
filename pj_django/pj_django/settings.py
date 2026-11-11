@@ -314,6 +314,10 @@ SESSION_SAVE_EVERY_REQUEST = env.bool(
 # 외부 지도·API 호출 때 Referer 전달 방식 (카카오 지도 JS 키 도메인 확인에 필요)
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
+# 홈의 '📱 폰' 미리보기(우리 사이트를 폰 크기 틀 iframe 에 띄움, 🟦 11/11)
+# 기본 DENY 는 우리 사이트 안에서도 막아서, 같은 사이트만 허용 (다른 사이트가 틀에 넣는 건 그대로 막음)
+X_FRAME_OPTIONS = "SAMEORIGIN"
+
 # 필요하면 운영 .env에서 True로 전환할 수 있다.
 SESSION_COOKIE_SECURE = env.bool(
     "SESSION_COOKIE_SECURE",

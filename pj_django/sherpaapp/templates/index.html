@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261066">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261080">
 
 </head>
 
@@ -39,8 +39,8 @@
             <a href="{% url 'travel_list' %}">{% include "_icon.html" with name="suitcase" %}내 여행</a>
 
             {% if member %}
-                <span>{% include "_icon.html" with name="user" %}{{ member.nickname }}님</span>
-                <a href="{% url 'mypage' %}">마이페이지</a>
+                {# 닉네임을 누르면 마이페이지 (따로 있던 '마이페이지' 링크는 뺌: 폰에서 세로로 꺾여서) #}
+                <a href="{% url 'mypage' %}" class="header-user" title="마이페이지">{% include "_icon.html" with name="user" %}{{ member.nickname }}님</a>
                 <a href="{% url 'logout' %}">로그아웃</a>
             {% else %}
                 <a href="{% url 'login' %}">로그인</a>
@@ -812,6 +812,83 @@
         });
     });
 
+})();
+</script>
+
+<!-- PC에서 폰 화면 미리보기 (🟦 11/11): [📱 폰] → 폰 크기 틀 안에 우리 사이트, [💻 PC] → 닫기 -->
+<div class="view-toggle" id="viewToggle" role="group" aria-label="화면 모드">
+    <button type="button" data-view="pc" class="is-on" aria-pressed="true">💻 PC</button>
+    <button type="button" data-view="phone" aria-pressed="false">📱 폰</button>
+</div>
+
+<div class="phone-preview" id="phonePreview" hidden>
+    <div class="phone-preview__frame">
+        <span class="phone-preview__notch" aria-hidden="true"></span>
+        <iframe id="phoneFrame" title="폰 화면 미리보기" loading="lazy"></iframe>
+    </div>
+    <p class="phone-preview__hint">폰 화면(390×844)이에요 · 안에서 눌러 볼 수 있어요 · Esc 또는 바깥을 누르면 닫혀요</p>
+</div>
+
+<script>
+(function () {
+    var toggle = document.getElementById("viewToggle");
+    var preview = document.getElementById("phonePreview");
+    var frame = document.getElementById("phoneFrame");
+
+    // 폰 틀 안에 뜬 홈에서는 버튼을 없앰 (틀 안에 또 틀이 생기지 않게)
+    if (window.self !== window.top) {
+        toggle.remove();
+        preview.remove();
+        return;
+    }
+
+    function setView(view) {
+        var phone = view === "phone";
+        preview.hidden = !phone;
+        if (phone && !frame.getAttribute("src")) {
+            frame.src = "{% url 'index' %}";   // 처음 열 때만 불러옴
+        }
+        document.body.classList.toggle("is-phone-preview", phone);
+        toggle.querySelectorAll("button").forEach(function (btn) {
+            var on = btn.dataset.view === view;
+            btn.classList.toggle("is-on", on);
+            btn.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        try { sessionStorage.setItem("tripa_view", view); } catch (e) { /* 저장 못 해도 동작 */ }
+    }
+
+    // 틀 안 페이지가 열릴 때마다 스크롤바 숨기기 (폰처럼). 휠·끌기 스크롤은 그대로
+    // 세로 스크롤바(약 15px)가 사라지면 그만큼 내용 폭이 넓어져 가로 넘침도 없어짐
+    var HIDE_BARS = "html{scrollbar-width:none;-ms-overflow-style:none}"
+        + "html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
+    frame.addEventListener("load", function () {
+        try {
+            var doc = frame.contentDocument;
+            if (!doc || doc.getElementById("tripaPhoneBars")) return;
+            var style = doc.createElement("style");
+            style.id = "tripaPhoneBars";
+            style.textContent = HIDE_BARS;
+            doc.head.appendChild(style);
+        } catch (e) { /* 다른 사이트(카카오맵 등)로 나가면 못 넣음 → 그대로 둠 */ }
+    });
+
+    toggle.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-view]");
+        if (btn) setView(btn.dataset.view);
+    });
+
+    // 어두운 바깥을 누르거나 Esc → PC로
+    preview.addEventListener("click", function (e) {
+        if (e.target === preview) setView("pc");
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !preview.hidden) setView("pc");
+    });
+
+    // 새로고침해도 이 탭에서는 고른 모드 그대로
+    var saved = "";
+    try { saved = sessionStorage.getItem("tripa_view") || ""; } catch (e) { /* 무시 */ }
+    if (saved === "phone") setView("phone");
 })();
 </script>
 
