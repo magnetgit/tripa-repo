@@ -10,6 +10,18 @@
 
 ---
 
+## 2026-11-11 · 리뷰 게시판 분류 기준에 나이대·성별 추가 — 🟧 이수한
+DB·응답 키 변경 없음 · 주소는 기존 모양 그대로 `?tab=places&by=age&v=20`, `?by=gender&v=F`
+
+- `views.REVIEW_GROUPS` 에 `('age', '나이대', 'member__age_group')`, `('gender', '성별', 'member__gender')` (리뷰 쓴 회원 기준)
+- 칩 이름은 `REVIEW_GROUP_LABELS` (10대~60대 이상, 남성·여성), 선택지 순서대로. 안 넣은 회원 리뷰는 칩에 없음 (전체에는 있음)
+- 칩 색 (`review.css`): 나이대 = 보라 `.rv-chips--age`, 성별 = 살구 `.rv-chips--gender` (장소 베이지·카테고리 하늘·지역 연두·태그 분홍과 안 겹치게)
+
+### 🟦 영준
+- [ ] 리뷰 게시판 화면에서 칩 줄 확인 (폰 화면은 기존처럼 가로 스크롤)
+
+---
+
 ## 2026-11-11 · ⚠️ DB 칸 2개 추가 (`member.JOINED_AT`, `travel.CREATED_AT`) + 대시보드 '한눈에' 월별·연도별 증감 — 🟧 이수한
 ⚠️ **pull 뒤 `python manage.py migrate` 필요** (0020) · 주소·응답 키 변경 없음
 
