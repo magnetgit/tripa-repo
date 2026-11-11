@@ -64,6 +64,20 @@ DB·마이그레이션·`.env` 변경 없음 · 기존 응답 키·함수 이름
 
 ---
 
+## 2026-11-11 · FastAPI AI 서버 B안 3단계: 서버에 `tripa-ai` 띄우고 연결 — 🟧 이수한
+코드 변경 없음 (서버 설정만) · 로컬은 그대로 (`AI_SERVER_URL` 안 넣으면 예전과 같음)
+
+- 서버 systemd `tripa-ai`: `uvicorn ai_server.main:app` 127.0.0.1:8100 (밖으로 안 엶)
+- 서버 `.env` 에 `AI_SERVER_URL=http://127.0.0.1:8100` → 서버 채팅·리뷰 요약·임베딩이 FastAPI 를 거침
+- `~/deploy.sh`: `ai_server/requirements.txt` 설치 + `tripa-ai` 재시작 + `AI 서버: 200` 확인
+- 확인: Django → `/llm`·`/embed`·`/chat/turn` 모두 200 (FastAPI 로그), 채팅 한 턴 5.3초, 메인 200
+- 문제 생기면: 서버 `.env` 의 `AI_SERVER_URL` 줄만 지우고 `systemctl restart tripa` → 예전처럼 Django 가 직접
+
+### 🟩 지윤 · 🟦 영준
+- 할 일 없음. 서버 채팅이 이상하면 🟧 에게 (로그: `journalctl -u tripa-ai`)
+
+---
+
 ## 2026-11-11 · FastAPI AI 서버 B안 2단계: `ai_server/` + `ai_client` + 스위치 (기본은 예전과 같음) — 🟧 이수한
 DB·응답 키 변경 없음 · 새 폴더 `ai_server/` (저장소 맨 위) · 새 `.env` 키 `AI_SERVER_URL`·`AI_SERVER_TOKEN` (**비우면 지금과 똑같음**, 로컬은 안 넣어도 됨)
 
