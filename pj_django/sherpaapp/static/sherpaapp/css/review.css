@@ -802,10 +802,12 @@
 .rv-chips a em { font-style: normal; margin-left: 3px; opacity: .6; }
 .rv-chips a.is-on { background: #1f2d4a; border-color: #1f2d4a; color: #fff; }
 
-/* 기준별 칩 색 (장소 = 베이지, 카테고리 = 하늘, 지역 = 연두, 태그 = 분홍) */
+/* 기준별 칩 색 (장소 = 베이지, 카테고리 = 하늘, 지역 = 연두, 태그 = 분홍, 나이대 = 보라, 성별 = 살구) */
 .rv-chips--kind a   { background: #eef4ff; border-color: #d3e0fb; color: #23407a; }
 .rv-chips--region a { background: #eef8f0; border-color: #cfe9d6; color: #22603a; }
 .rv-chips--tag a    { background: #fdf0f3; border-color: #f4d3dc; color: #7a2f45; }
+.rv-chips--age a    { background: #f4f0fd; border-color: #ddd3f6; color: #4a3a86; }
+.rv-chips--gender a { background: #fff4e8; border-color: #f6dcc0; color: #8a4a12; }
 .rv-sort-label { align-self: center; margin-right: 4px; font-size: 12px; color: #9aa8bd; }
 
 .rv-who .rv-rank {
