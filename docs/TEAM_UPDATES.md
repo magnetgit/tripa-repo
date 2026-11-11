@@ -10,6 +10,28 @@
 
 ---
 
+## 2026-11-11 · 📐 회원 통계 계산은 `services/stats_service.py` 한 곳에 (🟩 관리자 통계 + 🟧 Streamlit이 같이 씀) — 🟧 이수한 (요청)
+코드 변경 없음. 🟩 관리자 페이지 통계와 🟧 Streamlit 운영 대시보드가 **같은 숫자**를 보여 주도록, 집계 쿼리를 한 파일에 두고 둘 다 불러 써요.
+
+**🟩 지윤이 할 것 (관리자 통계를 만들 때)**
+1. 집계 쿼리를 `views.py`·`admin.py` 안이 아니라 **새 파일 `services/stats_service.py`**에 함수로 (관리자 화면은 이 함수를 불러서 그리기만)
+2. 함수 이름·돌려주는 모양을 정하면 **다 만들기 전에 TEAM_UPDATES에 먼저 적고 작은 PR** (11/09 공유 규칙). 제안 모양 — 바꿔도 돼요, 정한 대로 🟧가 씀:
+   - `favorite_places(gender=None, age_group=None, limit=5)` → `[{kakao_id, name, kind, reviews, visits, rating}]` (리뷰·방문 많은 순)
+   - `group_preferences()` → `[{gender, age_group, kind, reviews, rating}]` (성별×나이대×장소 종류)
+   - `place_spending(limit=10)` → `[{kakao_id, name, edited_total, edited_avg, edits}]` (회원이 고친 금액 `travel_budget_item`·`budget_log`)
+   - `member_summary()` → `{members, by_gender: {M, F, none}, by_age: {10: n, …}}`
+3. 함수는 **장고 ORM만** 쓰고 화면(request·HTML)은 몰라야 해요 → Streamlit에서도 그대로 불러 쓸 수 있게
+4. 성별·나이대 없는 회원(`None`)은 따로 "안 넣음"으로 세기
+
+**🟧 수한이 할 것 (Streamlit 운영 대시보드, 선택)**
+- `dashboard/app.py`: `django.setup()` 뒤 `stats_service` 함수로 표·막대 + pandas로 날짜별 추이(가입·여행·예산 변경 `budget_log`) — 수업 23~25일차 SQLAlchemy·pandas, 50·53일차 Streamlit
+- 🟩 `stats_service`가 공유되면 그대로 씀. 그 전에는 화면 틀·추이 그래프부터
+
+### 🟩 지윤
+- [ ] 관리자 통계 쿼리를 `services/stats_service.py`에 함수로 + 이름·모양 먼저 공유
+
+---
+
 ## 2026-11-11 · 숙소 체크인 시각 안내 `items[].checkin` + 식사 시간대 맞추기가 숙소 시각을 지키게 — 🟩 서지윤
 응답 키는 **추가만** (`mock.json` `plan.days[].stops[].checkin`) · DB 바뀜 없음
 
