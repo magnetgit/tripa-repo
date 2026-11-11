@@ -2310,6 +2310,16 @@ def id_find(request):
     )
 
 
+    # 화면(idpw.html)이 fetch 로 물으면 JSON 으로 답해서 결과 카드로 보여 줌 (🟦 11/11, 아래 alert 방식은 그대로)
+    if request.headers.get('X-Requested-With') == 'fetch':
+        ids = [member.user_id for member in members]
+        if ids:
+            return JsonResponse({'success': True, 'ids': ids, 'message': '가입하신 아이디를 찾았어요.'})
+        return JsonResponse({
+            'success': False, 'ids': [],
+            'message': '일치하는 회원정보가 없어요. 이름과 이메일을 다시 확인해 주세요.',
+        })
+
     if members.exists():
 
         ids = [
@@ -2338,6 +2348,30 @@ def id_find(request):
 # 비밀번호 찾기
 # ==============================================
 
+def _alert_as_json(view):
+    """화면이 fetch(X-Requested-With: fetch)로 부르면 <script>alert('…')</script> 답을
+    {success, message, next} JSON 으로 바꿔 줌 (🟦 11/11, 결과를 팝업 대신 화면 카드로).
+    location.href 로 다른 화면에 가는 답 = 성공. 일반 폼 제출은 예전 그대로."""
+    def wrapper(request, *args, **kwargs):
+        response = view(request, *args, **kwargs)
+        if request.headers.get('X-Requested-With') != 'fetch' or isinstance(response, JsonResponse):
+            return response
+        text = response.content.decode('utf-8', 'ignore')
+        found = re.search(r"alert\('(.*?)'\);", text, re.S)
+        if not found:
+            return response
+        moved = re.search(r"location\.href\s*=", text)
+        return JsonResponse({
+            'success': bool(moved),
+            'message': found.group(1).strip(),
+            'next': reverse('login') if moved else '',
+        })
+    wrapper.__name__ = view.__name__
+    wrapper.__doc__ = view.__doc__
+    return wrapper
+
+
+@_alert_as_json
 def pw_find(request):
 
     user_id = request.POST.get(
