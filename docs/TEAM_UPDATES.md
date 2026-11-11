@@ -23,13 +23,25 @@ DB·주소 변경 없음 · ⚠️ **🟧 `views.py`에 추가만**: `id_find`�
 
 ---
 
+## 2026-11-11 · 리뷰 게시판 분류 기준에 나이대·성별 추가 — 🟧 이수한
+DB·응답 키 변경 없음 · 주소는 기존 모양 그대로 `?tab=places&by=age&v=20`, `?by=gender&v=F`
+
+- `views.REVIEW_GROUPS` 에 `('age', '나이대', 'member__age_group')`, `('gender', '성별', 'member__gender')` (리뷰 쓴 회원 기준)
+- 칩 이름은 `REVIEW_GROUP_LABELS` (10대~60대 이상, 남성·여성), 선택지 순서대로. 안 넣은 회원 리뷰는 칩에 없음 (전체에는 있음)
+- 칩 색 (`review.css`): 나이대 = 보라 `.rv-chips--age`, 성별 = 살구 `.rv-chips--gender` (장소 베이지·카테고리 하늘·지역 연두·태그 분홍과 안 겹치게)
+
+### 🟦 영준
+- [ ] 리뷰 게시판 화면에서 칩 줄 확인 (폰 화면은 기존처럼 가로 스크롤)
+
+---
+
 ## 2026-11-11 · ⚠️ DB 칸 2개 추가 (`member.JOINED_AT`, `travel.CREATED_AT`) + 대시보드 '한눈에' 월별·연도별 증감 — 🟧 이수한
 ⚠️ **pull 뒤 `python manage.py migrate` 필요** (0020) · 주소·응답 키 변경 없음
 
 - `Member.joined_at` (`JOINED_AT`, 가입 시각), `Travel.created_at` (`CREATED_AT`, 여행 만든 시각) — 둘 다 `default=timezone.now`, `editable=False`
   - 따로 넣지 않아도 만들 때 자동으로 채워져요 (가입·여행 만들기 코드 수정 없음). 칸이 생기기 전 회원·여행은 migrate 한 시각으로 채워짐
   - `T_DAY` 는 그대로 **출발일**이에요 (만든 날이 아님)
-- `seed_demo` 가 데모 회원 가입 시각·여행 만든 시각도 넣어요 (`--reset` 하면 반영)
+- `seed_demo` 가 데모 회원 가입 시각·여행 만든 시각도 넣어요 (`--reset` 하면 반영). 데모는 **2020년 1월부터** 오늘까지 (가입은 해마다 늘게)
 - 대시보드 **한눈에**: 회원·여행·리뷰·예산 변경 기록을 월별(전달 대비)·연도별(작년 대비)로, 늘면 빨간 ▲ · 줄면 파란 ▼ + 최근 12달 막대 + 기간별 표
 
 ### 🟦 영준 · 🟩 지윤

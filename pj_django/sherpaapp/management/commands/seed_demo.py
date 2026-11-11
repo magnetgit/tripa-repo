@@ -14,6 +14,8 @@
 - 장소는 docs/data/busan_spots_draft.csv (팀이 고른 부산 장소, 실제 카카오 장소 번호).
   그래서 채팅 추천 카드에도 데모 리뷰 별점이 붙고, 같은 성별·나이대 가중이 보여요.
 - 같은 --seed 값이면 언제나 같은 데이터가 나와요 (발표 화면을 미리 맞춰 둘 수 있게).
+- 기간: 2020년 1월부터 오늘까지. 가입은 해마다 늘어나게(JOIN_YEAR_WEIGHTS) 퍼지고, 여행은 가입한 뒤
+  오늘까지 1년에 1~2번꼴 + 다가오는 여행 1개(60%). 리뷰·공유 루트·고친 비용은 그 여행 날짜를 따라가요.
 - 다녀온 여행의 일부는 회원이 비용 관리에서 장소 금액을 고친 것처럼 travel_budget_item 을 넣어요.
   DB 트리거가 budget_log 를 남기고, 기록 시각은 그 여행 날짜 근처로 옮겨요 (대시보드 '장소별 비용' · 날짜별 추이).
 - 데모 회원이 아닌 데이터는 건드리지 않아요. 지울 때도 demo_ 회원과 그 회원의 여행·리뷰·비용 기록만 지워요.
@@ -37,6 +39,8 @@ from sherpaapp.models import (
 )
 
 DEMO_PREFIX = 'demo_'
+DEMO_SINCE = date(2020, 1, 1)               # 데모 데이터 시작 (운영 대시보드 연도별 증감용)
+JOIN_YEAR_WEIGHTS = {2020: 1, 2021: 2, 2022: 3, 2023: 4, 2024: 5, 2025: 7, 2026: 6}   # 해마다 가입이 늘게
 DEMO_PASSWORD = 'Tripa#Demo2026'    # 시험용 (데모 회원 모두 같음)
 SPOTS_CSV = Path(settings.BASE_DIR).parent / 'docs' / 'data' / 'busan_spots_draft.csv'
 
@@ -233,7 +237,6 @@ class Command(BaseCommand):
             routes = make_routes(rnd, members, travels)
             budgets = make_budgets(rnd, travels)
             edited = make_budget_items(rnd, travels)
-            set_created_dates(random.Random(opts['seed'] + 1), members, travels)   # 앞 데이터가 안 바뀌게 따로 뽑음
 
         summaries = make_summaries(reviews) if opts['summaries'] else 0
         self.stdout.write(self.style.SUCCESS(
@@ -279,6 +282,12 @@ def load_spots():
     return spots
 
 
+def _not_future(rnd, when):
+    """방금 끝난 여행의 리뷰·기록이 내일 날짜가 되지 않게: 지금보다 뒤면 지금 몇 분~몇 시간 전으로"""
+    now = datetime.now()
+    return when if when < now else now - timedelta(minutes=rnd.randint(5, 600))
+
+
 # ---------------------------------------------------------------------------
 # 회원
 # ---------------------------------------------------------------------------
@@ -286,13 +295,19 @@ def make_members(rnd, count):
     pwd = make_password(DEMO_PASSWORD)
     avatars = [a[0] for a in AVATAR_CHOICES]
     members = []
+    latest = date.today() - timedelta(days=30)          # 가입 뒤 여행 하나는 다녀올 수 있게
+    years = [y for y in JOIN_YEAR_WEIGHTS if y <= latest.year]
     for i in range(count):
         gender, age = MEMBER_GROUPS[i % len(MEMBER_GROUPS)]
         no = f'{i + 1:02d}'
+        year = rnd.choices(years, weights=[JOIN_YEAR_WEIGHTS[y] for y in years])[0]
+        first, last = max(date(year, 1, 1), DEMO_SINCE), min(date(year, 12, 31), latest)
+        joined = first + timedelta(days=rnd.randint(0, (last - first).days))
         members.append(Member.objects.create(
             user_id=f'{DEMO_PREFIX}{no}', email=f'{DEMO_PREFIX}{no}@example.com', pwd=pwd,
             nickname=NICKS[i % len(NICKS)] + ('' if i < len(NICKS) else no), name=f'데모{no}',
             gender=gender, age_group=age, profile_img=rnd.choice(avatars),
+            joined_at=datetime.combine(joined, time(rnd.randint(8, 23), rnd.randint(0, 59))),
         ))
     return members
 
@@ -314,9 +329,14 @@ def make_travels(rnd, members, spots):
     for m in members:
         likes = GROUP_LIKES.get((m.gender, m.age_group), {})
         favorite = [c for c, v in sorted(likes.items(), key=lambda x: -x[1]) if v > 0] or concepts
-        # 지난 여행 3개(계절이 다르게) + 다가오는 여행 1개
-        starts = [today - timedelta(days=rnd.randint(150, 240)), today - timedelta(days=rnd.randint(40, 120)),
-                  today - timedelta(days=rnd.randint(5, 30)), today + timedelta(days=rnd.randint(7, 40))]
+        # 가입 뒤 ~ 오늘: 지난 여행 1년에 1~2번꼴(2~8개) + 다가오는 여행 1개(60%)
+        joined = m.joined_at.date()
+        span = (today - timedelta(days=5) - (joined + timedelta(days=14))).days
+        past = max(2, min(8, round(span / 365 * 1.3) + rnd.randint(0, 1)))
+        starts = sorted([joined + timedelta(days=rnd.randint(14, 14 + min(span, 90)))] +      # 첫 여행은 가입 뒤 석 달 안
+                        [joined + timedelta(days=14 + rnd.randint(0, span)) for _ in range(past - 1)])
+        if rnd.random() < .6:
+            starts.append(today + timedelta(days=rnd.randint(7, 40)))
         for start in starts:
             days = rnd.choice([2, 2, 3])
             main = rnd.choice(favorite[:2]) if rnd.random() < .4 else rnd.choice(concepts)
@@ -324,8 +344,12 @@ def make_travels(rnd, members, spots):
             who = rnd.choice(COMPANION_BY_AGE.get(m.age_group, COMPANION_BY_AGE[None]))
             people = COMPANIONS[who][1]
             car = .7 if who in ('아이', '가족', '부모님') else .3     # 아이·가족 여행은 차가 많게
+            planned = max(joined, start - timedelta(days=rnd.randint(3, 20)))     # 계획한 날 (가입 뒤)
+            made = min(planned, today - timedelta(days=rnd.randint(0, 6)))        # 만든 날은 오늘까지
             t = Travel.objects.create(
-                member=m, t_day=start - timedelta(days=rnd.randint(3, 20)), t_place='부산',
+                member=m, t_day=planned, t_place='부산',
+                created_at=_not_future(rnd, max(m.joined_at + timedelta(minutes=30),        # 가입한 날이면 가입 뒤
+                                                datetime.combine(made, time(rnd.randint(9, 23), rnd.randint(0, 59))))),
                 t_title=f'부산 {days - 1}박 {days}일 {COMPANIONS[who][2]} {main} 여행',
                 t_way='CAR' if rnd.random() < car else 'public_transport',
                 t_start=start, t_end=start + timedelta(days=days - 1),
@@ -446,7 +470,8 @@ def make_reviews(rnd, travels):
             rv = Review.objects.create(member=t.member, place=p, kakao_id=p.p_kakao_id, place_name=p.p_name,
                                        rating=r, content=text, tags=tags)
             # 작성일: 여행 끝난 뒤 1~7일 (auto_now_add라 만든 뒤 따로 고침)
-            written = datetime.combine(t.t_end + timedelta(days=rnd.randint(1, 7)), time(rnd.randint(9, 22), rnd.randint(0, 59)))
+            written = _not_future(rnd, datetime.combine(t.t_end + timedelta(days=rnd.randint(1, 7)),
+                                                        time(rnd.randint(9, 22), rnd.randint(0, 59))))
             Review.objects.filter(pk=rv.pk).update(created_at=written)
             reviews.append(rv)
     return reviews
@@ -534,26 +559,9 @@ def make_budget_items(rnd, travels):
         for log in BudgetLog.objects.filter(travel_id=t.t_id):
             day = (t.t_start - timedelta(days=rnd.randint(1, 5)) if log.action == 'insert'
                    else t.t_end + timedelta(days=rnd.randint(0, 3)))
-            log.changed_at = datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59)))
+            log.changed_at = _not_future(rnd, datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59))))
             log.save(update_fields=['changed_at'])
     return count
-
-
-# ---------------------------------------------------------------------------
-# 가입·여행 만든 시각 — 운영 대시보드 '한눈에' 월별·연도별 증감
-# ---------------------------------------------------------------------------
-def set_created_dates(rnd, members, travels):
-    """여행 만든 시각 = 계획한 날(t_day, 미래면 최근 며칠) 낮~밤, 가입 시각 = 첫 여행을 만들기 1~300일 전."""
-    today = date.today()
-    first = {}
-    for t in travels:
-        day = min(t.t_day, today - timedelta(days=rnd.randint(0, 6)))     # 다가오는 여행도 만든 날은 오늘까지
-        t.created_at = datetime.combine(day, time(rnd.randint(9, 23), rnd.randint(0, 59)))
-        first[t.member_id] = min(first.get(t.member_id, t.created_at), t.created_at)
-    Travel.objects.bulk_update(travels, ['created_at'])
-    for m in members:
-        m.joined_at = first[m.m_id] - timedelta(days=rnd.randint(1, 300), minutes=rnd.randint(0, 600))
-    Member.objects.bulk_update(members, ['joined_at'])
 
 
 # ---------------------------------------------------------------------------
