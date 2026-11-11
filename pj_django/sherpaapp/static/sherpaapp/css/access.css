@@ -1,0 +1,246 @@
+/* 여행지까지 가는 길: 비교 카드 · 구간 목록 · 지도 선 (access.js, 🟧 11/11)
+   TRIPA 여행 상세 패널 모양(.tc-panel)에 맞춤. 접두사 ac- */
+
+.ac-panel {
+    margin: 0 0 16px;
+    background: #fff;
+    border: 1px solid #dfe8f7;
+    border-radius: 18px;
+    box-shadow: 0 6px 20px rgba(45, 108, 223, 0.07);
+    overflow: hidden;
+}
+
+.ac-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid #eef3fb;
+}
+
+.ac-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: #1f2d4a;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ac-chosen {
+    flex: 1 1 260px;
+    min-width: 0;
+    font-size: 13px;
+    color: #52607a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ac-chosen b { color: #2d6cdf; }
+
+.ac-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.ac-controls label { font-size: 12px; color: #6b7a94; }
+
+.ac-controls select {
+    height: 32px;
+    border: 1px solid #d6e2f5;
+    border-radius: 10px;
+    padding: 0 8px;
+    font-size: 13px;
+    background: #fff;
+}
+
+.ac-btn {
+    height: 32px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 10px;
+    background: #2d6cdf;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ac-btn:hover:not(:disabled) { filter: brightness(1.06); }
+.ac-btn:disabled { background: #c9d6ee; cursor: wait; }
+.ac-btn--ghost { background: #eef4ff; color: #2d6cdf; }
+
+.ac-body { padding: 14px 18px 18px; }
+.ac-body[hidden] { display: none; }
+
+.ac-note {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: #6b7a94;
+}
+
+.ac-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+}
+
+.ac-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid #e3ebf8;
+    border-radius: 14px;
+    background: #fbfdff;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.ac-card:hover { border-color: #b9cdf3; }
+
+.ac-card.is-best { border-color: #9fbdf2; }
+
+.ac-card.is-picked {
+    border: 2px solid #2d6cdf;
+    background: #f3f7ff;
+    box-shadow: 0 4px 14px rgba(45, 108, 223, 0.15);
+}
+
+.ac-tags { display: flex; flex-wrap: wrap; gap: 4px; min-height: 20px; }
+
+.ac-tag {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #eef4ff;
+    color: #2d6cdf;
+}
+
+.ac-tag--최저가 { background: #ecf8f0; color: #1f7a3f; }
+.ac-tag--가장빠름 { background: #fff4e8; color: #a3560f; }
+.ac-tag--real { background: #f1f3f7; color: #52607a; font-weight: 600; }
+
+.ac-card h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #1f2d4a;
+}
+
+.ac-total {
+    font-size: 20px;
+    font-weight: 800;
+    color: #1f2d4a;
+}
+
+.ac-total small { font-size: 12px; font-weight: 600; color: #6b7a94; margin-left: 4px; }
+
+.ac-meta { font-size: 12px; color: #52607a; }
+
+.ac-chain {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 4px;
+    font-size: 12px;
+    color: #3a4660;
+}
+
+.ac-chain i { font-style: normal; color: #a6b3c9; }
+
+.ac-items {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: #6b7a94;
+}
+
+.ac-items li { display: flex; justify-content: space-between; gap: 8px; }
+
+.ac-warn { font-size: 12px; color: #a3560f; }
+
+.ac-pick { margin-top: auto; width: 100%; }
+.ac-card.is-picked .ac-pick { background: #1f2d4a; }
+
+.ac-loading, .ac-empty {
+    padding: 18px 4px;
+    font-size: 13px;
+    color: #6b7a94;
+}
+
+/* DAY 일정 칸 위·아래: 가는 길 · 오는 길 구간 */
+.ac-legs {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px dashed #c8d8f3;
+    border-radius: 14px;
+    background: #f7faff;
+}
+
+.ac-legs--back { margin: 12px 0 0; }
+
+.ac-legs__title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #1f2d4a;
+}
+
+.ac-legs__title small { font-weight: 600; color: #6b7a94; }
+
+.ac-legs ol { margin: 0; padding: 0; list-style: none; }
+
+.ac-leg {
+    display: grid;
+    grid-template-columns: 46px 26px 1fr;
+    align-items: start;
+    gap: 6px;
+    padding: 6px 0;
+    border-top: 1px solid #e8eef9;
+    font-size: 12px;
+}
+
+.ac-leg:first-child { border-top: 0; }
+
+.ac-leg__time { font-weight: 700; color: #2d6cdf; font-variant-numeric: tabular-nums; }
+.ac-leg__time small { display: block; font-weight: 500; color: #8a97ae; }
+.ac-leg__icon { font-size: 16px; line-height: 1.1; text-align: center; }
+.ac-leg__body b { color: #1f2d4a; }
+.ac-leg__body span { display: block; color: #6b7a94; }
+
+.ac-leg--flight .ac-leg__time,
+.ac-leg--ferry .ac-leg__time,
+.ac-leg--ktx .ac-leg__time,
+.ac-leg--itx .ac-leg__time,
+.ac-leg--bus .ac-leg__time { color: #1f2d4a; }
+
+/* 지도 위 거점 이름표 */
+.ac-map-label {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #1f2d4a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .2);
+}
+
+@media (max-width: 900px) {
+    .ac-head { padding: 12px 14px; }
+    .ac-body { padding: 12px 14px 14px; }
+    .ac-controls { margin-left: 0; width: 100%; }
+    .ac-controls .ac-btn { margin-left: auto; }
+    .ac-grid { grid-template-columns: 1fr; }
+    .ac-chosen { white-space: normal; }
+}

@@ -290,8 +290,80 @@ def with_times(rnd, legs, day):
         if a['to'] != b['from'] and a['mode'] in ('subway', 'local_bus', 'taxi', 'car'):
             a['to'] = b['from']
     for leg in legs:
-        leg['depart'] = at.strftime('%m-%d %H:%M')
+        start_day = at.date()
+        leg['depart'] = at.strftime('%H:%M')
         at += timedelta(minutes=leg['minutes'])
-        leg['arrive'] = at.strftime('%m-%d %H:%M')
+        leg['arrive'] = at.strftime('%H:%M')
+        if at.date() != start_day:
+            leg['overnight'] = True                 # 다음 날 도착 (밤배)
         at += timedelta(minutes=15)
     return at - timedelta(minutes=15), total
+
+
+# ---------------------------------------------------------------- 실제 선택(access_service)과 같은 모양으로
+BIG = ('flight', 'ferry', 'ktx', 'itx', 'bus')
+
+
+def _title(way, legs, t_way):
+    if way == 'flight':
+        return 'flight_rent' if t_way == 'car' else 'flight'
+    if way == 'ferry':
+        return 'ferry_car' if any('선적' in l['label'] for l in legs) else 'ferry'
+    if way == 'ktx':
+        return 'ktx_rent' if t_way == 'car' else 'ktx'
+    return way
+
+
+def _point(name, home, dest):
+    """구간 끝 이름 → [위도, 경도] (집이면 집 좌표, 역·공항·항구는 카카오 장소 검색, 모르면 여행지 가운데)"""
+    from sherpaapp.services import transport_timetable as timetable_service
+    if name == home[1]:
+        return [home[3], home[4]]
+    if any(w in name for w in ('공항', '역', '항', '터미널', '센터')):
+        p = timetable_service.hub_point(name)
+        if p:
+            return [round(p[0], 6), round(p[1], 6)]
+    if any(w in name for w in ('시내', '숙소', '렌터카 영업소', '도착')) or name.startswith(dest):
+        lat, lon = CITY_POS.get(dest, CITY_POS['서울'])
+        return [lat, lon]
+    p = timetable_service.hub_point(name)
+    if p:
+        return [round(p[0], 6), round(p[1], 6)]
+    city = next((c for c in CITY_POS if c in name), dest)
+    return list(CITY_POS[city])
+
+
+def access_route(way, legs, t_way, home, dest, people, start_time):
+    """plan_route·with_times 결과 → Travel.access_route (access_service.compare 옵션과 같은 키)
+    → (access_route, 도착 거점 {name, addr, lat, lon})"""
+    from sherpaapp.services.access_service import TITLES
+    for leg in legs:
+        leg['from_pt'] = _point(leg['from'], home, dest)
+        leg['to_pt'] = _point(leg['to'], home, dest)
+        leg.setdefault('fare', 0)
+        leg.setdefault('detail', '')
+        leg['real'] = False
+    main = [l for l in legs if l['mode'] in BIG]
+    if main:
+        end = main[-1]
+    else:
+        end = legs[-1]
+    arrive = {'name': end['to'] if main else f'{dest} 시내', 'addr': '', 'lat': end['to_pt'][0], 'lon': end['to_pt'][1]}
+    back = []
+    for leg in reversed([l for l in legs if l['mode'] != 'rental']):
+        back.append(dict(leg, **{'from': leg['to'], 'to': leg['from'], 'from_pt': leg['to_pt'], 'to_pt': leg['from_pt'],
+                                 'overnight': False}))
+    at = 18 * 60
+    for leg in back:                            # 마지막 날 저녁 6시쯤 출발
+        leg['depart'] = '%02d:%02d' % (at // 60 % 24, at % 60)
+        at += leg['minutes']
+        leg['arrive'] = '%02d:%02d' % (at // 60 % 24, at % 60)
+        at += 15
+    mode = _title(way, legs, t_way)
+    minutes = sum(l['minutes'] for l in legs) + 15 * (len(legs) - 1)
+    route = {'mode': mode, 'title': TITLES.get(mode, mode), 'total': 0, 'per_person': 0, 'minutes': minutes,
+             'people': people, 'items': [], 'real': False,
+             'origin': {'name': home[1], 'addr': home[2], 'lat': home[3], 'lon': home[4]},
+             'arrive': arrive, 'ready': start_time.strftime('%H:%M'), 't_way': t_way,
+             'go': legs, 'back': back, 'note': '데모 데이터 (어림 시간)', 'tags': []}
+    return route, arrive
