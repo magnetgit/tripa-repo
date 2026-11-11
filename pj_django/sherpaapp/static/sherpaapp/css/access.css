@@ -190,13 +190,38 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    gap: 8px;
+    width: 100%;
+    margin: 0 0 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
     font-size: 13px;
     font-weight: 800;
     color: #1f2d4a;
+    text-align: left;
+    cursor: pointer;
 }
 
-.ac-legs__title small { font-weight: 600; color: #6b7a94; }
+.ac-legs__title small { font-weight: 600; color: #6b7a94; white-space: nowrap; }
+.ac-legs__fold { color: #2d6cdf; }
+
+/* 접으면 한 줄 요약만 */
+.ac-legs__summary { display: none; margin: 0; font-size: 12px; color: #52607a; }
+.ac-legs.is-folded .ac-legs__title { margin-bottom: 2px; }
+.ac-legs.is-folded .ac-legs__summary { display: block; }
+.ac-legs.is-folded ol,
+.ac-legs.is-folded .ac-legs__foot { display: none; }
+
+.ac-legs__foot {
+    margin: 6px 0 0;
+    padding-top: 6px;
+    border-top: 1px dashed #c8d8f3;
+    font-size: 12px;
+    font-weight: 600;
+    color: #2d6cdf;
+}
 
 .ac-legs ol { margin: 0; padding: 0; list-style: none; }
 
