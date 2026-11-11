@@ -19,6 +19,9 @@ export function readConfig(root) {
     loginUrl: ds.loginUrl || '/login/',
     manualUrl: ds.manualUrl || '/travel_create/?mode=manual',
     member: ds.member || 'guest',
+    // 성별·나이대: full(둘 다) / half(하나만) / none(안 넣음) / ''(손님) → 추천 카드 위 안내
+    profile: ds.profile || '',
+    profileUrl: ds.profileUrl || '/mypage_edit/#profile',
     transitUrl: ds.transitUrl || '/transit_route/',
     sprite: ds.sprite || '/static/sherpaapp/icons/icons.svg?v=5',
     // 템플릿의 {% csrf_token %} 값이 있으면 그걸, 없으면(개발 서버) 쿠키에서

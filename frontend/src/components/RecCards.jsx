@@ -38,13 +38,14 @@ const wonText = (n) => `${Number(n).toLocaleString('ko-KR')}원`;
 
 // 인원 기준 금액 (가격 모르면 0) — 일정 미리보기 합계에도 씀
 export function costAmount(cost, people) {
-  if (!cost || cost.per == null) return 0;
+  if (!cost || cost.per == null || cost.same_stay) return 0; // 숙소 두 번째 줄은 0원
   const n = Math.max(1, Number(people) || 1);
   return cost.unit === 'room' ? cost.per * Math.ceil(n / Math.max(1, cost.cap || 2)) : cost.per * n;
 }
 
 // 예상 비용: 1인 요금 × 인원, 방 요금 × 방 개수(인원 ÷ 방 기준 인원). 인원은 지금 초안 값으로 다시 계산
 export function costText(cost, people) {
+  if (cost && cost.same_stay) return '숙박비는 체크인 줄에'; // 같은 날 같은 숙소 두 번째 줄 (금액 0)
   if (!cost || cost.per == null) return '';
   const n = Math.max(1, Number(people) || 1);
   const tag = cost.source === 'tour' ? '관광공사 요금' : '보통 가격 예상';
@@ -124,7 +125,7 @@ function hasStay(draft, item, day) {
   return !!s && (s.name === item.name || s.query === item.name);
 }
 
-export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay, focus, onFocus }) {
+export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay, focus, onFocus, profileHint }) {
   const cond = [];
   if (rec.anchor) cond.push(`${rec.anchor} 기준`);
   if (rec.day) cond.push(`${rec.day}일차`);
@@ -143,6 +144,16 @@ export default function RecCards({ rec, draft, sprite, onAddPin, onAddStay, focu
         <span className="tc-chip">{cond.join(' · ') || rec.title}</span>
       </p>
       {rainy && <p className="tc-rec__rain">{weatherNote(rec.weather, rec)}</p>}
+      {/* 성별·나이대를 안 넣은 회원에게만 (억지로 받지 않기, × 로 닫기) */}
+      {profileHint && (
+        <p className="tc-rec__profile">
+          <span>
+            💡 {profileHint.half ? '성별·나이대를 다 넣으면' : '성별·나이대를 넣으면'} 나와 비슷한 사람들이 좋아한 곳을 먼저 보여 드려요.
+            {' '}<a className="tc-link" href={profileHint.url}>내 정보에서 넣기</a>
+          </span>
+          <button type="button" className="tc-x" aria-label="안내 닫기" onClick={profileHint.onClose}>×</button>
+        </p>
+      )}
 
       {rec.items.map((item) => {
         // 넣을 수 있는 날짜: AI가 정해 준 날짜, 아니면 1일차부터(최대 7일)
