@@ -1,0 +1,145 @@
+{% extends "admin/base_site.html" %}
+{# 회원 통계 (🟩 11/11) — 숫자는 services/stats_service.py, 🟧 Streamlit 대시보드와 같은 함수 #}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .stats-cards { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .stats-cards:last-of-type { margin-bottom: 24px; }
+  .stats-card { flex: 0 1 96px; border: 1px solid var(--hairline-color); border-radius: 6px; padding: 8px 12px; }
+  .stats-card b { display: block; font-size: 17px; margin-top: 2px; color: var(--body-fg); }
+  .stats-card small { color: var(--body-quiet-color); }
+  .stats-filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .stats-section { margin-bottom: 32px; }
+  .stats-section h2 { margin-bottom: 8px; }
+  .stats-note { color: var(--body-quiet-color); margin: 4px 0 10px; }
+  .stats-table { width: 100%; }
+  .stats-table td.num, .stats-table th.num { text-align: right; white-space: nowrap; }
+  /* 비율이 클수록 진한 칸 (--pct: 0~100) */
+  .heat { text-align: center; white-space: nowrap;
+          background: color-mix(in srgb, var(--primary) calc(var(--pct) * 1.6%), transparent); }
+  .stats-wrap { overflow-x: auto; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">홈</a> › 회원 통계
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  {# ---------- 회원 수 ---------- #}
+  <div class="stats-cards">
+    <div class="stats-card"><small>전체 회원</small><b>{{ summary.members }}명</b></div>
+    {% for label, n in gender_cards %}
+      <div class="stats-card"><small>{{ label }}</small><b>{{ n }}명</b></div>
+    {% endfor %}
+  </div>
+  <div class="stats-cards">
+    {% for label, n in age_cards %}
+      <div class="stats-card"><small>{{ label }}</small><b>{{ n }}명</b></div>
+    {% endfor %}
+  </div>
+
+  {# ---------- 많이 간 장소 ---------- #}
+  <div class="stats-section module">
+    <h2>많이 간 장소 TOP 10</h2>
+    <form method="get" class="stats-filter">
+      <label>성별
+        <select name="gender">
+          <option value="">전체</option>
+          {% for code, label in gender_options %}
+          <option value="{{ code }}" {% if code == gender %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>나이대
+        <select name="age_group">
+          <option value="">전체</option>
+          {% for code, label in age_options %}
+          <option value="{{ code }}" {% if code == age_group %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>순서
+        <select name="order">
+          <option value="visits" {% if order == "visits" %}selected{% endif %}>방문 많은 순</option>
+          <option value="reviews" {% if order == "reviews" %}selected{% endif %}>리뷰 많은 순</option>
+          <option value="rating" {% if order == "rating" %}selected{% endif %}>별점 높은 순 (리뷰 3개 이상)</option>
+        </select>
+      </label>
+      <input type="submit" value="보기">
+    </form>
+    <p class="stats-note">방문 = 일정에 넣은 장소 수 · 리뷰·별점 = 그 회원들이 쓴 리뷰 · 숙소는 뺐어요</p>
+    <table class="stats-table">
+      <thead><tr><th>#</th><th>장소</th><th>종류</th><th class="num">방문</th><th class="num">리뷰</th><th class="num">별점</th></tr></thead>
+      <tbody>
+      {% for p in places %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ p.name }}</td>
+          <td>{{ p.kind|default:"-" }}</td>
+          <td class="num">{{ p.visits }}</td>
+          <td class="num">{{ p.reviews }}</td>
+          <td class="num">{{ p.rating|default:"-" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">이 조건의 회원 기록이 아직 없어요.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ---------- 성별·나이대 × 장소 종류 ---------- #}
+  <div class="stats-section module">
+    <h2>성별·나이대별 장소 종류 비율</h2>
+    <p class="stats-note">줄마다 그 그룹의 방문 중 몇 %가 그 종류였는지 · 진할수록 많이 감</p>
+    <div class="stats-wrap">
+      <table class="stats-table">
+        <thead>
+          <tr><th>그룹</th><th class="num">방문</th>{% for kind in kinds %}<th class="num">{{ kind }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+        {% for row in pivot %}
+          <tr>
+            <td>{{ row.label }}</td>
+            <td class="num">{{ row.visits }}</td>
+            {% for cell in row.shares %}
+            <td class="heat" style="--pct: {{ cell.pct }};" title="별점 {{ cell.rating|default:'-' }}">{{ cell.pct }}%</td>
+            {% endfor %}
+          </tr>
+        {% empty %}
+          <tr><td>아직 기록이 없어요.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ---------- 회원이 고친 금액 ---------- #}
+  <div class="stats-section module">
+    <h2>회원이 고친 예산 금액 TOP 10</h2>
+    <p class="stats-note">비용 관리에서 장소별로 고친 금액(<code>travel_budget_item</code>) · 고친 횟수 = 예산 변경 기록(<code>budget_log</code>) 줄 수</p>
+    <table class="stats-table">
+      <thead><tr><th>#</th><th>장소</th><th class="num">합계</th><th class="num">평균</th><th class="num">고친 횟수</th></tr></thead>
+      <tbody>
+      {% for s in spending %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ s.name }}</td>
+          <td class="num">{{ s.edited_total|floatformat:"0g" }}원</td>
+          <td class="num">{{ s.edited_avg|floatformat:"0g" }}원</td>
+          <td class="num">{{ s.edits }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">아직 회원이 고친 금액이 없어요.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}
