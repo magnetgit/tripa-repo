@@ -236,6 +236,20 @@ urlpatterns = [
         name='transit_route'
     ),
 
+    # 여행 상세 '체크인하고 다시 나가기': 그날 숙소 체크인 줄 넣기 (🟦)
+    path(
+        'travel_checkin/<int:travel_id>/<int:day>/',
+        views.travel_checkin,
+        name='travel_checkin'
+    ),
+
+    # 여행 상세 이동 구간 금액 비교: 대중교통·택시·자가용 (🟦)
+    path(
+        'travel_move_fares/<int:travel_id>/',
+        views.travel_move_fares,
+        name='travel_move_fares'
+    ),
+
     # 예산을 넘으면 같은 분류의 더 싼 대안 (🟦 예산 AI)
     path(
         'budget_alternatives/<int:travel_id>/',

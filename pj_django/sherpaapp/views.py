@@ -25,6 +25,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from .models import Member, Review, ReviewHelpful
 from .models import AVATAR_CHOICES, AVATAR_KEYS
+from .models import AGE_GROUP_CHOICES
 from .models import Travel
 from .models import Place
 from .models import Schedule
@@ -47,6 +48,7 @@ from .services.review_service import summarize_review
 from .services import chat_service
 from .services import embed_service
 from .services import transit_service
+from .services import fare_service
 from .services.photo_service import attach_photos, place_photo_url
 from .services import festival_service
 from .services import region_photo_service
@@ -2539,7 +2541,7 @@ def mypage_edit(request):
         # 닉네임 규칙
         error = nickname_problem(nickname)
         if error:
-            return render(request, 'mypage_edit.html', {'member': member, 'error': error, 'avatars': AVATAR_CHOICES})
+            return render(request, 'mypage_edit.html', {'member': member, 'error': error, 'avatars': AVATAR_CHOICES, 'age_groups': AGE_GROUP_CHOICES})
 
 
         member.nickname = ((nickname or '').strip())
@@ -2565,10 +2567,26 @@ def mypage_edit(request):
 
             if error:
                 member.email = email  # 입력한 값을 그대로 다시 보여 주기 (저장은 안 함)
-                return render(request, 'mypage_edit.html', {'member': member, 'error': error, 'avatars': AVATAR_CHOICES})
+                return render(request, 'mypage_edit.html', {'member': member, 'error': error, 'avatars': AVATAR_CHOICES, 'age_groups': AGE_GROUP_CHOICES})
 
             member.email = email
 
+        # 성별·나이대 (🟦 11/11, 회의 안건 8: 내 정보에서 넣기·고치기·지우기 · join_ok 와 같은 규칙)
+        if request.POST.get('profile_form') == '1':
+            gender = request.POST.get('gender')
+            age_group = request.POST.get('age_group')
+            if request.POST.get('agree_profile') != '1':
+                gender, age_group = None, None          # 동의 안 함 = 지우기
+            if gender not in ('M', 'F'):
+                gender = None
+            try:
+                age_group = int(age_group)
+                if age_group not in (10, 20, 30, 40, 50, 60):
+                    age_group = None
+            except (ValueError, TypeError):
+                age_group = None
+            member.gender = gender
+            member.age_group = age_group
 
         member.save()
 
@@ -2583,7 +2601,8 @@ def mypage_edit(request):
         'mypage_edit.html',
         {
             'member': member,
-            'avatars': AVATAR_CHOICES
+            'avatars': AVATAR_CHOICES,
+            'age_groups': AGE_GROUP_CHOICES,
         }
     )
 
@@ -6233,6 +6252,94 @@ def transit_route(request):
     if route is None:
         return JsonResponse({'success': False, 'message': '대중교통 경로를 찾지 못했어요.'}, status=502)
     return JsonResponse({'success': True, 'route': route})
+
+
+# 여행 상세 '체크인하고 다시 나가기' (🟦, 11/09 결정 · 11/10 숙소 두 줄 규칙)
+# POST time=HH:MM → 그날 숙소(마지막 숙소 줄)와 같은 Place 로 체크인 줄을 그 시각에 하나 더 넣는다
+#   같은 날 같은 숙소 두 줄 = 앞 줄 체크인(짐 두기), 뒤 줄 귀가. 체크인 줄 뒤 일정 시간은 다시 계산
+#   → {success, sp_id, message}. 빼기·시각 바꾸기는 기존 일정 삭제·방문시간 수정을 그대로 씀
+CHECKIN_STAY_MIN = 30   # 짐 두는 시간 (분)
+
+
+@require_POST
+def travel_checkin(request, travel_id, day):
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
+
+    schedules = list(Schedule.objects.filter(travel=travel).order_by('s_day'))
+    if day < 1 or day > len(schedules):
+        return JsonResponse({'success': False, 'message': '존재하지 않는 DAY입니다.'}, status=404)
+    schedule = schedules[day - 1]
+
+    rows = list(
+        SchedulePlace.objects.filter(schedule=schedule)
+        .select_related('place').order_by('visit_order', 'sp_id')
+    )
+    stays = [row for row in rows if '숙' in (row.place.p_kind or '')]
+    if not stays:
+        return JsonResponse({'success': False, 'message': '이 날은 숙소가 없어요. 숙소를 먼저 넣어 주세요.'}, status=400)
+    stay = stays[-1]
+    if sum(1 for row in rows if row.place_id == stay.place_id) >= 2:
+        return JsonResponse({'success': False, 'message': '이미 체크인 줄이 있어요. 시각은 체크인 줄 시간을 눌러 바꿔 주세요.'}, status=400)
+
+    try:
+        checkin = datetime.strptime((request.POST.get('time') or '').strip(), '%H:%M').time()
+    except ValueError:
+        return JsonResponse({'success': False, 'message': '체크인 시각을 골라 주세요.'}, status=400)
+    if stay.arrive_time and checkin >= stay.arrive_time:
+        return JsonResponse({
+            'success': False,
+            'message': f"체크인은 숙소로 돌아오는 시각({stay.arrive_time.strftime('%H:%M')})보다 빨라야 해요.",
+        }, status=400)
+
+    leave = (datetime.combine(schedule.s_day, checkin) + timedelta(minutes=CHECKIN_STAY_MIN)).time()
+    with transaction.atomic():
+        row = SchedulePlace.objects.create(
+            schedule=schedule, place=stay.place, visit_order=stay.visit_order,
+            stay_time=CHECKIN_STAY_MIN, arrive_time=checkin, start_time=leave,
+        )
+        reorder_schedule_places_by_time(schedule)                         # 체크인 시각 자리로
+        recalculate_schedule_timeline(schedule, anchor_sp_id=row.sp_id)   # 그 뒤 일정 시간 다시
+
+    message = f"{checkin.strftime('%H:%M')}에 {stay.place.p_name} 체크인 줄을 넣었어요."
+
+    # 바로 앞 일정이 체크인 시각보다 늦게 끝나면 겹친다고 알려 줌 (막지는 않음)
+    row.refresh_from_db()
+    before = (
+        SchedulePlace.objects.filter(schedule=schedule, visit_order__lt=row.visit_order)
+        .select_related('place').order_by('-visit_order').first()
+    )
+    if before and before.start_time and before.start_time > checkin:
+        message += (f" 앞 일정({before.place.p_name})이 {before.start_time.strftime('%H:%M')}에 끝나서 겹쳐요."
+                    " 체크인 시각을 늦추거나 앞 일정 체류를 줄여 주세요.")
+
+    return JsonResponse({'success': True, 'sp_id': row.sp_id, 'message': message})
+
+
+# 여행 상세 이동 구간: 대중교통·택시·자가용 금액 비교 (🟦 fare_service.move_fares)
+# GET ?from=위도,경도&to=위도,경도 → {success, fares: {people, distance, options[], cheapest, walk}}
+# 인원은 비용 관리에서 쓰는 인원(_budget_people)
+def travel_move_fares(request, travel_id):
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
+
+    def point(text):
+        parts = (text or '').split(',')
+        if len(parts) != 2:
+            return None
+        lat, lon = _float_or_none(parts[0]), _float_or_none(parts[1])
+        if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return None
+        return lat, lon
+
+    start, end = point(request.GET.get('from')), point(request.GET.get('to'))
+    if not start or not end:
+        return JsonResponse({'success': False, 'message': '출발·도착 위치가 필요해요.'}, status=400)
+
+    fares = fare_service.move_fares(start[0], start[1], end[0], end[1], _budget_people(request, travel.t_id))
+    return JsonResponse({'success': True, 'fares': fares})
 
 
 # GET → {success, people, days: [{day, date, weather}], places: {sp_id: indoor}}  (places 는 그날만)

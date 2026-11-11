@@ -12,7 +12,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261058">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261077">
 
     <style>
 
@@ -907,6 +907,112 @@
             line-height: 1.45;
             white-space: normal;
         }
+
+        /* 체크인하고 다시 나가기 (travel_checkin) */
+        .checkin-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 10px;
+            margin: 0 0 10px;
+            padding: 10px 12px;
+            border: 1px dashed #c4b5fd;
+            border-radius: 12px;
+            background: #faf8ff;
+            color: #4c1d95;
+            font-size: 12.5px;
+        }
+
+        .checkin-bar.is-on { border-style: solid; background: #f5f3ff; }
+        .checkin-bar > div { flex: 1 1 220px; display: flex; flex-direction: column; gap: 2px; }
+        .checkin-bar small { color: #6b7280; font-size: 11.5px; line-height: 1.45; }
+
+        .checkin-bar input[type="time"] {
+            padding: 5px 8px;
+            border: 1px solid #c4b5fd;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .checkin-bar button {
+            padding: 6px 12px;
+            border: 0;
+            border-radius: 9px;
+            background: #6b5bd6;
+            color: #ffffff;
+            font-size: 12.5px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .checkin-bar.is-on button { background: #ffffff; color: #6b5bd6; border: 1px solid #c4b5fd; }
+        .checkin-bar button:disabled { opacity: .6; cursor: default; }
+
+        .sp-stay-role {
+            display: inline-block;
+            margin-top: 3px;
+            padding: 1px 8px;
+            border-radius: 999px;
+            background: #ede9fe;
+            color: #5b21b6;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .sp-stay-role--return { background: #e0f2fe; color: #075985; }
+
+        /* 이동 구간 금액 비교: 대중교통·택시·자가용 (travel_move_fares) */
+        .move-fares {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .move-fare {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #475569;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .move-fare.is-cheap {
+            border-color: #86efac;
+            background: #f0fdf4;
+            color: #166534;
+        }
+
+        .move-fare b {
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #16a34a;
+            color: #ffffff;
+            font-size: 10px;
+        }
+
+        .move-fare-total {
+            margin: 0 0 10px;
+            padding: 10px 12px;
+            border: 1px solid #dbe3ee;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 12.5px;
+            line-height: 1.6;
+        }
+
+        .move-fare-total ul { margin: 4px 0 0; padding-left: 16px; }
+        .move-fare-total .is-cheap { color: #166534; font-weight: 800; }
+        .move-fare-total small { color: #64748b; }
 
         /* 이동 구간 길찾기 링크 (대중교통 여행) */
         .route-link-actions {
@@ -2482,6 +2588,91 @@ function clearMap() {
 
     // 장소 마커 정보 초기화
     placeMarkerMap.clear();
+
+    closeSpMapPopup();
+}
+
+
+/* =========================================================
+   지도 위 장소 팝업 카드 (일정 카드를 누르면 그 장소 위에 뜸)
+   모양은 style.css .tc-mappop (채팅 추천 카드 팝업과 같음)
+========================================================= */
+
+let spMapPopup = null;
+
+function closeSpMapPopup() {
+    if (spMapPopup) {
+        spMapPopup.setMap(null);
+        spMapPopup = null;
+    }
+}
+
+function spMapPopupEl(card) {
+    const text = function (selector) {
+        const node = card.querySelector(selector);
+        return node ? node.textContent.trim() : "";
+    };
+
+    const wrap = document.createElement("div");
+    wrap.className = "tc-mappop";
+
+    // 사진: 펼친 칸과 같은 사진 (data-src)
+    const photo = card.querySelector(".sp-photo img");
+    const photoUrl = photo ? (photo.getAttribute("src") || photo.dataset.src || "") : "";
+    const address = text(".sp-facts dd");
+
+    let rows = "";
+    if (address && address !== "주소 정보 없음") {
+        rows += `<span class="tc-mappop__line">${escapeHtml(address)}</span>`;
+    }
+    const hours = text(".sp-hours");
+    if (hours) {
+        rows += `<span class="tc-mappop__line">${escapeHtml(hours)}</span>`;
+    }
+
+    wrap.innerHTML = `
+        <div class="tc-mappop__card">
+            ${photoUrl ? `<img class="tc-mappop__photo" src="${escapeHtml(photoUrl)}" alt="" onerror="this.remove()">` : ""}
+            <div class="tc-mappop__body">
+                <strong class="tc-mappop__name">${escapeHtml(text(".sp-num"))}. ${escapeHtml(text(".sp-name"))}</strong>
+                <span class="tc-mappop__kind">${escapeHtml(text(".sp-sub"))}</span>
+                ${rows}
+            </div>
+            <button type="button" class="tc-mappop__close" aria-label="닫기">×</button>
+        </div>
+        <span class="tc-mappop__tail"></span>
+        <span class="tc-mappop__dot"></span>
+    `;
+
+    const close = wrap.querySelector(".tc-mappop__close");
+    close.addEventListener("mousedown", function (event) { event.stopPropagation(); });
+    close.addEventListener("click", function (event) {
+        event.stopPropagation();
+        closeSpMapPopup();
+    });
+
+    return wrap;
+}
+
+function showSpMapPopup(key, position) {
+    closeSpMapPopup();
+
+    // 장소 카드(.sp-card)만 팝업 (출발점 S·귀가 R 은 마커만)
+    const card = document.querySelector(
+        `.sp-card[data-map-key="${CSS.escape(String(key))}"]`
+    );
+    if (!card) {
+        return;
+    }
+
+    spMapPopup = new kakao.maps.CustomOverlay({
+        position: position,
+        content: spMapPopupEl(card),
+        xAnchor: 0.5,
+        yAnchor: 1,
+        zIndex: 200
+    });
+    spMapPopup.setMap(map);
 }
 
 /* =========================================================
@@ -2540,7 +2731,13 @@ function focusTimelineTarget(targetKey, scrollCard = false) {
     }
 
     map.setLevel(3);
-    map.setCenter(target.position);
+
+    // 장소를 가운데보다 70px 아래에 둬서 위에 뜨는 팝업이 지도 안에 들어오게
+    const proj = map.getProjection();
+    const point = proj.containerPointFromCoords(target.position);
+    map.setCenter(proj.coordsFromContainerPoint(new kakao.maps.Point(point.x, point.y - 70)));
+
+    showSpMapPopup(key, target.position);
 
     highlightTimelineCard(
         key,
@@ -3316,6 +3513,11 @@ function drawSchedule(scheduleId) {
                     );
 
 
+                    // 같은 장소(숙소 체크인·귀가)가 두 번이면 두 번째 마커를 옆으로 비켜 둘 다 보이게
+                    if (placeMarkerMap.has(String(place.id))) {
+                        markerElement.style.transform = "translate(20px, -12px)";
+                    }
+
                     /* =========================================
                     장소 ID와 지도 위치 저장
                     ========================================= */
@@ -3914,6 +4116,155 @@ function naverMapXY(lat, lon) {
     return `${x.toFixed(2)},${y.toFixed(2)}`;
 }
 
+// 이동 구간 금액 비교 자리: 경로의 처음·끝 점으로 /travel_move_fares/ 를 불러 채운다 (loadMoveFares)
+function buildMoveFareSlot(route) {
+    const points = route && Array.isArray(route.points) ? route.points : [];
+
+    if (points.length < 2) {
+        return "";
+    }
+
+    const a = points[0];
+    const b = points[points.length - 1];
+
+    if ([a.lat, a.lon, b.lat, b.lon].some(function (v) { return v == null || Number.isNaN(Number(v)); })) {
+        return "";
+    }
+
+    return `<span class="move-fares" data-from="${Number(a.lat)},${Number(a.lon)}"`
+        + ` data-to="${Number(b.lat)},${Number(b.lon)}">이동비 비교 불러오는 중...</span>`;
+}
+
+const MOVE_FARE_ICON = { car: "🚗", transit: "🚌", taxi: "🚕" };
+const MOVE_FARE_LABEL = { car: "자가용", transit: "대중교통", taxi: "택시" };
+let moveFareCache = {};     // "출발→도착" → fares (같은 구간은 다시 안 부름)
+let moveFareToken = 0;      // 날짜를 바꿔 다시 그리면 예전 결과는 버림
+
+function moveFareHtml(fares) {
+    if (fares.walk) {
+        return `<span class="move-fare is-cheap">🚶 걸어서 0원</span>`;
+    }
+    if (!fares.options.length) {
+        return "";
+    }
+    return fares.options.map(function (o) {
+        const cheap = o.mode === fares.cheapest && fares.options.length > 1;
+        return `<span class="move-fare${cheap ? " is-cheap" : ""}" title="${escapeHtml(o.note)}">`
+            + `${MOVE_FARE_ICON[o.mode] || ""} ${escapeHtml(o.label)} ${Number(o.total).toLocaleString("ko-KR")}원`
+            + (cheap ? " <b>가장 쌈</b>" : "")
+            + `</span>`;
+    }).join("");
+}
+
+// 그날 구간 금액을 다 받으면 맨 아래에 이동수단별 합계
+function moveFareTotalHtml(list) {
+    const modes = ["car", "transit", "taxi"];
+    const sum = { car: 0, transit: 0, taxi: 0 };
+    const missing = { car: 0, transit: 0, taxi: 0 };
+    let people = 0;
+    let counted = 0;
+
+    list.forEach(function (f) {
+        if (!f) {
+            return;
+        }
+        people = f.people || people;
+        counted++;
+        if (f.walk) {
+            return;   // 걸어가는 구간은 모두 0원
+        }
+        modes.forEach(function (m) {
+            const o = f.options.find(function (x) { return x.mode === m; });
+            if (o) {
+                sum[m] += o.total;
+            } else {
+                missing[m]++;
+            }
+        });
+    });
+
+    if (!counted) {
+        return "";
+    }
+
+    // 모든 구간 금액을 아는 이동수단 중 제일 싼 것
+    const full = modes.filter(function (m) { return !missing[m]; });
+    const cheapest = full.sort(function (x, y) { return sum[x] - sum[y]; })[0];
+    const rows = ["car", "transit", "taxi"].map(function (m) {
+        const tail = missing[m] ? ` <small>(${missing[m]}구간은 금액 모름)</small>` : "";
+        const mark = m === cheapest ? " ← 가장 쌈" : "";
+        return `<li class="${m === cheapest ? "is-cheap" : ""}">${MOVE_FARE_ICON[m]} ${MOVE_FARE_LABEL[m]} `
+            + `${sum[m].toLocaleString("ko-KR")}원${mark}${tail}</li>`;
+    });
+
+    return `<div class="move-fare-total"><b>오늘 이동비 비교</b> <small>(${people}명 기준 · 자가용은 기름값+통행료, 주차비 제외)</small>`
+        + `<ul>${rows.join("")}</ul></div>`;
+}
+
+function loadMoveFares() {
+    const container = document.getElementById("timelineContainer");
+    if (!container) {
+        return;
+    }
+
+    const slots = Array.from(container.querySelectorAll(".move-fares[data-from]"));
+    const token = ++moveFareToken;
+
+    if (!slots.length) {
+        return;
+    }
+
+    const jobs = slots.map(function (slot) {
+        const key = `${slot.dataset.from}→${slot.dataset.to}`;
+        const saved = moveFareCache[key];
+        const job = saved
+            ? Promise.resolve(saved)
+            : fetch(`/travel_move_fares/${travelId}/?from=${slot.dataset.from}&to=${slot.dataset.to}`, { credentials: "same-origin" })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        return null;
+                    }
+                    moveFareCache[key] = data.fares;
+                    return data.fares;
+                })
+                .catch(function () { return null; });
+
+        return job.then(function (fares) {
+            if (token !== moveFareToken) {
+                return fares;
+            }
+            const html = fares ? moveFareHtml(fares) : "";
+            if (html) {
+                slot.innerHTML = html;
+            } else {
+                slot.remove();
+            }
+            return fares;
+        });
+    });
+
+    Promise.all(jobs).then(function (list) {
+        if (token !== moveFareToken) {
+            return;
+        }
+        const old = container.querySelector(".move-fare-total");
+        if (old) {
+            old.remove();
+        }
+        // 목록 맨 위에 (운영시간 요약이 있으면 그 바로 아래)
+        const total = moveFareTotalHtml(list);
+        if (total) {
+            const hoursSummary = container.querySelector(".sp-hours-summary");
+            if (hoursSummary) {
+                hoursSummary.insertAdjacentHTML("afterend", total);
+            } else {
+                container.insertAdjacentHTML("afterbegin", total);
+            }
+        }
+    });
+}
+
 function buildRouteLinksHtml(route) {
     const points = route && Array.isArray(route.points) ? route.points : [];
 
@@ -4179,6 +4530,12 @@ function buildTransportSegmentHtml(
                 matchedRoute
             );
 
+        // 대중교통·택시·자가용 금액 비교 (loadMoveFares 가 채움)
+        transitDetailHtml +=
+            buildMoveFareSlot(
+                matchedRoute
+            );
+
         // 대중교통 여행이면 카카오맵·네이버지도 길찾기 링크 (api_source 는 enrichRouteDataWithTransit 가 붙임)
         if (String(matchedRoute.api_source || "").startsWith("kakao_publictraffic")) {
             transitDetailHtml +=
@@ -4363,7 +4720,7 @@ function buildReturnTransportSegmentHtml(routeData) {
 
     const detailHtml =
         returnRoute
-            ? buildTransitStepsHtml(returnRoute)
+            ? buildTransitStepsHtml(returnRoute) + buildMoveFareSlot(returnRoute)
             : "";
 
     return `
@@ -4452,6 +4809,117 @@ function buildReturnPointHtml(returnPoint) {
 }
 
 
+/* =========================================================
+   체크인하고 다시 나가기 (11/09 결정 · 11/10 숙소 두 줄 규칙)
+   같은 날 같은 숙소가 두 줄이면 앞 줄 = 체크인(짐 두기), 뒤 줄 = 숙소로 귀가
+   넣기: POST /travel_checkin/<id>/<day>/  ·  빼기: 체크인 줄 일정 삭제  ·  시각: 체크인 줄 시간 고치기
+========================================================= */
+
+function spIsStay(sp) {
+    return String(sp.place_kind || "").includes("숙");
+}
+
+// sp_id → "checkin" / "return" (숙소가 한 줄뿐이면 없음)
+function spStayRoles(places) {
+    const byPlace = {};
+    places.forEach(function (sp) {
+        if (spIsStay(sp)) {
+            (byPlace[sp.place_id] = byPlace[sp.place_id] || []).push(sp);
+        }
+    });
+
+    const roles = {};
+    Object.keys(byPlace).forEach(function (id) {
+        const list = byPlace[id];
+        if (list.length >= 2) {
+            roles[list[0].sp_id] = "checkin";
+            roles[list[list.length - 1].sp_id] = "return";
+        }
+    });
+    return roles;
+}
+
+function spStayRoleHtml(role) {
+    if (role === "checkin") {
+        return `<span class="sp-stay-role">🛏 체크인 · 짐 두고 다시 나가기</span>`;
+    }
+    if (role === "return") {
+        return `<span class="sp-stay-role sp-stay-role--return">🏠 숙소로 귀가</span>`;
+    }
+    return "";
+}
+
+function buildCheckinBarHtml(places, roles) {
+    const stays = places.filter(spIsStay);
+    if (!stays.length) {
+        return "";
+    }
+
+    const checkin = places.find(function (sp) { return roles[sp.sp_id] === "checkin"; });
+    if (checkin) {
+        return `
+            <div class="checkin-bar is-on">
+                <span aria-hidden="true">🛏</span>
+                <div>
+                    <b>${escapeHtml(formatVisitTime(checkin.arrive_time))} ${escapeHtml(checkin.place_name || "숙소")} 체크인 · 짐 두고 다시 나가요</b>
+                    <small>시각은 체크인 줄의 시간을 눌러 바꿔요. 줄을 끌어 순서를 바꿀 수도 있어요.</small>
+                </div>
+                <button type="button" onclick="deleteSchedulePlace(${Number(checkin.sp_id)})">체크인 줄 빼기</button>
+            </div>
+        `;
+    }
+
+    const stay = stays[stays.length - 1];
+    return `
+        <div class="checkin-bar">
+            <span aria-hidden="true">🛏</span>
+            <div>
+                <b>체크인하고 다시 나가기</b>
+                <small>${escapeHtml(stay.place_name || "숙소")}에 짐을 먼저 두고 다시 나가요 (밤에 돌아오는 줄은 그대로).
+                    체크인 시각 전이면 짐만 맡길 수 있어요.</small>
+            </div>
+            <input type="time" class="checkin-time" value="15:00" step="600" aria-label="체크인 시각">
+            <button type="button" onclick="addCheckin(this)">체크인 넣기</button>
+        </div>
+    `;
+}
+
+function addCheckin(button) {
+    const input = button.parentElement.querySelector(".checkin-time");
+    const time = input ? input.value : "";
+    if (!time) {
+        alert("체크인 시각을 골라 주세요.");
+        return;
+    }
+
+    const day = currentDay;
+    button.disabled = true;
+    button.textContent = "넣는 중...";
+
+    const body = new URLSearchParams();
+    body.append("time", time);
+
+    fetch(`/travel_checkin/${travelId}/${day}/`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRFToken": getCookie("csrftoken") },
+        body: body
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                throw new Error((data && data.message) || "체크인 줄을 넣지 못했어요.");
+            }
+            alert(data.message);
+            loadDay(day);   // 숙소 두 줄·바뀐 시간으로 다시 그림
+        })
+        .catch(function (error) {
+            alert(error.message || "체크인 줄을 넣지 못했어요.");
+            button.disabled = false;
+            button.textContent = "체크인 넣기";
+        });
+}
+
 function renderSchedule(
     data,
     routeData = null
@@ -4500,6 +4968,8 @@ function renderSchedule(
             : [];
     spRenderedPlaces = places;
 
+    const stayRoles = spStayRoles(places);
+
     const startPoint =
         routeData
         && routeData.start_point
@@ -4524,6 +4994,11 @@ function renderSchedule(
         `;
         return;
     }
+
+    container.insertAdjacentHTML(
+        "beforeend",
+        buildCheckinBarHtml(places, stayRoles)
+    );
 
     // DAY 1은 사용자가 입력한 출발지,
     // DAY 2 이후는 전날 숙소가 S 카드로 가장 먼저 표시된다.
@@ -4641,6 +5116,7 @@ function renderSchedule(
                             <span class="sp-main">
                                 <span class="sp-name">${escapeHtml(placeName)}</span>
                                 <span class="sp-sub">${escapeHtml(subText)}</span>
+                                ${spStayRoleHtml(stayRoles[sp.sp_id])}
                             </span>
                             <span class="sp-chev" aria-hidden="true">⌄</span>
                         </div>
@@ -4750,6 +5226,7 @@ function renderSchedule(
     applySpHours();
     applySpCosts();
     applySpIndoor();
+    loadMoveFares();
 }
 
 
@@ -5009,6 +5486,9 @@ function wonText(n) {
 function spCostText(c) {
     if (!c) {
         return "";
+    }
+    if (c.same_stay) {
+        return "숙박비는 체크인 줄에";   // 같은 날 같은 숙소 두 번째 줄 (11/10 규칙, 금액 0)
     }
     if (c.edited) {
         return `예산 ${wonText(c.amount)} (직접 고침)`;   // 비용 관리에서 회원이 고친 금액

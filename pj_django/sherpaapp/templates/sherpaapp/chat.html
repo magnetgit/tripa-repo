@@ -6,7 +6,7 @@
     <title>TRIPA - 여행 만들기 (React)</title>
 
     <!-- 화면 모양은 기존 여행 만들기와 같은 style.css 를 그대로 씀 -->
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261074">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261077">
     <!-- React 빌드 결과물 (frontend 에서 npm run build → static/chat/) -->
     <link rel="stylesheet" href="{% static 'chat/chat.css' %}">
 </head>
@@ -51,6 +51,8 @@
              data-login-url="{% url 'login' %}"
              data-manual-url="{% url 'travel_create' %}?mode=manual"
              data-member="{{ member.m_id|default:'guest' }}"
+             data-profile="{% if member %}{% if member.gender and member.age_group %}full{% elif member.gender or member.age_group %}half{% else %}none{% endif %}{% endif %}"
+             data-profile-url="{% url 'mypage_edit' %}#profile"
              data-transit-url="{% url 'transit_route' %}"
              data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5">
             {% csrf_token %}

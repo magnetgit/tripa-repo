@@ -327,6 +327,109 @@ body {
 
 .pp-field input::placeholder { color: #c2baad; }
 
+/* 성별·나이대 (선택): 눌러서 고르는 칩 + [선택] 동의
+   .pp-field label / .pp-field input 규칙이 칩에도 걸리지 않게 앞에 .pp-field 를 붙여 더 구체적으로 */
+.pp-field .pp-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    color: var(--pp-mute);
+}
+
+.pp-field .pp-label em { font-style: normal; font-weight: 600; opacity: 0.8; }
+
+.pp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.pp-field .pp-chip {
+    display: inline-flex;
+    position: relative;
+    font-size: 13px;
+    letter-spacing: 0;
+    color: var(--pp-ink);
+    cursor: pointer;
+}
+
+/* 진짜 라디오 버튼은 숨기고(키보드·화면 읽기는 그대로) 옆 글자를 칩으로 */
+.pp-field .pp-chip input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+}
+
+.pp-chip span {
+    padding: 5px 12px;
+    border: 1.5px dashed #cfc4ae;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.6);
+    font-weight: 700;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.pp-chip:hover span { border-color: #a99a7c; }
+
+/* 고른 칩: 도장 찍힌 듯 진하게 */
+.pp-chip input:checked + span {
+    border-style: solid;
+    border-color: #2d6cdf;
+    background: #2d6cdf;
+    color: #fff;
+}
+
+.pp-chip input:focus-visible + span { outline: 2px solid #2d6cdf; outline-offset: 2px; }
+
+.pp-field .pp-agree {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--pp-ink);
+    cursor: pointer;
+}
+
+.pp-field .pp-agree input {
+    display: inline-block;
+    width: auto;
+    margin: 3px 0 0;
+    border: 0;
+}
+
+/* 마이페이지: 성별·나이대 안내 (안 넣은 회원만) */
+.pp-profile-hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin: 14px 0 0;
+    padding: 10px 14px;
+    border: 1.5px dashed #c9b991;
+    border-radius: 12px;
+    background: #fffaf0;
+    color: #5b4a2a;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.pp-profile-hint p { flex: 1 1 220px; margin: 0; }
+
+.pp-profile-hint a {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #2d6cdf;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 800;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
 .pp-field input:focus {
     border-bottom: 2px solid var(--pp-ink);
 }
