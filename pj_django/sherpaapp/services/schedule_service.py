@@ -1,5 +1,10 @@
 from datetime import datetime, timedelta, time
+import hashlib
 import math
+import re
+
+import requests
+from django.core.cache import cache
 
 from ..models import (
     Category,
@@ -12,6 +17,7 @@ from ..models import (
 from . import rain_service
 from .place_service import is_junk_kind, kakao_documents, search_places, to_place
 from .hours_service import fit_stay, hhmm, place_hours
+from .tour_service import _tour_get, find_tour_item
 from .route_service import (
     calculate_distance,
     get_travel_time,
@@ -926,6 +932,67 @@ def hours_badge(kind, hours, arrive_min, stay_min, wait_min=0):
         'wait': wait,
         'message': message,
     }
+
+
+# =========================================================
+# 숙소 체크인 시각 안내 (🟩 11/11, 11/05 결정: 막지 않고 안내만)
+# =========================================================
+
+CHECKIN_CACHE_SECONDS = 60 * 60 * 24 * 7   # 같은 숙소는 7일 동안 다시 묻지 않음
+
+# '15:00', '15시', '오후 3시', '15:00 이후' 같은 글에서 첫 시각
+_CHECKIN_TIME = re.compile(r'(오후|PM|pm)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시\s*(\d{2})?)')
+
+
+def parse_checkin_time(text):
+    """체크인 글 → 'HH:MM' (못 읽으면 None)"""
+    m = _CHECKIN_TIME.search(str(text or ''))
+    if not m:
+        return None
+    hour, minute = int(m.group(2)), int(m.group(3) or m.group(4) or 0)
+    if m.group(1) and hour < 12:
+        hour += 12
+    if hour > 23 or minute > 59:
+        return None
+    return '%02d:%02d' % (hour, minute)
+
+
+def stay_checkin_time(name, lat=None, lon=None, kakao_id=None):
+    """관광공사 숙소 소개(detailIntro2 checkintime) → 'HH:MM'. 관광공사에 없거나 못 읽으면 None"""
+    cache_key = 'tour_checkin:v1:%s' % hashlib.md5(
+        str(kakao_id or '%s:%s:%s' % (name, lat, lon)).encode('utf-8')
+    ).hexdigest()
+    saved = cache.get(cache_key)
+    if saved is not None:
+        return saved or None
+
+    found = ''
+    try:
+        item = find_tour_item(name, lat, lon)
+        if item:
+            intro = _tour_get('detailIntro2', contentId=item.get('contentid'),
+                              contentTypeId=item.get('contenttypeid'))
+            found = parse_checkin_time((intro[0] if intro else {}).get('checkintime')) or ''
+    except requests.RequestException:
+        print('관광공사 체크인 시각 조회 실패:', name)
+        return None   # 실패는 저장하지 않고 다음에 다시 물음
+
+    cache.set(cache_key, found, CHECKIN_CACHE_SECONDS)
+    return found or None
+
+
+def checkin_badge(checkin, arrive):
+    """
+    숙소 줄의 체크인 안내 (응답 키 items[].checkin)
+    → {'from': 'HH:MM', 'early': 체크인 전 도착인지, 'message': ...} 또는 None
+    """
+    if not checkin:
+        return None
+    early = bool(arrive) and arrive < checkin
+    message = '체크인 %s부터' % checkin
+    if early:
+        message += ' · 그 전엔 짐 맡기기만 될 수 있어요'
+    return {'from': checkin, 'early': early, 'message': message}
 
 
 # =========================================================
@@ -2957,7 +3024,17 @@ def generate_schedule(
             <
             time(15, 0)
         ):
+            before = day['visit_order']
             meal(lunch_datetime)
+
+            # 체크인이 점심 바로 뒤라 점심이 안 들어갔으면 → 체크인부터 하고 점심
+            if (
+                day['visit_order'] == before
+                and day['checkin_pending']
+                and checkin_datetime.time() < time(15, 0)
+            ):
+                do_checkin()
+                meal(lunch_datetime)
 
         # =================================================
         # 오후 관광
