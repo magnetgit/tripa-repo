@@ -42,6 +42,7 @@ def _squash(text):
 
 
 def _distance_m(lat1, lon1, lat2, lon2):
+    lat1, lon1, lat2, lon2 = (float(v) for v in (lat1, lon1, lat2, lon2))   # DB 좌표(Decimal)·글자도 받게
     r = 6371000
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dp = p2 - p1
