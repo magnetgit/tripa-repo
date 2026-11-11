@@ -18,6 +18,8 @@ from . import rain_service
 from .place_service import is_junk_kind, kakao_documents, search_places, to_place
 from .hours_service import fit_stay, hhmm, place_hours
 from .tour_service import _tour_get, find_tour_item
+from .stay_rules import stay_range
+from .timetable_service import first_trip, last_trip
 from .route_service import (
     calculate_distance,
     get_travel_time,
@@ -117,37 +119,22 @@ def get_stay_time(category_name):
     )
 
 
-# 컨셉과 상관없이 오래 머무는 곳 (카카오 분류·이름에 이 말이 있으면)
-# 예: 컨셉 '랜드마크'로 찾은 롯데월드 어드벤처 → 카카오 분류 '관광,명소 > 테마파크' → 240분
-LONG_STAY_WORDS = (
-    (('테마파크', '놀이공원', '놀이동산', '워터파크'), 240),
-    (('동물원', '식물원', '수목원'), 150),
-    (('아쿠아리움',), 120),
-)
-
 # 카카오가 '테마파크'로 나눠도 잠깐 타고 끝나는 곳 (이름에 이 말이 있으면 길게 안 잡음)
 # 예: '해운대블루라인파크 미포정거장', '스카이라인 루지 부산'
 SHORT_RIDE_WORDS = ('정거장', '루지', '케이블카', '레일바이크', '짚라인', '모노레일', '열차')
 
 
 def get_candidate_stay_time(candidate):
-    """후보 하나의 체류 시간(분): 컨셉 기본값, 놀이공원처럼 오래 있는 곳이면 더 길게"""
-    base = get_stay_time(
-        candidate.get('selected_category') or '기타'
-    )
-    text = ' '.join(
-        str(candidate.get(key) or '')
-        for key in ('kakao_category', 'name')
-    )
+    """후보 하나의 체류 시간(분) = stay_rules.stay_range 의 '보통' 값 (🟩 11/11, 🟧 식사 시간대 맞추기와 같은 기준)
+    종류 = 컨셉 + 카카오 분류, 이름도 같이 봄 (예: 롯데월드 → 테마파크 180분, 카페 50분)"""
+    concept = candidate.get('selected_category') or ''
 
+    # 잠깐 타는 곳은 카카오 분류(테마파크)를 보지 않고 컨셉만으로
     if any(word in (candidate.get('name') or '') for word in SHORT_RIDE_WORDS):
-        return base
+        return stay_range(concept)[1]
 
-    for words, minutes in LONG_STAY_WORDS:
-        if any(word in text for word in words):
-            return max(base, minutes)
-
-    return base
+    kind = f"{concept} {candidate.get('kakao_category') or ''}"
+    return stay_range(kind, candidate.get('name') or '')[1]
 
 
 # =========================================================
@@ -2552,6 +2539,28 @@ def add_accommodation_arrival(
 # 메인 자동 일정 생성
 # =========================================================
 
+def go_trip_for(travel, travel_date, after=None):
+    """첫날 가는 길 실제 편 (🟩 11/11) — 일정 만들기와 시간 다시 계산(views)이 같은 편을 쓰게 한 곳에서.
+    대중교통 여행 · 집 → 첫날 숙소가 80km 넘을 때만, 없으면 None (timetable_service.first_trip 모양)"""
+    if normalize_planning_transport(travel.t_way) != 'public_transport':
+        return None
+
+    start = get_first_day_start_candidate(travel)
+    accommodation = resolve_effective_accommodations(
+        travel, [travel_date], get_travel_day_plans(travel),
+    ).get(travel_date)
+
+    start_point = get_candidate_coordinate(start) if start else None
+    stay_point = get_candidate_coordinate(accommodation) if accommodation else None
+    if start_point is None or stay_point is None:
+        return None
+
+    return first_trip(
+        start_point[0], start_point[1], stay_point[0], stay_point[1],
+        travel_date, after=after or getattr(travel, 'start_time', None) or FIRST_DAY_START,
+    )
+
+
 def generate_schedule(
     travel,
     reset_existing=True,
@@ -2663,6 +2672,11 @@ def generate_schedule(
         get_first_day_start_candidate(
             travel
         )
+    )
+
+    # 대중교통 여행이면 가는 길·돌아오는 길에 실제 열차·비행기 시간표를 씀 (🟩 11/11)
+    is_public_transport_trip = (
+        normalize_planning_transport(travel.t_way) == 'public_transport'
     )
 
     used_places = set()
@@ -2781,6 +2795,31 @@ def generate_schedule(
                 )
 
         # ---------------------------------------------
+        # 가는 길 실제 시간표 (🟩 11/11)
+        # 대중교통 여행이고 집 → 첫날 숙소가 멀면(80km~) 그날 실제 열차·비행기 편을 찾아
+        # 도착역(공항)에서 내린 시각부터 일정을 시작한다. 편이 없으면 지금처럼 예상 시간
+        # ---------------------------------------------
+        if (
+            day_index == 0
+            and is_public_transport_trip
+            and current_point is not None
+            and accommodation_point is not None
+        ):
+            go_trip = go_trip_for(
+                travel,
+                travel_date,
+                after=current_datetime.time(),
+            )
+
+            if go_trip:
+                arrive = datetime.strptime(go_trip['arrive'], '%H:%M').time()
+                current_datetime = datetime.combine(travel_date, arrive) + timedelta(
+                    minutes=go_trip['exit_min']
+                )
+                current_point = (go_trip['to']['lat'], go_trip['to']['lon'])
+                print('가는 길:', go_trip['label'], go_trip['name'], go_trip['depart'], '→', go_trip['to']['name'], go_trip['arrive'])
+
+        # ---------------------------------------------
         # 체크인하고 다시 나가기 (🟩 11/11)
         # 출발 → 관광 → 체크인(짐 두기) → 관광·식사 → 숙소로 귀가
         # 체크인 시각은 막지 않음 (11/05 결정, 체크인 전 짐 맡기기)
@@ -2850,6 +2889,29 @@ def generate_schedule(
                         return_time,
                     )
                 )
+
+            # 돌아오는 길 실제 시간표 (🟩 11/11): 귀가 시각까지 집에 닿는 제일 늦은 편을 찾아
+            # 그 역(공항)에 탈 시각까지 가 있으면 되게 한다 (마감 장소·시각을 역으로 바꿈)
+            if (
+                is_public_transport_trip
+                and return_point is not None
+                and return_datetime is not None
+                and current_point is not None
+            ):
+                back_trip = last_trip(
+                    current_point[0], current_point[1],
+                    return_point[0], return_point[1],
+                    travel_date,
+                    arrive_by=return_time,
+                )
+
+                if back_trip:
+                    return_point = (back_trip['from']['lat'], back_trip['from']['lon'])
+                    return_datetime = datetime.combine(
+                        travel_date,
+                        datetime.strptime(back_trip['board_by'], '%H:%M').time(),
+                    )
+                    print('돌아오는 길:', back_trip['label'], back_trip['name'], back_trip['from']['name'], back_trip['depart'], '→', back_trip['arrive'])
 
         deadline_point = (
             accommodation_point
