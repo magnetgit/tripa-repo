@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 # ==============================================
@@ -101,6 +102,13 @@ class Member(models.Model):
         db_column='PROFILE_IMG'
     )
 
+    # 가입 시각 (운영 대시보드 월별·연도별 증감). 칸을 만들기 전 회원은 마이그레이션 시각으로 채워짐
+    joined_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        db_column='JOINED_AT'
+    )
+
     class Meta:
         db_table = 'member'
 
@@ -138,6 +146,13 @@ class Travel(models.Model):
         db_column='T_DAY',
         null=True,
         blank=True
+    )
+
+    # 여행을 만든 시각 (T_DAY 는 출발일이라 따로, 운영 대시보드 월별·연도별 증감)
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        db_column='CREATED_AT'
     )
 
     t_place = models.CharField(
