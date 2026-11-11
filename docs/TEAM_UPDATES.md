@@ -10,6 +10,47 @@
 
 ---
 
+## 2026-11-11 · 가는 길·돌아오는 길 실제 시간표 (열차·항공·배) + 📐 공유 정의 `timetable_service` · 체류 시간 = `stay_range` 보통 — 🟩 서지윤
+DB·마이그레이션·`.env` 변경 없음 (지금 `TOUR_API_KEY` 그대로) · 새 파일 `services/timetable_service.py` · 기존 응답 키·함수 이름 그대로, **추가만** · `mock.json`에 `move_fares_far`·`timetable` 예시
+
+### 📐 공유 정의 `services/timetable_service.py`
+- `find_trips(from_lat, from_lon, to_lat, to_lon, date, after=None, people=1, limit=3)`
+  → `{date, people, distance_km, modes: [{mode: train|air|ferry, label, from: {name, lat, lon, access_min}, to: {…}, reach, trips: [{name, depart, arrive, minutes, per, total}]}]}`
+  - 80km 안이면 `modes: []` (가까운 곳은 지금처럼 카카오 대중교통)
+  - 출발·도착 쪽 가까운 역(공항) 2곳 + 반경 안 큰 역(서울·부산·동대구 …)을 보고, 도착지에 제일 빨리 닿는 쌍을 고름 (`reach` = 첫 편으로 도착지에 닿는 예상 시각)
+  - `after`('09:00')를 주면 그때 집에서 나가서 탈 수 있는 편만 (역까지 가는 시간 + 열차 15분·공항 60분 미리)
+- `first_trip(…, date, after)` → 가는 길: 제일 빨리 닿는 편 하나 (+ `mode`, `label`, `from`, `to`, `reach`, `exit_min`), 없으면 `None`
+- `last_trip(…, date, arrive_by='22:00')` → 돌아오는 길: 그 시각까지 집에 닿는 제일 늦은 편 (+ `board_by` = 역에 가 있어야 하는 시각)
+- `fare_options(…, date, people)` → `move_fares` `options` 모양 (수단마다 그날 제일 싼 편)
+- 데이터: TAGO 열차(`GetStrtpntAlocFndTrainInfo`)·국내항공(`GetFlightOpratInfoList`)은 날짜 지정 OK · 연안여객선(`get-oprt-schd-info-v2`)은 **오늘·내일만**, 출항 시각만(도착·운임 없음). 같은 날 같은 구간 6시간 캐시
+- 역·공항·항구 좌표는 파일 안 표(`STATIONS` 72곳 · `AIRPORTS` 15곳 · `PORTS` 18곳). 빠진 역은 한 줄 추가하면 돼요
+
+### 일정에 쓰는 곳 (대중교통 여행만, 자동차·도보는 그대로)
+- **첫날**: 집 → 첫날 숙소가 80km 넘으면 실제 편으로 → 도착역(공항)에서 내린 시각부터 일정 시작 (`schedule_service.go_trip_for(travel, date, after)`)
+  - 예: 서울시청 09:00 출발 → 부산 첫 장소 13:01 도착(김해공항 12:00 도착 + 이동 41분). 전에는 집에서 예상 시간으로 계산했어요
+  - 시간 다시 계산(`views.recalculate_schedule_timeline`) 때도 같은 편 기준 (`views._go_trip_start`)
+- **마지막 날**: 귀가 시각(없으면 22:00)까지 집에 닿는 제일 늦은 편 → 그 역(공항)에 탈 시각까지 가 있게 일정 마감
+- 편을 못 찾으면(직통 열차 없음·API 실패) 전처럼 예상 시간
+
+### `fare_service.move_fares(…, people, date=None)` (🟦 파일에 추가만)
+- `date`를 넣으면 80km 넘는 구간에 `mode: 'train'`·`'air'` 옵션이 더 붙음 (note에 역·편명·시각). 안 넣으면 지금과 똑같음
+- 주소 `travel_move_fares/<id>/`에 `&date=YYYY-MM-DD`를 같이 보내면 됨 (안 보내면 그대로)
+
+### 체류 시간 = `stay_rules.stay_range` 보통 (🟧 11/11 요청)
+- `get_candidate_stay_time` 안만 바꿈 (이름·쓰는 곳 그대로): 종류 = 컨셉 + 카카오 분류, 이름도 봄 → 카페 50 · 음식 60 · 박물관 80 · 바다 70 · 테마파크 180 · 모르면 60분
+- 루지·케이블카처럼 잠깐 타는 곳은 테마파크로 안 보고 컨셉 값
+- 식사·숙소 체류는 따로 정하는 값이라 그대로
+
+### 시험 21/21
+- 서울→해운대·서울→제주·목포→제주(배)·가까운 구간·이상한 날짜, `move_fares` 날짜 있음/없음, 대중교통 1박2일 일정 만들기·다시 계산·마지막 날 마감, 자동차 여행은 안 바뀜
+
+### 🟦 영준 · 🟧 수한
+- [ ] 🟦 가격 비교 화면에서 먼 구간(첫날 집 → 첫 장소, 마지막 날 → 집)에 `&date=` 붙이면 열차·항공 금액이 같이 나와요 (화면은 지금 모양 그대로 `options`만 늘어남)
+- [ ] 🟦 원하면 일정 위에 "가는 길: 티웨이 TW923 10:55 김포 → 12:00 김해" 한 줄 (`go_trip_for(travel, travel.t_start)`)
+- 🟧 할 일 없음 (`_fit_meal_windows`는 그대로, 체류가 처음부터 `stay_range` 보통이라 덜 움직여요)
+
+---
+
 ## 2026-11-11 · 관리자 페이지 다듬기 + 회원 통계 화면 `/admin/stats/` — 🟩 서지윤
 DB·마이그레이션 변경 없음 · `admin.py`와 새 템플릿 2개만 (`templates/admin/sherpa_index.html`, `sherpa_member_stats.html`)
 
@@ -343,7 +384,7 @@ DB·기존 응답 키 변경 없음 · **새 주소 `GET travel_move_fares/<trav
 
 ### 🟧 수한 · 🟩 지윤
 - 🟧 할 일 없음 (`views.py`에 함수·주소 추가만)
-- [ ] 🟩 실제 시간표 운임을 붙일 때 이 모양 그대로 써 주세요 (바꿀 게 있으면 알려 줘)
+- [x] 🟩 실제 시간표 운임을 붙일 때 이 모양 그대로 써 주세요 (바꿀 게 있으면 알려 줘) → 11/11 그대로 씀 (`date=` 추가만)
 
 ---
 

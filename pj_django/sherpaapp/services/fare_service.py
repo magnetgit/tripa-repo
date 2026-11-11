@@ -6,7 +6,7 @@
 - 같은 구간 자동차 결과는 캐시에 7일 (키 `carfare:위도,경도:위도,경도`)
 
 함수 (TEAM_UPDATES 11/11 공유 정의)
-    move_fares(from_lat, from_lon, to_lat, to_lon, people) → dict
+    move_fares(from_lat, from_lon, to_lat, to_lon, people, date=None) → dict
     {
       'people': 2,
       'distance': 19777,                # 자동차 길 거리(m), 모르면 None
@@ -14,6 +14,7 @@
         {'mode': 'car',     'label': '자가용',   'total': 2720,  'per': None, 'note': '기름값 2,720원 (주차비 제외)'},
         {'mode': 'transit', 'label': '대중교통', 'total': 3600,  'per': 1800, 'note': '1인 1,800원 × 2명'},
         {'mode': 'taxi',    'label': '택시',     'total': 19800, 'per': None, 'note': '택시 1대'},
+        # date 를 넣으면 먼 구간에 더 붙음 (🟩 11/11): mode 'train'(열차) · 'air'(항공), note에 역·편명·시각
       ],
       'cheapest': 'car',                # 제일 싼 mode, 하나도 없으면 None
       'walk': False,                    # 걸어갈 만한 가까운 구간이면 True (options 는 빈 목록, 0원)
@@ -26,7 +27,7 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 
-from . import transit_service
+from . import timetable_service, transit_service
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,8 @@ def _car_route(a, b):
     return result
 
 
-def move_fares(from_lat, from_lon, to_lat, to_lon, people):
+def move_fares(from_lat, from_lon, to_lat, to_lon, people, date=None):
+    """date(그날)를 넣으면 80km 넘는 구간에 열차·항공 운임도 붙음 (🟩 timetable_service, 11/11 추가)"""
     a, b = (float(from_lat), float(from_lon)), (float(to_lat), float(to_lon))
     people = max(1, int(people or 1))
 
@@ -115,6 +117,9 @@ def move_fares(from_lat, from_lon, to_lat, to_lon, people):
         if car['toll']:
             note += ' (통행료 포함)'
         options.append({'mode': 'taxi', 'label': '택시', 'total': one * cars, 'per': None, 'note': note})
+
+    if date:
+        options += timetable_service.fare_options(*a, *b, date, people)
 
     options.sort(key=lambda o: o['total'])
     return {

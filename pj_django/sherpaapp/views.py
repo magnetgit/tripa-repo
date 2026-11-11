@@ -38,6 +38,7 @@ from .services.schedule_service import (
     generate_schedule,
     get_or_create_place,
     get_day_start_time,
+    go_trip_for,
     get_travel_day_plans,
     hours_badge as schedule_hours_badge,
     move_closed_pins,
@@ -2979,6 +2980,32 @@ def get_route_travel_minutes(
 # DAY 일정 시간 연쇄 재계산
 # ==============================================
 
+def _go_trip_start(schedule, start_point):
+    """첫날 다시 계산할 때도 일정 만들기와 같은 실제 편으로 (🟩 11/11)
+    대중교통·장거리면 시작점을 도착역(공항)으로, 출발 시각을 '내린 시각'으로 바꾼 start_point. 아니면 그대로"""
+    if not start_point:
+        return start_point
+
+    travel = schedule.travel
+    first = Schedule.objects.filter(travel=travel).order_by('s_day', 's_id').first()
+    if first is None or first.s_id != schedule.s_id:
+        return start_point
+
+    trip = go_trip_for(travel, schedule.s_day, after=start_point.get('departure_time'))
+    if not trip:
+        return start_point
+
+    ready = datetime.combine(
+        schedule.s_day, datetime.strptime(trip['arrive'], '%H:%M').time()
+    ) + timedelta(minutes=trip['exit_min'])
+    return {
+        **start_point,
+        'lat': trip['to']['lat'],
+        'lon': trip['to']['lon'],
+        'departure_time': ready.strftime('%H:%M'),
+    }
+
+
 def recalculate_schedule_timeline(
     schedule,
     anchor_sp_id=None,
@@ -3037,6 +3064,7 @@ def recalculate_schedule_timeline(
             schedule.travel,
             schedule,
         )
+        start_point = _go_trip_start(schedule, start_point)
 
         anchor.travel_time = (
             get_route_travel_minutes_by_coords(
@@ -6421,7 +6449,11 @@ def travel_move_fares(request, travel_id):
     if not start or not end:
         return JsonResponse({'success': False, 'message': '출발·도착 위치가 필요해요.'}, status=400)
 
-    fares = fare_service.move_fares(start[0], start[1], end[0], end[1], _budget_people(request, travel.t_id))
+    # ?date=YYYY-MM-DD 를 같이 보내면 먼 구간에 열차·항공 운임도 (🟩 11/11, 안 보내면 지금 그대로)
+    fares = fare_service.move_fares(
+        start[0], start[1], end[0], end[1], _budget_people(request, travel.t_id),
+        date=request.GET.get('date') or None,
+    )
     return JsonResponse({'success': True, 'fares': fares})
 
 
