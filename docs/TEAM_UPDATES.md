@@ -24,6 +24,22 @@ DB·주소·응답 키 변경 없음 · ⚠️ **`settings.py`에 `X_FRAME_OPTIO
 
 ---
 
+## 2026-11-11 · FastAPI로 AI 서버를 나누면 구조가 어떻게 바뀌나 (그림 설명) — 🟧 이수한
+코드 변경 없음. 🟧 선택 작업 "FastAPI AI 서버 분리"를 할지 정하기 전에 구조를 그림으로 정리했어요 → **[TRIPA AI 서버 분리 구조](https://claude.ai/artifact/TQiGa5AMZXzV7pr9ZrmNLs)**
+
+- **지금:** Django 하나가 화면·DB·AI 호출을 다 함 (로컬 모델이 느리면 사이트 전체가 느려질 수 있음)
+- **A안 · AI 부르는 곳만 FastAPI로 (약 1~2일):** `call_llm`·`embed_texts` 이름·모양은 그대로, 안에서 `ai_client`가 FastAPI(`/chat`·`/embed`)에 부탁. 도구 실행·DB는 Django에 남음. `.env`에 `AI_SERVER_URL`이 없으면 지금처럼
+- **B안 · 채팅 에이전트 전체를 FastAPI로 (약 3~5일):** 추천 카드의 사진·리뷰·비용 때문에 FastAPI도 DB를 읽어야 함, 🟩 `chat_service.py`가 크게 바뀜
+- 추천: 한다면 **A안**, B안은 발표 뒤로 (11/19 동결까지 작업일 5일)
+
+### 🟩 지윤
+- [ ] 그림 한 번 봐 주세요. A안이면 `call_llm`·`_chat_model` 안쪽 몇 줄만 바뀌고 함수 이름·응답은 그대로예요 (도구 호출이 오가는지만 같이 시험)
+
+### 🟦 영준
+- 변경 없음 (입장료 예상 `_ai_price`는 `call_llm`을 써서 A안이어도 그대로)
+
+---
+
 ## 2026-11-11 · 📐 공유 정의: `services/stats_service.py` 함수 이름·모양 (🟩 관리자 통계 · 🟧 Streamlit) — 🟩 서지윤
 코드는 아직 없음 (11/09 규칙: 모양 먼저 공유). 아래 요청(🟧)의 제안을 거의 그대로 쓰고 몇 개만 더했어요. **🟧는 이 모양 그대로 불러 쓰면 돼요.** 바꿀 게 있으면 만들기 전에 알려 줘.
 
