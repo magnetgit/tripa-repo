@@ -233,6 +233,7 @@ class Command(BaseCommand):
             routes = make_routes(rnd, members, travels)
             budgets = make_budgets(rnd, travels)
             edited = make_budget_items(rnd, travels)
+            set_created_dates(random.Random(opts['seed'] + 1), members, travels)   # 앞 데이터가 안 바뀌게 따로 뽑음
 
         summaries = make_summaries(reviews) if opts['summaries'] else 0
         self.stdout.write(self.style.SUCCESS(
@@ -536,6 +537,23 @@ def make_budget_items(rnd, travels):
             log.changed_at = datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59)))
             log.save(update_fields=['changed_at'])
     return count
+
+
+# ---------------------------------------------------------------------------
+# 가입·여행 만든 시각 — 운영 대시보드 '한눈에' 월별·연도별 증감
+# ---------------------------------------------------------------------------
+def set_created_dates(rnd, members, travels):
+    """여행 만든 시각 = 계획한 날(t_day, 미래면 최근 며칠) 낮~밤, 가입 시각 = 첫 여행을 만들기 1~300일 전."""
+    today = date.today()
+    first = {}
+    for t in travels:
+        day = min(t.t_day, today - timedelta(days=rnd.randint(0, 6)))     # 다가오는 여행도 만든 날은 오늘까지
+        t.created_at = datetime.combine(day, time(rnd.randint(9, 23), rnd.randint(0, 59)))
+        first[t.member_id] = min(first.get(t.member_id, t.created_at), t.created_at)
+    Travel.objects.bulk_update(travels, ['created_at'])
+    for m in members:
+        m.joined_at = first[m.m_id] - timedelta(days=rnd.randint(1, 300), minutes=rnd.randint(0, 600))
+    Member.objects.bulk_update(members, ['joined_at'])
 
 
 # ---------------------------------------------------------------------------

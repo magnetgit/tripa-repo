@@ -10,6 +10,20 @@
 
 ---
 
+## 2026-11-11 · ⚠️ DB 칸 2개 추가 (`member.JOINED_AT`, `travel.CREATED_AT`) + 대시보드 '한눈에' 월별·연도별 증감 — 🟧 이수한
+⚠️ **pull 뒤 `python manage.py migrate` 필요** (0020) · 주소·응답 키 변경 없음
+
+- `Member.joined_at` (`JOINED_AT`, 가입 시각), `Travel.created_at` (`CREATED_AT`, 여행 만든 시각) — 둘 다 `default=timezone.now`, `editable=False`
+  - 따로 넣지 않아도 만들 때 자동으로 채워져요 (가입·여행 만들기 코드 수정 없음). 칸이 생기기 전 회원·여행은 migrate 한 시각으로 채워짐
+  - `T_DAY` 는 그대로 **출발일**이에요 (만든 날이 아님)
+- `seed_demo` 가 데모 회원 가입 시각·여행 만든 시각도 넣어요 (`--reset` 하면 반영)
+- 대시보드 **한눈에**: 회원·여행·리뷰·예산 변경 기록을 월별(전달 대비)·연도별(작년 대비)로, 늘면 빨간 ▲ · 줄면 파란 ▼ + 최근 12달 막대 + 기간별 표
+
+### 🟦 영준 · 🟩 지윤
+- [ ] pull 뒤 `migrate` (안 하면 회원가입·여행 만들기에서 `Unknown column 'JOINED_AT'`·`'CREATED_AT'` 오류)
+
+---
+
 ## 2026-11-11 · Streamlit 운영 대시보드 (서버 `/dashboard/`, 비밀번호) — 🟧 이수한
 DB·주소·응답 키 변경 없음 · 새 폴더 `pj_django/dashboard/` (PR #122) · 서버에 새 서비스 `tripa-dashboard`
 
