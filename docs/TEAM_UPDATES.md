@@ -60,7 +60,122 @@ DB·마이그레이션·`.env` 변경 없음 · 기존 응답 키·함수 이름
 ### 🟦 영준 · 🟧 수한
 - [ ] 🟦 일정 편집 화면: 400 답에 `hours_problems`가 오면 `message`를 보여 주세요 (지금도 `message`는 그대로 떠요). "그래도 바꾸기"를 넣으려면 같은 요청에 `ignore_hours=1`
 - [ ] 🟦 장소 상세·지도 팝업에서 장소 정보가 필요하면 `/api/place_info/` 하나로 (사진·오늘 운영시간·별점)
-- [ ] 🟧 서버에서 `python manage.py index_tour` 한 번 (서버 임베딩 모델 기준, 몇 분 걸려요)
+- [ ] 🟧 서버에서 `python manage.py index_tour --limit 100` (서버 임베딩 모델 기준. 관광공사 사용량 때문에 하루 100곳쯤씩 나눠서, 이미 넣은 곳은 건너뜀)
+
+---
+
+## 2026-11-11 · FastAPI AI 서버 B안 2단계: `ai_server/` + `ai_client` + 스위치 (기본은 예전과 같음) — 🟧 이수한
+DB·응답 키 변경 없음 · 새 폴더 `ai_server/` (저장소 맨 위) · 새 `.env` 키 `AI_SERVER_URL`·`AI_SERVER_TOKEN` (**비우면 지금과 똑같음**, 로컬은 안 넣어도 됨)
+
+- `ai_server/main.py`: `GET /health` · `POST /chat/turn` · `POST /llm` · `POST /embed` (아래 📐 공유 정의 그대로), `django.setup()` 으로 `chat_service`·`embed_service` 그대로 부름, `/docs` 자동 문서
+- `services/ai_client.py`: `enabled()`·`remote()`·`chat_turn()`·`llm()`·`embed()` — 실패하면 `ChatError`·`EmbedError` 로 바꿔서 화면 오류 처리 그대로
+- 스위치 3곳 (URL 있을 때만): `travel_chat` 뷰 → `ai_client.chat_turn`, `call_llm`(도구 없는 호출만) → `/llm`, `embed_texts` → `/embed`
+- 로컬 실행: `ai_server/README.md` (`uvicorn ai_server.main:app --port 8100`)
+- 시험: 직접·FastAPI 경유 응답 키 같음(10개), `/llm`·`/embed` 200, AI 서버 꺼짐 → 502 "AI 서버에 연결하지 못했어요", 토큰 없음·틀림 401
+
+### 🟩 지윤
+- [ ] `run_chat_turn` 을 고치면 FastAPI 로도 시험해 보기 (README 의 두 줄) — 채팅 턴 안에서 `request`·`session` 안 쓰기
+
+### 🟦 영준
+- 변경 없음
+
+---
+
+## 2026-11-11 · 📐 공유 정의: FastAPI AI 서버 분리 B안 — 채팅 에이전트 전체를 `ai_server/` 로 — 🟧 이수한
+코드는 아직 없음 (11/09 규칙: 모양 먼저 공유). 아래 모양대로 만들 예정이에요. **바꿀 게 있으면 만들기 전에 알려 줘.**
+그림: [TRIPA AI 서버 분리 구조](https://claude.ai/artifact/TQiGa5AMZXzV7pr9ZrmNLs) · 참고: cloud-tripa `ai_server/`
+
+### 구조
+```
+브라우저 ──(지금 그대로)──▶ Django :8000 (/travel_chat/ … 로그인·요청 횟수 제한·미리보기·적용·DB 쓰기)
+                                │  AI_SERVER_URL 이 있으면
+                                ▼  POST /chat/turn · /llm · /embed  (헤더 X-AI-Token)
+                         FastAPI :8100 (ai_server/main.py, uvicorn, 서버 안 127.0.0.1 만)
+                                │  django.setup() → sherpaapp.services 그대로 불러 씀 (같은 DB·같은 캐시)
+                                ▼
+                    LLM(OpenAI·로컬 모델) · 카카오 · TourAPI · Open-Meteo
+```
+- **채팅 한 턴 전체**(`chat_service.run_chat_turn`: 프롬프트·도구 호출 `get_weather`·`check_open`·초안 정리·추천 카드 사진·리뷰 순위·비용)가 FastAPI 프로세스에서 돌아요
+- **Django에 남는 것**: 로그인(`_chat_member`)·요청 횟수 제한(세션)·카테고리 목록·미리보기·적용(`_chat_create_travel`·`generate_schedule`·핀·순서)·`save_limits`·리뷰 요약 저장·`similar_places`
+- **`.env` 에 `AI_SERVER_URL` 이 비어 있으면 지금과 똑같이 Django 가 직접 처리** (로컬 PC 기본값, 🟦·🟩 따로 할 일 없음)
+- DB·캐시(DatabaseCache)는 같은 MariaDB 를 같이 써요 → 사진(`place_photo`)·리뷰 순위·`_ai_price` 캐시 그대로
+
+### 새 `.env` 키 (기본은 비움)
+| 키 | 뜻 | 서버 값 |
+|---|---|---|
+| `AI_SERVER_URL` | 비면 Django 가 직접, 있으면 FastAPI 로 | `http://127.0.0.1:8100` |
+| `AI_SERVER_TOKEN` | Django ↔ FastAPI 사이 비밀 글자 (`X-AI-Token`) | 🟧 가 서버 `.env` 에 직접 |
+
+### FastAPI 주소 (Django 만 부름, 브라우저는 안 부름)
+| 주소 | 요청 | 응답 |
+|---|---|---|
+| `GET /health` | – | `{ok, model, embed_model, db}` |
+| `POST /chat/turn` | `{messages: [{role, content}], draft, category_names: [], profile: {gender, age_group}, today: "YYYY-MM-DD"}` | **`/travel_chat/` 응답과 똑같음**: `{ok, reply, draft, missing, ready, hint, changed, notes, recommendation, weather}` |
+| `POST /llm` | `{messages: [{role, content}], json: false, max_tokens: null}` | `{text}` — `call_llm` 대신 (리뷰 요약·`_ai_price`) |
+| `POST /embed` | `{texts: ["…"]}` | `{model, vectors: [[…]]}` — `embed_texts` 대신 (`index_reviews`·`similar_places`) |
+- 오류: `401` 토큰 틀림, `422` 요청 모양 틀림, `502` LLM 실패 → `{detail: "…"}` → Django 가 `ChatError(detail)` 로 바꿔서 지금처럼 `{ok: false, error}`
+- 문서: `http://127.0.0.1:8100/docs` (FastAPI 자동 문서, 발표 때 보여 주기 좋음)
+
+### 함수 이름·모양은 그대로
+- `chat_service.run_chat_turn(messages, draft, category_names, today, llm=None, profile=None)` · `call_llm(...)` · `embed_service.embed_texts(texts)` — **이름·인자·돌려주는 모양 안 바꿈**
+- Django 쪽 새 파일 `services/ai_client.py`: `enabled()` · `chat_turn(...)` · `llm(...)` · `embed(...)`
+  - `travel_chat` 뷰: `ai_client.enabled()` 면 `ai_client.chat_turn(...)`, 아니면 지금처럼 `run_chat_turn(...)`
+  - `call_llm`·`embed_texts` 맨 앞: `AI_SERVER_URL` 이 있고 **FastAPI 프로세스 안이 아니면** 서버에 부탁 (FastAPI 안에서는 환경변수 `TRIPA_AI_SERVER=1` 이라 돌고 돌지 않음)
+- 서버: systemd `tripa-ai` (uvicorn 127.0.0.1:8100, 포트 밖으로 안 엶), `deploy.sh` 가 같이 재시작
+
+### 🟩 지윤
+- [ ] `chat_service`·`agent_tools` 는 그대로 고쳐도 돼요. 다만 **채팅 턴 안에서 `request`·`session` 을 쓰지 말기** (FastAPI 에는 없음, 필요한 값은 인자로)
+- [ ] `run_chat_turn` 응답 키는 추가만 (지금처럼). 새로 DB 를 쓰는 건 괜찮아요 (같은 DB)
+- [ ] 바꿀 점 있으면 이 항목에 답 주세요
+
+### 🟦 영준
+- 변경 없음 (`/travel_chat/` 주소·응답 그대로)
+
+### 순서 (11/19 동결 전)
+1. 이 공유 (오늘) → 2. `ai_server/`·`ai_client`·스위치 (URL 비면 지금과 같음) + 시험 → 3. 서버 `tripa-ai` 서비스·`AI_SERVER_URL` → 4. 그림·발표 자료 갱신
+
+---
+
+## 2026-11-11 · 여행지까지 가는 길: 방법별 가격 비교·선택 → 첫날 일정·지도 바로 반영 + 대시보드 교통수단 원형 그래프 — 🟧 이수한
+DB 변경 없음 (11/11 #130 의 `ACCESS_WAY`·`ACCESS_ROUTE` 를 씀) · 새 주소 2개 · 여행 상세 화면에 패널 추가 (cloud-tripa 참고, TRIPA 모양으로)
+
+### 주소 (공유 정의)
+| 주소 | 요청 | 응답 |
+|---|---|---|
+| `GET /travel_access/<id>/?people=2` | 인원(없으면 비용 화면 인원) | `{success, applicable, options[], recommended, chosen, route, note, origin, destination, origin_city, people}` |
+| `POST /travel_access/<id>/choose/` | `mode`, `people` | `{success, route, start: {name, lat, lon, time}}` |
+
+- `options[]` 하나 = `access_route` 모양 그대로: `{mode, title, total(왕복), per_person, minutes, people, items[{label, amount}], real, origin, arrive, ready, t_way, go[leg], back[leg], note, tags[추천·최저가·가장 빠름]}`
+- `mode`: `car`·`ktx`·`ktx_rent`·`train_transfer`·`bus`·`flight`·`flight_rent`·`ferry`·`ferry_car` (→ `access_way` 는 `car·ktx·train_transfer·bus·flight·ferry`)
+- `leg`: `{mode, label, from, to, minutes, depart, arrive('HH:MM'), fare, detail, real, from_pt, to_pt, overnight?}`
+
+### 고르면 서버가 바꾸는 것 (`access_service.choose`)
+- `start_place/addr/lat/lon` → 도착 공항·역·항구 `(도착)`, 집은 `access_route.origin` 에 보관
+- `start_time` → 도착(렌터카 수령) 뒤 시각, `t_way` → 렌터카·자차면 `car`, 아니면 `public_transport`
+- 교통 예산(`TravelBudget` `move`)에 왕복 금액 더함 (다시 고르면 예전 금액 빼고)
+- 첫날 일정 `recalculate_schedule_timeline` 다시 계산
+
+### 가격·시간
+- 열차·항공·고속버스: 국토교통부 TAGO, 여객선: 해양교통안전공단 (공공데이터 키 = 기존 `TOUR_API_KEY`, 새 키 없음) — `services/transport_timetable.py` (🟩 `timetable_service` 와 따로: 편 목록·역·터미널 ID 낱개. 고르기 전에는 🟩 첫날 자동 맞춤, 고른 뒤엔 출발점이 도착 거점이라 80km 안 → 🟩 로직은 안 돎)
+- 집 ↔ 역·공항: 카카오 대중교통, 시간표가 없으면 어림 (카드에 "실제 시간표 / 어림 시간")
+- 고속버스 시간표는 하루 뒤까지만 나와서 먼 날짜는 내일 운행 시각, 여객선도 며칠 뒤까지만 → 평소 출항 시각
+- 돌아오는 편은 마지막 날 마지막 장소가 끝나고 1시간 뒤 첫 편
+
+### 화면 (`static/sherpaapp/js/access.js`·`css/access.css`, 여행 상세에는 연결 몇 줄만)
+- 위쪽 **🧭 여행지까지 가는 길** 패널: 인원 → [가격 비교] → 카드(추천·최저가·가장 빠름, 왕복·1인, 구간 아이콘, 요금 내역) → [이걸로 갈게요]
+- 고르면 새로 고침 없이 DAY 1 다시 불러옴(`loadDay` 감쌈), DAY 1 위 **가는 길**, 마지막 날 아래 **오는 길** 구간 목록, 지도에 점선
+- 여행 정보 '교통 수단'을 `car` 대신 **자동차·대중교통** 으로
+- 데모(`seed_demo`)도 같은 모양으로 넣고 출발점을 도착 거점으로
+
+### 대시보드
+- 새 탭 **교통수단**: 여행지까지 가는 방법·여행지 안에서 다니는 방법 원형 그래프 2개 + 여행지별 표, 여행지·성별·나이대로 거르기
+
+### 🟦 영준
+- [ ] `travel_detail.html` 바뀐 곳: 머리 아래 `#accessPanel` 섹션 + `json_script acRoute`, 맨 아래 `access.js`, `<head>` 의 `access.css`, 여행 정보 '교통 수단' 한 줄. 화면 모양 바꾸고 싶으면 `access.css` 만 고치면 돼요
+- [ ] `loadDay` 이름·역할을 바꾸면 알려 주세요 (access.js 가 감싸서 씀)
+
+### 🟩 지윤
+- [ ] 채팅 '적용'으로 만든 여행은 아직 `access_route` 가 비어 있어요 (상세에서 고르면 채워짐). 채팅에서도 고르게 하려면 `access_service.compare/choose` 를 그대로 부르면 돼요
 
 ---
 

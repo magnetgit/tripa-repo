@@ -13,6 +13,7 @@
 
     <link rel="stylesheet"
           href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/access.css' %}?v=20261111b">
 
     <style>
 
@@ -1986,6 +1987,28 @@
         </section>
 
 
+        {% if member and member.m_id == travel.member_id %}
+        <!-- 여행지까지 가는 길: 방법별 가격 비교·선택 → 첫날 일정·지도에 바로 반영 (access.js, 🟧 11/11) -->
+        <section class="ac-panel" id="accessPanel" data-days="{{ schedules|length }}" aria-label="여행지까지 가는 길">
+            <header class="ac-head">
+                <h2>🧭 여행지까지 가는 길</h2>
+                <div class="ac-chosen" id="acChosen"></div>
+                <div class="ac-controls">
+                    <label for="acPeople">인원</label>
+                    <select id="acPeople">
+                        {% for n in "12345678" %}<option value="{{ n }}"{% if n == "2" %} selected{% endif %}>{{ n }}명</option>{% endfor %}
+                    </select>
+                    <button type="button" class="ac-btn" id="acCompare">가격 비교</button>
+                </div>
+            </header>
+            <div class="ac-body" id="acBody" hidden>
+                <p class="ac-note" id="acNote"></p>
+                <div class="ac-grid" id="acGrid"></div>
+            </div>
+        </section>
+        {{ access_route|json_script:"acRoute" }}
+        {% endif %}
+
         <!-- 여행 만들기 화면처럼 3칸: 여행 정보·비용 | DAY 일정 | 지도 -->
         <div class="td-app">
 
@@ -2011,7 +2034,7 @@
                         </div>
                         <div class="summary-item">
                             <dt class="summary-label">{% include "_icon.html" with name="route" %} 교통 수단</dt>
-                            <dd class="summary-value">{{ travel.t_way }}</dd>
+                            <dd class="summary-value">{% if travel.t_way|lower == 'car' %}자동차{% elif travel.t_way == 'public_transport' %}대중교통{% elif travel.t_way == 'walk' %}도보{% elif travel.t_way == 'bike' %}자전거{% else %}{{ travel.t_way|default:'-' }}{% endif %}</dd>
                         </div>
                     </dl>
 
@@ -8468,6 +8491,8 @@ function goToTravelDetail(travelId) {
     });
 })();
 </script>
+
+<script src="{% static 'sherpaapp/js/access.js' %}?v=20261111b"></script>
 
 </body>
 

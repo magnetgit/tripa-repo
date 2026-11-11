@@ -50,6 +50,8 @@ from .services import chat_service
 from .services import embed_service
 from .services import transit_service
 from .services import fare_service
+from .services import access_service
+from .services import ai_client
 from .services.photo_service import attach_photos, get_photo, place_photo_url
 from .services.review_rank import review_stats
 from .services import festival_service
@@ -923,6 +925,8 @@ def travel_detail(request, travel_id):
         'place_count': len(visited_places),
         'KAKAO_MAP_API_KEY': settings.KAKAO_MAP_API_KEY,
         # 대중교통 경로는 서버(/transit_route/, 카카오)에서 받으므로 ODsay 키는 더 이상 넘기지 않음 (11/06 결정)
+        # 여행지까지 가는 길 (access.js 가 json_script 로 읽음, 🟧 11/11)
+        'access_route': travel.access_route if isinstance(travel.access_route, dict) else None,
     }
 
     return render(request, 'sherpaapp/travel_detail.html', context)
@@ -5287,8 +5291,10 @@ def travel_chat(request):
         Category.objects.order_by('c_id').values_list('c_name', flat=True)
     )
 
+    # AI_SERVER_URL 이 있으면 채팅 한 턴 전체를 FastAPI(ai_server)에, 없으면 지금처럼 여기서 (🟧 B안)
+    turn = ai_client.chat_turn if ai_client.remote() else chat_service.run_chat_turn
     try:
-        result = chat_service.run_chat_turn(
+        result = turn(
             body.get('messages'),
             body.get('draft'),
             category_names,
@@ -6640,6 +6646,48 @@ def travel_move_fares(request, travel_id):
         date=request.GET.get('date') or None,
     )
     return JsonResponse({'success': True, 'fares': fares})
+
+
+# ==============================================
+# 여행지까지 가는 방법 비교·선택 (access_service, 🟧 11/11)
+# ==============================================
+
+# GET ?people=2 → {success, applicable, options: [...], recommended, chosen, note, origin, destination, people}
+def travel_access(request, travel_id):
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
+    try:
+        people = max(1, min(20, int(request.GET.get('people') or 0))) or None
+    except ValueError:
+        people = None
+    people = people or _budget_people(request, travel.t_id)
+    result = access_service.compare(travel, people)
+    chosen = travel.access_route if isinstance(travel.access_route, dict) else None
+    return JsonResponse({'success': True, **result, 'people': people,
+                         'chosen': chosen.get('mode') if chosen else None,
+                         'route': chosen})
+
+
+# POST mode=flight_rent&people=2 → 저장 + 첫날 출발점·시각·교통 예산·일정 반영 → {success, route, start}
+@require_POST
+def travel_access_choose(request, travel_id):
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
+    mode = request.POST.get('mode', '')
+    if mode not in access_service.TITLES:
+        return JsonResponse({'success': False, 'message': '고를 수 없는 이동 방법이에요.'}, status=400)
+    try:
+        people = max(1, min(20, int(request.POST.get('people') or 0))) or None
+    except ValueError:
+        people = None
+    route = access_service.choose(travel, mode, people or _budget_people(request, travel.t_id))
+    if not route:
+        return JsonResponse({'success': False, 'message': '그 방법은 지금 찾을 수 없어요. 다시 비교해 주세요.'}, status=409)
+    return JsonResponse({'success': True, 'route': route, 'start': {
+        'name': travel.start_place, 'lat': float(travel.start_lat), 'lon': float(travel.start_lon),
+        'time': travel.start_time.strftime('%H:%M') if travel.start_time else None}})
 
 
 # GET → {success, people, days: [{day, date, weather}], places: {sp_id: indoor}}  (places 는 그날만)

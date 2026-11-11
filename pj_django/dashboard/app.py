@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 
+import altair as alt
 import django
 import pandas as pd
 import streamlit as st
@@ -25,7 +26,7 @@ def read(sql):
 
 
 st.title('TRIPA 운영 대시보드')
-page = st.sidebar.radio('보기', ['한눈에', '날짜별 추이', '선호 장소', '장소별 비용'])
+page = st.sidebar.radio('보기', ['한눈에', '날짜별 추이', '선호 장소', '장소별 비용', '교통수단'])
 
 # 한눈에: (화면 이름, 표, 언제 생겼는지 칸)
 METRICS = [
@@ -141,7 +142,7 @@ elif page == '선호 장소':
     rows = stats_service.favorite_places(gender=gender, age_group=age, limit=10, order=order)
     st.dataframe(pd.DataFrame(rows), hide_index=True)
 
-else:   # 장소별 비용
+elif page == '장소별 비용':
     rows = stats_service.place_spending(limit=10)
     if not rows:
         st.info('아직 회원이 비용을 고친 기록이 없어요')
@@ -149,3 +150,56 @@ else:   # 장소별 비용
         df = pd.DataFrame(rows).set_index('name')
         st.bar_chart(df['edited_total'])
         st.dataframe(df)
+
+else:   # 교통수단: 여행지까지 가는 방법(access_way) · 여행지 안에서 다니는 방법(t_way)
+    ACCESS = {'car': '자차', 'ktx': 'KTX', 'train_transfer': '기차 환승', 'bus': '고속버스', 'flight': '비행기',
+              'ferry': '배'}
+    INSIDE = {'car': '자동차·렌터카', 'public_transport': '대중교통', 'walk': '도보', 'bike': '자전거'}
+    trips = read("""
+        SELECT t.T_PLACE AS place, t.ACCESS_WAY AS access, LOWER(t.T_WAY) AS inside,
+               m.GENDER AS gender, m.AGE_GROUP AS age
+        FROM travel t JOIN member m ON m.M_ID = t.M_ID
+    """)
+    trips['access'] = trips['access'].map(ACCESS).fillna('정하지 않음')
+    trips['inside'] = trips['inside'].map(INSIDE).fillna('정하지 않음')
+
+    names = stats_service.labels()
+    a, b, c = st.columns(3)
+    places = ['전체'] + sorted(trips['place'].dropna().unique().tolist())
+    place = a.selectbox('여행지', places)
+    gender = b.selectbox('성별', [None, *names['gender']],
+                         format_func=lambda v: '전체' if v is None else names['gender'][v])
+    age = c.selectbox('나이대', [None, *names['age']],
+                      format_func=lambda v: '전체' if v is None else names['age'][v])
+    view = trips
+    if place != '전체':
+        view = view[view['place'] == place]
+    if gender is not None:
+        view = view[view['gender'].isna()] if gender == 'none' else view[view['gender'] == gender]
+    if age is not None:
+        view = view[view['age'].isna()] if age == 'none' else view[view['age'] == age]
+
+    st.caption(f'여행 {len(view):,}개 기준 · 여행 상세에서 고른 가는 방법(데모는 seed_demo 경로)')
+
+    def pie(col, title):
+        counts = view[col].value_counts().rename_axis('수단').reset_index(name='여행 수')
+        if counts.empty:
+            st.info('여행이 없어요')
+            return
+        counts['비율'] = (counts['여행 수'] / counts['여행 수'].sum() * 100).round(1)
+        chart = (alt.Chart(counts).mark_arc(innerRadius=55)
+                 .encode(theta='여행 수:Q', color=alt.Color('수단:N', sort='-x', legend=alt.Legend(title=None)),
+                         tooltip=['수단', '여행 수', alt.Tooltip('비율:Q', format='.1f', title='비율(%)')])
+                 .properties(title=title, height=300))
+        st.altair_chart(chart, width='stretch')
+        st.dataframe(counts, hide_index=True, width='stretch')
+
+    left, right = st.columns(2)
+    with left:
+        pie('access', '여행지까지 가는 방법')
+    with right:
+        pie('inside', '여행지 안에서 다니는 방법')
+
+    # 여행지별로 어떤 방법을 많이 골랐는지 (행: 여행지, 칸: 가는 방법, 값: 여행 수)
+    st.subheader('여행지별 가는 방법')
+    st.dataframe(pd.crosstab(view['place'], view['access']), width='stretch')

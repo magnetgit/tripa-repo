@@ -255,6 +255,16 @@ urlpatterns = [
         views.travel_move_fares,
         name='travel_move_fares'
     ),
+    path(
+        'travel_access/<int:travel_id>/',
+        views.travel_access,
+        name='travel_access'
+    ),
+    path(
+        'travel_access/<int:travel_id>/choose/',
+        views.travel_access_choose,
+        name='travel_access_choose'
+    ),
 
     # 예산을 넘으면 같은 분류의 더 싼 대안 (🟦 예산 AI)
     path(

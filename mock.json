@@ -98,5 +98,15 @@
   "same_stay": {"_설명": "같은 날 같은 숙소 두 번째 줄(귀가)의 stops[].cost (11/10). 숙박비는 첫 줄(체크인)에만, 합계도 한 번",
                 "stops": [{"name": "신라스테이 해운대", "is_stay": true, "cost": {"amount": 90000, "cat": "stay", "source": "tour", "per": 90000, "unit": "room", "cap": 2, "people": 2, "text": "디럭스 1박"}},
                           {"name": "광안리해수욕장", "is_stay": false, "cost": {"amount": 0, "cat": "sight", "source": "estimate", "per": 0, "unit": "person", "cap": 1, "people": 2, "text": ""}},
-                          {"name": "신라스테이 해운대", "is_stay": true, "cost": {"amount": 0, "cat": "stay", "source": "tour", "per": 90000, "unit": "room", "cap": 2, "people": 2, "text": "디럭스 1박", "same_stay": true}}]}
+                          {"name": "신라스테이 해운대", "is_stay": true, "cost": {"amount": 0, "cat": "stay", "source": "tour", "per": 90000, "unit": "room", "cap": 2, "people": 2, "text": "디럭스 1박", "same_stay": true}}]},
+  "ai_server": {"_설명": "🟧 FastAPI AI 서버 (B안) — Django 만 부름. /chat/turn 응답은 /travel_chat/ 응답과 같은 키",
+                "health": {"ok": true, "model": "gpt-4.1-mini", "embed_model": "text-embedding-3-small", "db": true},
+                "chat_turn_request": {"messages": [{"role": "user", "content": "다음 주 금토 부산 2명 바다 여행"}], "draft": null,
+                                      "category_names": ["바다", "음식", "카페"], "profile": {"gender": "F", "age_group": 20}, "today": "2026-11-11"},
+                "chat_turn_response": "→ /travel_chat/ 응답과 같음 {ok, reply, draft, missing, ready, hint, changed, notes, recommendation, weather}",
+                "llm_request": {"messages": [{"role": "system", "content": "리뷰를 키워드로 요약"}, {"role": "user", "content": "…"}], "json": true, "max_tokens": null},
+                "llm_response": {"text": "{\"keywords\": [\"뷰\", \"친절\"]}"},
+                "embed_request": {"texts": ["해운대 바다 산책"]},
+                "embed_response": {"model": "text-embedding-3-small", "vectors": [[0.012, -0.034]]},
+                "error": {"detail": "AI 모델 응답이 늦어요. 잠시 뒤 다시 보내 주세요."}}
 }

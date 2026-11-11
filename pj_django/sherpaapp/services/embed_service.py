@@ -27,6 +27,9 @@ def _model():
 def embed_texts(texts):
     if not texts:
         return []
+    from . import ai_client          # AI_SERVER_URL 이 있으면 FastAPI /embed 에 맡김 (🟧 B안)
+    if ai_client.remote():
+        return ai_client.embed(texts)
     base = (getattr(settings, 'AI_BASE_URL', '') or '').rstrip('/')
     api_key = getattr(settings, 'AI_API_KEY', '') or ''
     headers = {'Authorization': 'Bearer ' + api_key} if api_key else {}

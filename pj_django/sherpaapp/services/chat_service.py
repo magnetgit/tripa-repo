@@ -1514,7 +1514,13 @@ def call_llm(messages, tools=None, tool_log=None):
     모델이 바쁘거나(503/429) 시간이 오래 걸리면 예비 모델로 자동으로 넘어간다.
     그래도 안 되면(Ollama가 꺼짐 등) AI_BACKUP_* 설정의 다른 AI(예: OpenAI)로 한 번 더 시도한다.
     tools를 주면 AI가 도구(agent_tools.py)를 부를 수 있다. 도구를 못 쓰는 모델이면 도구 없이 답을 받는다.
+    AI_SERVER_URL 이 있으면 도구 없는 호출(리뷰 요약·AI 가격)은 FastAPI /llm 에 맡긴다 (🟧 B안).
     """
+    if tools is None:
+        from . import ai_client
+        if ai_client.remote():
+            return ai_client.llm(messages)
+
     base = (getattr(settings, 'AI_BASE_URL', '') or '').rstrip('/')
     api_key = getattr(settings, 'AI_API_KEY', '') or ''
     models = _model_list()
