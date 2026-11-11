@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-11-11 · Streamlit 운영 대시보드 (서버 `/dashboard/`, 비밀번호) — 🟧 이수한
+DB·주소·응답 키 변경 없음 · 새 폴더 `pj_django/dashboard/` (PR #122) · 서버에 새 서비스 `tripa-dashboard`
+
+- **탭 4개**: 한눈에(회원·여행·리뷰·예산 변경 기록 수) · 날짜별 추이(여행 날짜·리뷰 쓴 날) · 선호 장소(🟩 `stats_service.favorite_places`, 성별·나이대·방문/리뷰/별점 순) · 장소별 비용(`place_spending`, 아직 기록 없으면 안내만)
+- **서버에서 보기**: https://3-106-104-143.sslip.io/dashboard/ → 로그인 창(아이디·비밀번호는 🟧 수한에게 직접 물어봐 주세요. 문서·카톡에 적지 않아요)
+  - 로그인 창에서 취소하면 `401 Authorization Required` 화면 → 새로고침(F5) 또는 시크릿 창
+  - 비밀번호 없이 SSH 키로 보기: `ssh -i <키> -N -L 8501:127.0.0.1:8501 ubuntu@3.106.104.143` 켜 두고 http://localhost:8501/dashboard/
+- **내 PC에서 보기**: `pip install -r pj_django/dashboard/requirements.txt` → `pj_django` 폴더에서 `streamlit run dashboard/app.py` (DB 값은 기존 `.env` 그대로, 새 키 없음)
+- **배포**: `~/deploy.sh`가 대시보드 패키지 설치·재시작까지 같이 함 (따로 할 일 없음)
+
+### 🟩 지윤
+- [ ] `stats_service` 함수 이름·돌려주는 키를 바꾸면 대시보드 "선호 장소·장소별 비용" 탭도 같이 깨져요 → 바꾸기 전에 여기 공유
+- [ ] 관리자 통계 화면에서 값이 대시보드와 같게 나오는지 한 번 비교
+
+### 🟦 영준
+- 변경 없음 (발표 때 데이터 화면으로 쓸 수 있어요)
+
+---
+
 ## 2026-11-11 · 휴대폰 화면(위 막대 + 아래 탭 5칸) + 홈 'PC에서 폰 화면 미리보기' — 🟦 임영준
 DB·주소·응답 키 변경 없음 · ⚠️ **`settings.py`에 `X_FRAME_OPTIONS = "SAMEORIGIN"` 추가** (기본 DENY → 같은 사이트만 틀 허용, 다른 사이트는 그대로 막음)
 
