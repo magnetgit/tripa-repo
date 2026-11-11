@@ -625,10 +625,11 @@
       else for (var d = 1; d <= Math.min(n, 7); d++) days.push(d);
 
       // 숙소는 '잠자는 밤'마다 하나. 마지막 날은 집으로 돌아가니 숙소가 필요 없다.
+      // 추천이 1일차 밤을 찾았더라도 2박 이상이면 밤마다 버튼을 보여 줌 (2일차도 고를 수 있게, 🟧 11/11)
       var lodging = isLodging(item);
       if (lodging && n) {
-        days = days.filter(function (d) { return d < n; });
-        if (!days.length && n > 1) for (var nd = 1; nd < n && nd <= 7; nd++) days.push(nd);
+        days = [];
+        for (var nd = 1; nd < n && nd <= 7; nd++) days.push(nd);
       }
 
       if (!days.length) {
@@ -651,6 +652,18 @@
         });
         actions.appendChild(b);
       });
+      // 2박 이상: 남은 밤 모두 이 숙소로 (연박)
+      if (lodging && days.length > 1) {
+        var left = days.filter(function (d) { return !hasStay(item, d); });
+        if (left.length > 1) {
+          var all = make('button', 'tc-addbtn tc-addbtn--all');
+          all.type = 'button';
+          all.appendChild(icon('bed'));
+          all.appendChild(document.createTextNode(' ' + days.length + '박 모두 이 숙소로'));
+          all.addEventListener('click', function () { addStays(item, left); });
+          actions.appendChild(all);
+        }
+      }
       body.appendChild(actions);
 
       card.appendChild(body);
@@ -679,17 +692,32 @@
   }
 
   function addStay(item, day) {
+    addStays(item, [day]);
+  }
+
+  // 여러 밤을 한 번에 (연박). 그날 이미 다른 숙소가 있으면 바꿈
+  function addStays(item, days) {
     var n = tripDays();
-    if (state.busy || !n || day >= n || hasStay(item, day)) return;
-    var iso = dayToIso(state.draft.start, day);
-    var stays = (state.draft.stays || []).filter(function (s) { return s.date !== iso; });
-    stays.push({
-      date: iso, query: item.name, name: item.name, addr: item.addr, lat: item.lat, lon: item.lon,
-      arrival_time: null, departure_time: null
+    if (state.busy || !n) return;
+    days = days.filter(function (day) { return day < n && !hasStay(item, day); });
+    if (!days.length) return;
+    var isos = days.map(function (day) { return dayToIso(state.draft.start, day); });
+    var stays = (state.draft.stays || []).filter(function (s) { return isos.indexOf(s.date) < 0; });
+    isos.forEach(function (iso) {
+      stays.push({
+        date: iso, query: item.name, name: item.name, addr: item.addr, lat: item.lat, lon: item.lon,
+        arrival_time: null, departure_time: null
+      });
     });
     stays.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     state.draft.stays = stays;
-    state.notes = [];
+    var open = [];
+    for (var d = 1; d < n; d++) {
+      var iso = dayToIso(state.draft.start, d);
+      if (!stays.some(function (s) { return s.date === iso; })) open.push(d + '일차');
+    }
+    // 아직 빈 밤이 있으면 알려 줌 (채팅으로 '2일차 숙소 추천해줘' 라고 하면 그 밤 추천)
+    state.notes = open.length ? [open.join(', ') + ' 밤 숙소도 골라 주세요. 같은 카드의 버튼을 누르거나 "' + open[0] + ' 숙소 추천해줘"라고 말해 보세요.'] : [];
     save();
     renderMessages();
     renderDraft(['숙소']);
