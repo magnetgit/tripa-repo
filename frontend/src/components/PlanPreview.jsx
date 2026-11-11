@@ -177,6 +177,10 @@ export default function PlanPreview({
                   {sub.length > 0 && (
                     <p className="tc-tl__meta"><Icon name="route" sprite={sprite} /> {sub.join(' · ')}</p>
                   )}
+                  {/* 🟩 숙소 체크인 시각 안내 (경고 아님, 없으면 안 보임) */}
+                  {it.checkin && it.checkin.message && (
+                    <p className="tc-tl__checkin"><Icon name="clock" sprite={sprite} /> {it.checkin.message}</p>
+                  )}
                   {/* 예상 비용 (인원 기준, 자동으로 들어간 식당·카페 포함) */}
                   {costText(it.cost, state.draft.people) && (
                     <p className="tc-card__cost tc-tl__cost" title={it.cost.text || ''}>
