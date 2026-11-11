@@ -4164,6 +4164,80 @@ button.preview-day {
 .tc-mappin--start .tc-mappin__dot { background: #0f9d8a; }
 .tc-mappin--stay .tc-mappin__label { background: #6b5bd6; }
 .tc-mappin--stay .tc-mappin__dot { background: #6b5bd6; }
+.tc-mappin--focus .tc-mappin__label { background: #e8710a; }
+.tc-mappin--focus .tc-mappin__dot { background: #e8710a; }
+
+/* 지도 위 장소 팝업 카드 (장소를 고르면 그 자리에 뜸: 채팅 추천 카드·여행 상세 일정) */
+.tc-mappop { display: flex; flex-direction: column; align-items: center; transform: translateY(2px); }
+
+.tc-mappop__card {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    width: 250px;
+    max-width: 70vw;
+    padding: 10px 28px 10px 10px;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(31, 45, 74, 0.25);
+    color: #334155;
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+}
+
+.tc-mappop__photo {
+    flex: 0 0 64px;
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #eef2f7;
+}
+
+.tc-mappop__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tc-mappop__name { color: #1f2d4a; font-size: 13.5px; font-weight: 800; word-break: keep-all; }
+.tc-mappop__kind { color: #e8710a; font-weight: 700; }
+.tc-mappop__line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-mappop__rating { color: #b45309; font-weight: 700; }
+
+.tc-mappop__close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #64748b;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.tc-mappop__close:hover { background: #f1f5f9; }
+
+/* 카드 아래 꼬리(▼)와 장소 점 */
+.tc-mappop__tail {
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 8px solid #fff;
+    filter: drop-shadow(0 2px 1px rgba(31, 45, 74, 0.15));
+}
+
+.tc-mappop__dot {
+    width: 12px;
+    height: 12px;
+    margin-top: 2px;
+    border-radius: 50%;
+    background: #e8710a;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(31, 45, 74, 0.35);
+}
 
 .tc-switch { margin: 0 0 14px; font-size: 14px; }
 .tc-switch a { color: #2d6cdf; font-weight: 700; }
@@ -4852,6 +4926,20 @@ button.preview-day {
 
 .tc-rec__rain { margin: 6px 0 0; padding: 7px 10px; border-radius: 10px; background: #eef4ff; border: 1px solid #d6e3fb; font-size: 12.5px; font-weight: 700; color: #2459b8; }
 
+/* 성별·나이대 안내 (안 넣은 회원만, 가장 최근 추천 카드 위) */
+.tc-rec__profile {
+    display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 0; padding: 7px 10px;
+    border-radius: 10px; background: #fffaf0; border: 1px dashed #e8c98a;
+    font-size: 12.5px; line-height: 1.5; color: #6b4e16;
+}
+.tc-rec__profile > span { flex: 1; }
+.tc-rec__profile .tc-link { font-weight: 800; }
+.tc-rec__profile .tc-x {
+    flex: 0 0 auto; width: 22px; height: 22px; border: 0; border-radius: 50%;
+    background: transparent; color: #9a7b3f; font-size: 15px; line-height: 1; cursor: pointer;
+}
+.tc-rec__profile .tc-x:hover { background: #f5ead2; }
+
 .tc-plan__sum { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid #eaeff8; font-size: 12px; color: #5b6b88; text-align: right; }
 .tc-plan__sum:empty { display: none; }
 
@@ -4981,6 +5069,11 @@ button.preview-day {
 .tc-tl__item[draggable="true"] { cursor: grab; }
 .tc-tl__item.is-drag { opacity: .45; }
 .tc-tl__item.is-over { box-shadow: 0 -2px 0 #2d6cdf; }
+
+/* 일정 미리보기 장소를 누르면 지도에서 위치 보기 (지금 지도에 띄운 장소는 주황 강조) */
+.tc-tl__item.is-clickable { cursor: pointer; border-radius: 10px; transition: background-color .15s; }
+.tc-tl__item.is-clickable:hover { background: #f5f8fe; }
+.tc-tl__item.is-focus { background: #fff6eb; box-shadow: inset 3px 0 0 #f0a03c; }
 
 /* ===== BUDGET EDIT : 지출 금액 수정 ===== */
 .bg-row__amt { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }

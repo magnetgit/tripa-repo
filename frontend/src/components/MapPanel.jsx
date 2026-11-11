@@ -8,6 +8,7 @@ import Icon from './Icon.jsx';
 import { currentDay, dayItems, dayStartPoint } from '../lib/plan.js';
 import { ROUTE_COLOR, fetchTransit } from '../lib/transit.js';
 import { shortDate } from '../lib/util.js';
+import { focusPinEl, popupEl, recPopupInfo } from '../lib/mapPopup.js';
 
 function pinOverlay(kakao, kind, label, lat, lon) {
   const wrap = document.createElement('div');
@@ -129,18 +130,29 @@ export default function MapPanel({ state, sprite, transitUrl, focus }) {
     }
   }, [ready, state, transitUrl]);
 
-  // 추천 카드를 누르면: 그 장소로 지도를 옮기고 주황 핀으로 표시
+  // 추천 카드를 누르면: 그 장소로 지도를 옮기고 사진·정보 팝업 카드 (× 누르면 작은 주황 핀)
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !focus || Number.isNaN(focus.lat)) return;
     const kakao = window.kakao;
     if (focusRef.current) focusRef.current.setMap(null);
-    focusRef.current = pinOverlay(kakao, 'focus', focus.name, focus.lat, focus.lon);
+    const overlay = new kakao.maps.CustomOverlay({
+      position: new kakao.maps.LatLng(focus.lat, focus.lon), xAnchor: 0.5, yAnchor: 1,
+    });
+    // focus.info: 일정 미리보기에서 만든 팝업 값, 없으면 추천 카드(item)로 만든다
+    const info = focus.info || (focus.item ? recPopupInfo(focus.item) : null);
+    overlay.setContent(info
+      ? popupEl(info, () => overlay.setContent(focusPinEl(focus.name)))
+      : focusPinEl(focus.name));
+    focusRef.current = overlay;
     focusRef.current.setZIndex(10);
     focusRef.current.setMap(map);
     map.relayout();
     map.setLevel(5);
-    map.panTo(new kakao.maps.LatLng(focus.lat, focus.lon));
+    // 장소를 가운데보다 70px 아래에 둬서 위에 뜨는 팝업이 지도 안에 들어오게
+    const proj = map.getProjection();
+    const point = proj.containerPointFromCoords(new kakao.maps.LatLng(focus.lat, focus.lon));
+    map.panTo(proj.coordsFromContainerPoint(new kakao.maps.Point(point.x, point.y - 70)));
     // 폰처럼 지도가 화면 밖이면 지도까지 내려가 보여 준다
     const r = boxRef.current.getBoundingClientRect();
     if (r.bottom < 0 || r.top > window.innerHeight) boxRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });

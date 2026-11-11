@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Icon from './Icon.jsx';
 import { dayItems, isPlanFresh, removedKey } from '../lib/plan.js';
 import { PlaceTag, costText } from './RecCards.jsx';
+import { planPopupInfo } from '../lib/mapPopup.js';
 
 // 날씨 표시 (days[].weather: kind sun/cloud/rain/snow, temp, rainy)
 const WX_MARK = { sun: '☀', cloud: '☁', rain: '☔', snow: '❄' };
@@ -16,7 +17,9 @@ function Msg({ text, loading, error }) {
   );
 }
 
-export default function PlanPreview({ state, sprite, onTab, onMove, onRemove, onResetOrder, onRestore, onRefresh }) {
+export default function PlanPreview({
+  state, sprite, onTab, onMove, onRemove, onResetOrder, onRestore, onRefresh, focus, onFocusPlace,
+}) {
   const [dragFrom, setDragFrom] = useState(-1);
   const [overIndex, setOverIndex] = useState(-1);
 
@@ -119,10 +122,19 @@ export default function PlanPreview({ state, sprite, onTab, onMove, onRemove, on
             if (dragFrom === i) cls.push('is-drag');
             if (overIndex === i) cls.push('is-over');
 
+            // 위치가 있으면 눌러서 지도에서 보기 (지금 지도에 띄운 장소면 강조)
+            const canFocus = it.lat != null && it.lon != null && !!onFocusPlace;
+            if (canFocus) cls.push('is-clickable');
+            if (canFocus && focus && focus.name === it.name
+              && Math.abs(focus.lat - Number(it.lat)) < 1e-6 && Math.abs(focus.lon - Number(it.lon)) < 1e-6) cls.push('is-focus');
+
             return (
               <li
                 key={`${it.name}-${i}`}
                 className={cls.join(' ')}
+                title={canFocus ? '눌러서 지도에서 위치 보기' : undefined}
+                // ↑↓·삭제 버튼은 그대로 동작
+                onClick={(e) => { if (canFocus && !e.target.closest('button, a')) onFocusPlace(it, planPopupInfo(it, i + 1)); }}
                 draggable={items.length > 1}
                 onDragStart={(e) => {
                   setDragFrom(i);
@@ -140,7 +152,11 @@ export default function PlanPreview({ state, sprite, onTab, onMove, onRemove, on
                   <div className="tc-tl__head">
                     <strong>{it.name}</strong>
                     {it.is_stay ? (
-                      <span className="tc-tag tc-tag--stay"><Icon name="bed" sprite={sprite} /> 체크인</span>
+                      // 같은 숙소가 앞에 이미 있으면 이 줄은 귀가 (숙소 두 줄 규칙)
+                      <span className="tc-tag tc-tag--stay">
+                        <Icon name="bed" sprite={sprite} />
+                        {items.slice(0, i).some((x) => x.is_stay && x.name === it.name) ? ' 숙소로 귀가' : ' 체크인'}
+                      </span>
                     ) : it.pin ? (
                       <span className="tc-tag tc-tag--pin">담은 장소</span>
                     ) : it.kind ? (
