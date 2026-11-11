@@ -1,0 +1,16 @@
+{% extends "admin/index.html" %}
+{# 관리자 첫 화면 = 장고 기본 화면 + 위에 '회원 통계' 바로가기 (🟩 11/11) #}
+
+{% block content %}
+<div class="module" style="margin-bottom: 20px;">
+  <table style="width: 100%;">
+    <caption>통계</caption>
+    <tr>
+      <th scope="row"><a href="{% url 'admin:member_stats' %}">회원 통계</a></th>
+      <td>성별·나이대별로 많이 간 장소, 장소 종류 비율, 회원이 고친 예산 금액</td>
+      <td><a href="{% url 'admin:member_stats' %}" class="viewlink">보기</a></td>
+    </tr>
+  </table>
+</div>
+{{ block.super }}
+{% endblock %}
