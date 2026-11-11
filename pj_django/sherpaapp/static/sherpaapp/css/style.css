@@ -6615,3 +6615,282 @@ a.review-pick:focus-visible {
 .review-pick__quote.review-pick__route { color: #2d5fbf; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.45; }
 .review-pick__head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review-pick__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* =========================================================
+   휴대폰 화면 (900px 이하): 위 막대 + 아래 탭 5칸 — 🟦 4주차
+   - 템플릿 공통 조각 templates/_mobile_nav.html
+   - 컴퓨터에서는 숨기고 기존 왼쪽 메뉴(.sidebar)를 그대로 씀
+   - 노치·홈 막대: env(safe-area-inset-*) (meta viewport 에 viewport-fit=cover 필요)
+========================================================= */
+:root {
+    --m-top-h: 52px;    /* 위 막대 높이 (노치 빼고) */
+    --m-tab-h: 60px;    /* 아래 탭 높이 (홈 막대 빼고) */
+}
+
+.m-topbar,
+.m-tabbar {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    /* 왼쪽 메뉴 대신 위·아래 막대 */
+    .detail-container > .sidebar {
+        display: none;
+    }
+
+    /* 본문: 왼쪽 메뉴 자리 비우기 + 위·아래 막대에 안 가리게 */
+    .detail-container > .detail-content {
+        width: 100%;
+        margin-left: 0;
+        padding-top: calc(var(--m-top-h) + env(safe-area-inset-top) + 14px);
+        padding-right: max(14px, env(safe-area-inset-right));
+        padding-bottom: calc(var(--m-tab-h) + env(safe-area-inset-bottom) + 20px);
+        padding-left: max(14px, env(safe-area-inset-left));
+    }
+
+    .m-topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1100;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: calc(var(--m-top-h) + env(safe-area-inset-top));
+        padding: env(safe-area-inset-top) max(10px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+        border-bottom: 1px solid #e6ebf3;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+    }
+
+    .m-topbar__logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: #2d6cdf;
+        font-size: 16px;
+        font-weight: 900;
+        text-decoration: none;
+    }
+
+    .m-topbar__logo .tp-icon { width: 20px; height: 20px; }
+
+    .m-topbar__title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        color: #1f2d4a;
+        font-size: 14px;
+        font-weight: 800;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .m-topbar__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        color: #475569;
+    }
+
+    .m-topbar__btn:active { background: #eef2f8; }
+    .m-topbar__btn .tp-icon { width: 21px; height: 21px; }
+
+    .m-tabbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1100;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        min-height: calc(var(--m-tab-h) + env(safe-area-inset-bottom));
+        padding: 4px max(4px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(4px, env(safe-area-inset-left));
+        border-top: 1px solid #e6ebf3;
+        background: rgba(255, 255, 255, 0.96);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 -4px 16px rgba(30, 64, 175, 0.06);
+    }
+
+    .m-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        min-height: 52px;          /* 손가락으로 누르기 좋은 크기 */
+        color: #7b88a1;
+        font-size: 11px;
+        font-weight: 700;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-tab .tp-icon { width: 22px; height: 22px; }
+    .m-tab.is-on { color: #2d6cdf; }
+
+    /* 가운데 '만들기'는 파란 동그라미 */
+    .m-tab--create b {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #2d6cdf;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(45, 108, 223, 0.35);
+    }
+
+    .m-tab--create .tp-icon { width: 20px; height: 20px; }
+    .m-tab--create.is-on b { background: #1f56c4; }
+}
+
+/* =========================================================
+   홈: PC에서 폰 화면 미리보기 (🟦 11/11, index.html)
+   [💻 PC | 📱 폰] 버튼 → 폰 크기 틀(iframe) 안에 우리 사이트
+   틀 안은 화면 폭이 390px 이라 위 '휴대폰 화면' 규칙(아래 탭)이 그대로 적용됨
+========================================================= */
+.view-toggle {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 3001;
+    display: inline-flex;
+    padding: 4px;
+    border: 1px solid #dbe3ee;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 8px 24px rgba(30, 64, 175, 0.18);
+}
+
+.view-toggle button {
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.view-toggle button.is-on { background: #2d6cdf; color: #fff; }
+
+.phone-preview {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.55);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+
+.phone-preview[hidden] { display: none; }
+
+/* 폰 모양 틀: 둥근 검은 테두리 + 위 노치 */
+.phone-preview__frame {
+    position: relative;
+    width: 390px;
+    height: min(844px, calc(100vh - 90px));
+    padding: 38px 12px 14px;    /* 위: 노치·상태 표시줄 자리 (틀 안은 safe-area 가 0 이라 화면을 노치 아래부터) */
+    border-radius: 48px;
+    background: #111827;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45), inset 0 0 0 2px #374151;
+}
+
+.phone-preview__frame iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 6px 6px 34px 34px;
+    background: #fff;
+}
+
+.phone-preview__notch {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    z-index: 1;
+    width: 96px;
+    height: 22px;
+    border-radius: 999px;
+    background: #111827;
+    transform: translateX(-50%);
+}
+
+.phone-preview__hint {
+    margin: 0;
+    color: #e2e8f0;
+    font-size: 12.5px;
+}
+
+body.is-phone-preview { overflow: hidden; }   /* 뒤 페이지는 스크롤 안 되게 */
+
+/* 진짜 폰·좁은 화면에서는 버튼이 필요 없음 */
+@media (max-width: 900px) {
+    .view-toggle,
+    .phone-preview { display: none !important; }
+}
+
+/* 홈 위 메뉴: 닉네임 = 마이페이지 링크, 글자가 세로로 꺾이지 않게 (🟦 11/11) */
+.header-actions a {
+    white-space: nowrap;
+}
+
+.header-actions a.header-user {
+    color: #333;
+}
+
+.header-actions a.header-user .tp-icon {
+    width: 20px;
+    height: 20px;
+    color: #2d6cdf;
+}
+
+.header-actions a.header-user:hover {
+    color: #2f6be5;
+}
+
+/* 좁은 폰: 메뉴 사이 간격·버튼 크기 줄이기 */
+@media (max-width: 480px) {
+    .header-actions {
+        gap: 12px;
+    }
+
+    .header-actions a {
+        font-size: 13px;
+    }
+
+    .header-actions a:last-child {
+        padding: 9px 12px;
+    }
+
+    /* 로고·양옆 여백도 조금 줄여 한 줄에 다 들어가게 */
+    .header-inner {
+        gap: 10px;
+        padding: 0 12px;
+    }
+
+    .header-inner .logo-link {
+        font-size: 22px;
+    }
+
+    .header-inner .logo-link .tp-icon {
+        width: 24px;
+        height: 24px;
+    }
+}
