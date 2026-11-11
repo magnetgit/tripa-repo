@@ -9,6 +9,7 @@ import re
 import secrets
 from decimal import Decimal
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -37,6 +38,8 @@ from .services.schedule_service import (
     get_or_create_place,
     get_day_start_time,
     get_travel_day_plans,
+    hours_badge as schedule_hours_badge,
+    move_closed_pins,
     resolve_effective_accommodations,
 )
 from .services.review_service import summarize_review
@@ -48,6 +51,7 @@ from .services.photo_service import attach_photos, place_photo_url
 from .services import festival_service
 from .services import region_photo_service
 from .services import hours_service
+from .services import stay_rules
 from .services import budget_service
 from .services import rain_service
 from .services import transit_service
@@ -5319,6 +5323,24 @@ def _chat_add_pins(travel, pins, with_images=False):
                     except ValueError:
                         arrival = None
 
+                # 시각 없이 담은 곳: 그날 일정 중 운영시간에 맞는 첫 자리 (못 찾으면 아래 기존 방식)
+                if arrival is None:
+                    stay = _default_stay_minutes(place.p_kind)
+                    hours = hours_service.place_hours(
+                        place.p_name, place.p_kind, schedule.s_day,
+                        place.p_lat, place.p_lon, place.p_kakao_id,
+                    )
+                    rows = (SchedulePlace.objects.filter(schedule=schedule)
+                            .exclude(place__p_kind__contains='숙').order_by('visit_order'))
+                    for row in rows:
+                        if not row.start_time:
+                            continue
+                        at = row.start_time.hour * 60 + row.start_time.minute
+                        fit = hours_service.fit_stay(place.p_kind, hours, at, stay)
+                        if fit['status'] in ('ok', 'shortened'):
+                            arrival = row.start_time
+                            break
+
                 if arrival is None:
                     arrival = (prev.start_time if prev and prev.start_time else None) or time(10, 0)
 
@@ -5440,11 +5462,72 @@ def _chat_apply_order(travel, order):
         recalculate_schedule_timeline(schedule)
 
 
+def _fit_meal_windows(schedule, fixed_times=None):
+    """채팅 적용 때만: 점심 12~13시·저녁 18~19시 도착에 맞춰 식사 앞 장소들 체류를 범위 안에서 늘리고 줄인다
+    fixed_times: {장소 이름: 'HH:MM'} 시각을 정해 담은 곳 (그 시각 그대로)"""
+    fixed_times = fixed_times or {}
+    anchor = None                         # 이 줄 뒤만 다시 계산 (점심 차례는 하루 처음부터)
+    for window in (stay_rules.LUNCH, stay_rules.DINNER):
+        meal_row = None
+        for _ in range(3):                # 이동 시간이 다시 계산되며 조금씩 달라져서 최대 3번
+            rows = list(SchedulePlace.objects.filter(schedule=schedule)
+                        .select_related('place').order_by('visit_order', 'sp_id'))
+            ids = [r.sp_id for r in rows]
+            begin = ids.index(anchor) + 1 if anchor in ids else 0
+
+            meal = next((i for i in range(begin, len(rows))
+                         if hours_service.is_food(rows[i].place.p_kind)), None)
+            if meal is None or not rows[meal].arrive_time:
+                return
+            meal_row = rows[meal]
+
+            # 식사 앞에 시각 정한 장소가 있으면 → 그 시각으로 되돌리고 기준점으로, 그 뒤만 움직임
+            for i in range(begin, meal):
+                pinned = fixed_times.get(rows[i].place.p_name)
+                if pinned:
+                    rows[i].arrive_time = datetime.strptime(pinned, '%H:%M').time()
+                    rows[i].save(update_fields=['arrive_time'])
+                    anchor, begin = rows[i].sp_id, i + 1
+
+            need = stay_rules.meal_shift(_time_minutes(meal_row.arrive_time), window)
+            movable = [r for r in rows[begin:meal]
+                       if '숙' not in (r.place.p_kind or '') and not hours_service.is_food(r.place.p_kind)]
+            if not need or not movable:
+                break
+            limits = []
+            for r in movable:
+                low, normal, high = stay_rules.stay_range(r.place.p_kind, r.place.p_name)
+                limits.append((low, high))
+            old = [r.stay_time or 60 for r in movable]
+            new = stay_rules.spread(old, limits, need)
+            if new == old:                # 더 늘리거나 줄일 여유가 없음
+                break
+            for r, stay in zip(movable, new):
+                r.stay_time = stay
+            SchedulePlace.objects.bulk_update(movable, ['stay_time'])
+            recalculate_schedule_timeline(schedule, anchor_sp_id=anchor)
+
+        # 그래도 이르면: 식사를 시간대 시작에 고정하고 기다리기
+        if meal_row and _time_minutes(meal_row.arrive_time) < window[0]:
+            meal_row.arrive_time = time(window[0] // 60, window[0] % 60)
+            meal_row.save(update_fields=['arrive_time'])
+            recalculate_schedule_timeline(schedule, anchor_sp_id=meal_row.sp_id)
+
+        anchor = meal_row.sp_id if meal_row else anchor     # 저녁 차례는 점심 뒤부터
+
+
 def _chat_finish_schedule(travel, draft, removed, order, with_images=False):
     """자동으로 만든 일정 위에 사용자가 고른 것(담은 장소, 삭제, 순서)을 얹는다."""
-    failed = _chat_add_pins(travel, draft.get('pins') or [], with_images)
+    # 🟩 담은 장소가 그날 쉬면 여는 날로 옮김 (안내는 미리보기 days[].moved·excluded)
+    pins, travel.hours_notes = move_closed_pins(travel, draft.get('pins') or [])
+    failed = _chat_add_pins(travel, pins, with_images)
     _chat_apply_removed(travel, removed)
     _chat_apply_order(travel, order)
+
+    # 식사 시간대 맞추기 (채팅 적용 때만, 여행 상세에서 고칠 때는 안부름)
+    fixed = {pin.get('name'): pin.get('time') for pin in pins if pin.get('time')}
+    for schedule in Schedule.objects.filter(travel=travel):
+        _fit_meal_windows(schedule, fixed)
 
     return failed
 
@@ -5515,6 +5598,52 @@ def _chat_preview_days(travel, draft):
         })
 
     return days
+
+
+def _chat_attach_hours(travel, days):
+    """미리보기 날마다 운영시간 안내를 붙인다 — items[].hours, excluded, moved (🟩 schedule_service, mock.json)
+
+    롤백(transaction) 밖에서 불러야 한다. 안에서 여러 스레드가 캐시 표를 읽으면 잠금을 기다리느라 50초씩 멈춘다.
+    """
+    notes = getattr(travel, 'hours_notes', None) or {}
+    jobs = [(day, item) for day in days for item in day['items'] if not item['is_stay']]
+
+    def one(job):
+        day, item = job
+        try:
+            return hours_service.place_hours(
+                item['name'], item['kind'], date.fromisoformat(day['date']),
+                item['lat'], item['lon'], item['kakao_id'],
+            )
+        except Exception:  # 한 곳이 실패해도 나머지는 보여준다
+            chat_logger.warning('AI 대화 미리보기 운영시간 실패: %s', item['name'], exc_info=True)
+            return None
+
+    with ThreadPoolExecutor(max_workers=hours_service.WORKERS) as pool:
+        found = {id(item): hours for (_, item), hours in zip(jobs, pool.map(one, jobs))}
+
+    def minutes(text):
+        return int(text[:2]) * 60 + int(text[3:5]) if text else None
+
+    for day in days:
+        day['excluded'] = (notes.get(day['day']) or {}).get('excluded', [])
+        day['moved'] = (notes.get(day['day']) or {}).get('moved', [])
+        previous_leave = minutes(day['start_time'])
+
+        for item in day['items']:
+            arrive = minutes(item['arrive'])
+            hours = found.get(id(item))
+            wait = 0
+
+            # 앞 장소에서 떠나 이동해도 여는 시각보다 일찍 닿아서 기다린 시간
+            if hours and arrive is not None and previous_leave is not None and arrive == hours.get('open_min'):
+                wait = max(arrive - (previous_leave + (item['move'] or 0)), 0)
+
+            item['hours'] = (
+                schedule_hours_badge(item['kind'], hours, arrive, item['stay'], wait)
+                if arrive is not None else None
+            )
+            previous_leave = minutes(item['leave']) or previous_leave
 
 
 @require_POST
@@ -5594,6 +5723,12 @@ def travel_chat_preview(request):
     except Exception:
         chat_logger.exception('AI 대화 일정 미리보기 실패')
         return _chat_error('일정 미리보기를 만들지 못했어요. 잠시 후 다시 시도해 주세요.', 500)
+
+    # 장소마다 운영시간 안내 + 담은 장소를 옮겼거나 못 넣은 안내 (🟩, mock.json plan.days[])
+    try:
+        _chat_attach_hours(travel, days)
+    except Exception:
+        chat_logger.exception('AI 대화 미리보기 운영시간 안내 실패')
 
     # 장소마다 사진 1장 (mock.json 의 stops[].photo). 롤백 밖에서 해야 찾은 사진이 저장된다.
     # 새로 찾는 건 한 번에 PREVIEW_PHOTO_NEW곳까지 (응답이 늦어지지 않게)
