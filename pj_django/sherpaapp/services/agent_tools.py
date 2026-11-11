@@ -199,5 +199,43 @@ def check_open(place: str, date: str) -> dict:
     return {'place': found['name'], 'date': day.isoformat(), **status}
 
 
+# =========================================================
+# 여행지 정보 (관광공사 소개글 RAG, 🟩 11/11)
+# =========================================================
+
+@tool
+def travel_info(place: str, question: str) -> dict:
+    """여행지·장소가 어떤 곳인지 한국관광공사 소개글에서 찾아 근거 조각을 돌려준다.
+
+    사용자가 '○○ 어때?', '○○은 어떤 곳이야?', '○○ 입장료·주차·볼거리'처럼 특정 장소 정보를 물을 때 부른다.
+    답은 반드시 chunks 의 글에 있는 내용으로만 쓰고, 답 끝에 '(출처: 한국관광공사 · 장소 이름)'을 붙인다.
+    found 가 false 이거나 chunks 에 답이 없으면 지어내지 말고 '관광공사 정보에는 그 내용이 없어요'라고 답한다.
+
+    place: 장소 이름 (예: 감천문화마을, 해동용궁사)
+    question: 사용자가 궁금한 것 (예: 어떤 곳인지, 입장료)
+    """
+    from .embed_service import EmbedError
+    from .tour_rag import ask
+
+    if not place and not question:
+        return {'error': '장소나 질문이 필요해요.'}
+    try:
+        return ask(question or '어떤 곳인지', place=place or None)
+    except EmbedError:
+        logger.warning('여행지 정보 임베딩 실패', exc_info=True)
+        return {'error': '여행지 정보를 찾지 못했어요 (임베딩 실패).'}
+    except Exception:
+        logger.warning('여행지 정보 실패', exc_info=True)
+        return {'error': '여행지 정보를 찾지 못했어요.'}
+
+
 # AI에게 주는 도구 목록
 CHAT_TOOLS = [get_weather, check_open]
+
+# 질문 의도별로 넘길 도구 (🟩 11/11, chat_service.classify_intent)
+# schedule 일정 만들기 · weather 날씨 · info 장소·여행지 정보
+TOOLS_BY_INTENT = {
+    'schedule': CHAT_TOOLS,
+    'weather': [get_weather],
+    'info': [travel_info, check_open],
+}

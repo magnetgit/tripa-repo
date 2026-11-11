@@ -50,7 +50,8 @@ from .services import chat_service
 from .services import embed_service
 from .services import transit_service
 from .services import fare_service
-from .services.photo_service import attach_photos, place_photo_url
+from .services.photo_service import attach_photos, get_photo, place_photo_url
+from .services.review_rank import review_stats
 from .services import festival_service
 from .services import region_photo_service
 from .services import hours_service
@@ -1396,6 +1397,92 @@ def travel_hours(request, travel_id, day):
 def _time_minutes(value):
     """TimeField 값 → 분 (없으면 None)"""
     return value.hour * 60 + value.minute if value else None
+
+
+# =========================================================
+# 일정을 고칠 때도 운영시간 검사 (🟩 11/11, 3주차)
+# 고치기 전 문제 목록 → 고친 뒤 목록 → 새로 생긴 문제가 있으면 되돌림
+# 이미 있던 문제는 막지 않음 (다른 수정이 막히지 않게)
+# =========================================================
+
+HOURS_BLOCK_STATUS = ('closed', 'early', 'late')   # 휴무 · 문 열기 전 · 마감 직전 도착
+
+
+def _same_title(a, b):
+    a, b = (a or '').replace(' ', ''), (b or '').replace(' ', '')
+    return bool(a and b) and (a in b or b in a)
+
+
+def _day_hours_problems(schedule):
+    """그날 장소마다 운영시간 문제 → {place_id: {name, status, message}} (문제없는 곳은 빠짐)"""
+    sps = list(
+        SchedulePlace.objects.filter(schedule=schedule)
+        .select_related('place').order_by('visit_order', 'sp_id')
+    )
+    if not sps:
+        return {}
+
+    try:
+        hours = hours_service.schedule_hours(sps, schedule.s_day)
+    except Exception:
+        logger.warning('운영시간 검사 실패 schedule=%s', schedule.s_id, exc_info=True)
+        hours = {}
+
+    try:
+        festivals = festival_service.festivals_for_travel(schedule.travel, [sp.place for sp in sps])
+    except Exception:
+        logger.warning('축제 기간 검사 실패 schedule=%s', schedule.s_id, exc_info=True)
+        festivals = []
+
+    problems = {}
+    for sp in sps:
+        place = sp.place
+        info = hours.get(sp.sp_id)
+        fit = hours_service.fit_stay(place.p_kind, info, _time_minutes(sp.arrive_time), sp.stay_time)
+
+        if fit['status'] in HOURS_BLOCK_STATUS:
+            message = fit['message']
+            if fit['status'] == 'early':
+                message = '%s에 문을 열어요 · 늦게 도착하게 옮겨 보세요' % (info or {}).get('open', '')
+            problems[place.p_id] = {'name': place.p_name, 'status': fit['status'], 'message': message}
+            continue
+
+        # 축제·행사: 이름이 같은 행사 기간 밖이면
+        for fest in festivals:
+            if not _same_title(fest.get('title'), place.p_name):
+                continue
+            day = schedule.s_day.isoformat()
+            if not (fest['start'] <= day <= fest['end']):
+                problems[place.p_id] = {
+                    'name': place.p_name, 'status': 'festival',
+                    'message': '행사 기간(%s~%s)이 아니에요' % (fest['start'][5:].replace('-', '/'), fest['end'][5:].replace('-', '/')),
+                }
+            break
+
+    return problems
+
+
+def _new_hours_problems(before, after):
+    """고친 뒤 새로 생긴 문제만 (같은 장소라도 문제 종류가 바뀌면 새 문제)"""
+    return [
+        info for place_id, info in after.items()
+        if place_id not in before or before[place_id]['status'] != info['status']
+    ]
+
+
+def _hours_blocked(problems):
+    """새 문제 때문에 되돌렸을 때 답 (400). hours_problems 는 추가 키"""
+    first = problems[0]
+    return JsonResponse({
+        'success': False,
+        'message': '%s: %s · 바꾸기 전으로 되돌렸어요' % (first['name'], first['message']),
+        'hours_problems': problems,
+    }, status=400)
+
+
+def _check_hours(request):
+    """ignore_hours=1 이면 검사 안 함 (화면에서 '그래도 바꾸기'용)"""
+    return request.POST.get('ignore_hours') not in ('1', 'true')
 
 
 # 여행 상세 '운영시간에 맞추기' 버튼 (🟦 hours_service.fit_stay, 11/06 결정)
@@ -3399,24 +3486,37 @@ def schedule_place_add(request):
         + timedelta(minutes=stay_time)
     ).time()
 
-    schedule_place = SchedulePlace.objects.create(
-        schedule=schedule,
-        place=place,
-        visit_order=visit_order,
-        stay_time=stay_time,
-        arrive_time=arrival,
-        start_time=start_time,
-    )
+    # 운영시간 검사 (🟩 11/11): 넣기 전 문제 → 넣고 다시 계산 → 새 문제면 되돌림
+    before = _day_hours_problems(schedule) if _check_hours(request) else None
+    blocked = []
 
-    # 새 장소도 방문시간 기준으로 전체 DAY 순서를 다시 정렬한다.
-    reorder_schedule_places_by_time(schedule)
+    with transaction.atomic():
+        schedule_place = SchedulePlace.objects.create(
+            schedule=schedule,
+            place=place,
+            visit_order=visit_order,
+            stay_time=stay_time,
+            arrive_time=arrival,
+            start_time=start_time,
+        )
 
-    # 새 장소를 기준으로 이후 일정의 이동시간 / 방문시간 / 출발시간을
-    # 연쇄적으로 다시 계산한다.
-    recalculate_schedule_timeline(
-        schedule,
-        anchor_sp_id=schedule_place.sp_id
-    )
+        # 새 장소도 방문시간 기준으로 전체 DAY 순서를 다시 정렬한다.
+        reorder_schedule_places_by_time(schedule)
+
+        # 새 장소를 기준으로 이후 일정의 이동시간 / 방문시간 / 출발시간을
+        # 연쇄적으로 다시 계산한다.
+        recalculate_schedule_timeline(
+            schedule,
+            anchor_sp_id=schedule_place.sp_id
+        )
+
+        if before is not None:
+            blocked = _new_hours_problems(before, _day_hours_problems(schedule))
+            if blocked:
+                transaction.set_rollback(True)
+
+    if blocked:
+        return _hours_blocked(blocked)
 
     schedule_place.refresh_from_db(
         fields=[
@@ -3598,8 +3698,21 @@ def schedule_place_reorder(request):
     if first_arrival:
         ordered[0].arrive_time = first_arrival
 
-    SchedulePlace.objects.bulk_update(ordered, ['visit_order', 'arrive_time'])
-    recalculate_schedule_timeline(schedule)
+    # 운영시간 검사 (🟩 11/11): 바꾼 순서로 새 문제가 생기면 되돌림
+    before = _day_hours_problems(schedule) if _check_hours(request) else None
+    blocked = []
+
+    with transaction.atomic():
+        SchedulePlace.objects.bulk_update(ordered, ['visit_order', 'arrive_time'])
+        recalculate_schedule_timeline(schedule)
+
+        if before is not None:
+            blocked = _new_hours_problems(before, _day_hours_problems(schedule))
+            if blocked:
+                transaction.set_rollback(True)
+
+    if blocked:
+        return _hours_blocked(blocked)
 
     return JsonResponse({'success': True, 'message': '순서를 바꿨습니다.'})
 
@@ -3716,30 +3829,43 @@ def schedule_place_time_update(request):
         schedule_place.start_time = start_datetime.time()
         update_fields.append('start_time')
 
-    schedule_place.save(
-        update_fields=list(dict.fromkeys(update_fields))
-    )
+    # 운영시간 검사 (🟩 11/11): 저장 전 DB 그대로의 문제 목록
+    before = _day_hours_problems(schedule) if _check_hours(request) else None
+    blocked = []
 
-    # ==========================================
-    # 방문시간이 변경되면 같은 DAY 전체를 시간순 재정렬
-    # ==========================================
-    if arrival_changed:
-        reorder_schedule_places_by_time(
-            schedule
+    with transaction.atomic():
+        schedule_place.save(
+            update_fields=list(dict.fromkeys(update_fields))
         )
 
-    # ==========================================
-    # 수정한 장소를 기준으로 뒤쪽 일정 연쇄 재계산
-    #
-    # - 현재 장소 출발시간 = 방문시간 + 체류시간
-    # - 다음 장소 이동시간 = 새 방문순서 기준 실제 경로시간
-    # - 다음 장소 방문시간 = 이전 출발시간 + 이동시간
-    # - 다음 장소 출발시간 = 방문시간 + 체류시간
-    # ==========================================
-    recalculate_schedule_timeline(
-        schedule,
-        anchor_sp_id=schedule_place.sp_id
-    )
+        # ==========================================
+        # 방문시간이 변경되면 같은 DAY 전체를 시간순 재정렬
+        # ==========================================
+        if arrival_changed:
+            reorder_schedule_places_by_time(
+                schedule
+            )
+
+        # ==========================================
+        # 수정한 장소를 기준으로 뒤쪽 일정 연쇄 재계산
+        #
+        # - 현재 장소 출발시간 = 방문시간 + 체류시간
+        # - 다음 장소 이동시간 = 새 방문순서 기준 실제 경로시간
+        # - 다음 장소 방문시간 = 이전 출발시간 + 이동시간
+        # - 다음 장소 출발시간 = 방문시간 + 체류시간
+        # ==========================================
+        recalculate_schedule_timeline(
+            schedule,
+            anchor_sp_id=schedule_place.sp_id
+        )
+
+        if before is not None:
+            blocked = _new_hours_problems(before, _day_hours_problems(schedule))
+            if blocked:
+                transaction.set_rollback(True)
+
+    if blocked:
+        return _hours_blocked(blocked)
 
     schedule_place.refresh_from_db(
         fields=[
@@ -5073,6 +5199,65 @@ def api_chat(request):
         return _chat_error('로그인이 필요해요.', 401, login=True)
     data = _read_mock()
     return JsonResponse(data, json_dumps_params={'ensure_ascii': False})
+
+
+# 장소 정보 한 번에 (🟩 11/11, 3주차): GET /api/place_info/?kakao_id=...(&name=&addr=&kind=&lat=&lon=&date=YYYY-MM-DD)
+# → {success, kakao_id, name, addr, kind, lat, lon, photo: {url, source}|null,
+#    hours: {open, close, text, estimated, closed, rest}|null, review: {rating, count}|null, date}
+# 새 계산 없이 있던 함수만 모음: photo_service.get_photo · hours_service.place_hours · review_rank.review_stats
+def api_place_info(request):
+    kakao_id = (request.GET.get('kakao_id') or '').strip()
+    if not kakao_id:
+        return JsonResponse({'success': False, 'message': 'kakao_id가 필요해요.'})
+
+    # 이름·주소·좌표: 일정에 담긴 장소 → 리뷰에 적힌 이름 → 보낸 값 순서
+    place = Place.objects.filter(p_kakao_id=kakao_id).order_by('-p_id').first()
+    name = request.GET.get('name') or (place.p_name if place else '')
+    if not name:
+        name = (
+            Review.objects.filter(kakao_id=kakao_id).exclude(place_name='')
+            .values_list('place_name', flat=True).first() or ''
+        )
+    if not name:
+        return JsonResponse({'success': False, 'message': '장소 정보를 찾지 못했어요. name을 같이 보내 주세요.'})
+
+    addr = request.GET.get('addr') or (place.p_addr if place else '') or ''
+    kind = request.GET.get('kind') or (place.p_kind if place else '') or ''
+    lat = _float_or_none(request.GET.get('lat'))
+    lon = _float_or_none(request.GET.get('lon'))
+    if (lat is None or lon is None) and place and place.p_lat is not None and place.p_lon is not None:
+        lat, lon = float(place.p_lat), float(place.p_lon)
+
+    try:
+        day = datetime.strptime(request.GET.get('date') or '', '%Y-%m-%d').date()
+    except ValueError:
+        day = date.today()
+
+    try:
+        photo = get_photo(kakao_id, name, addr, lat, lon)
+    except Exception:
+        logger.warning('장소 사진 실패 %s', kakao_id, exc_info=True)
+        photo = None
+
+    try:
+        hours = hours_service.place_hours(name, kind, day, lat, lon, kakao_id)
+    except Exception:
+        logger.warning('장소 운영시간 실패 %s', kakao_id, exc_info=True)
+        hours = None
+
+    return JsonResponse({
+        'success': True,
+        'kakao_id': kakao_id,
+        'name': name,
+        'addr': addr,
+        'kind': kind,
+        'lat': lat,
+        'lon': lon,
+        'photo': photo,
+        'hours': {key: hours.get(key) for key in ('open', 'close', 'text', 'estimated', 'closed', 'rest')} if hours else None,
+        'review': review_stats([kakao_id]).get(kakao_id),
+        'date': day.isoformat(),
+    }, json_dumps_params={'ensure_ascii': False})
 
 
 def api_trip(request, trip_id):

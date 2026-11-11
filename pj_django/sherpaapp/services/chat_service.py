@@ -28,7 +28,7 @@ from langchain_openai import ChatOpenAI
 
 from .place_service import concept_plan, is_junk_kind, kakao_documents
 from .photo_service import attach_photos
-from .agent_tools import CHAT_TOOLS, rainy_note, trip_weather
+from .agent_tools import CHAT_TOOLS, TOOLS_BY_INTENT, rainy_note, trip_weather
 from .tour_service import REASON_LABELS, drop_closed
 from .indoor_service import indoor_first, is_indoor
 from .busan_spots import MAX_PICKS, NEAR_LIMIT_M, QUERY_CONCEPTS, pick_rows
@@ -2095,6 +2095,117 @@ def weather_from_tools(tool_log):
     return None
 
 
+# =========================================================
+# 질문 의도 나누기 (🟩 11/11, 수업 52일차 LangChain 라우팅)
+# 규칙으로 먼저 → 여러 개가 겹쳐 애매하면 LLM에 한 번만 묻기 → 의도에 맞는 도구만 넘김
+# =========================================================
+
+INTENTS = ('schedule', 'weather', 'info')
+
+# '비'는 '비용·비행기'와 헷갈리지 않게 뒤에 '와·오·소식'이 붙을 때만
+_WEATHER_RE = re.compile(
+    r'날씨|우산|기온|예보|미세먼지|더워|더울|추워|추울|'
+    r'비\s*(?:와|오|올|온|소식|예보)|비가\s*(?:와|오|올|온)|눈\s*(?:와|오|올)|눈이\s*(?:와|오|올)'
+)
+_INFO_RE = re.compile(
+    r'어때|어떤\s*곳|뭐야|뭐예요|뭔가요|무슨\s*곳|소개|유명해|볼거리|특징|역사가|입장료|주차|'
+    r'열어|여나요|여는지|쉬는\s*날|휴무|영업|몇\s*시까지|운영\s*시간'
+)
+_SCHEDULE_RE = re.compile(
+    r'일정|추천|짜\s*줘|만들어|여행\s*가|\d\s*박|박\s*\d|당일|출발|숙소|담아|넣어|빼\s*줘|바꿔|'
+    r'컨셉|명이서|혼자|둘이|인원|가고\s*싶|갈래|갈게'
+)
+_INTENT_RULES = (('schedule', _SCHEDULE_RE), ('weather', _WEATHER_RE), ('info', _INFO_RE))
+
+_INTENT_PROMPT = (
+    '여행 앱 사용자의 말이 무엇을 원하는지 하나만 골라 영어 한 단어로만 답해.\n'
+    'schedule: 여행 일정 만들기·고치기·장소 추천·숙소·인원·날짜\n'
+    'weather: 날씨·비·기온\n'
+    'info: 특정 장소나 여행지가 어떤 곳인지·운영시간·쉬는 날·입장료 같은 정보\n'
+    '답: schedule, weather, info 중 하나'
+)
+
+
+def intent_hits(text):
+    """규칙에 걸린 의도들 (순서: schedule, weather, info)"""
+    hits = [name for name, rule in _INTENT_RULES if rule.search(text or '')]
+    # '날씨 어때?' 처럼 날씨 말이 있으면 '어때'는 날씨를 묻는 것 → 정보는 뺌
+    if 'weather' in hits and 'info' in hits:
+        hits.remove('info')
+    return hits
+
+
+def classify_intent(text, llm=None):
+    """사용자 말 → (의도, 어떻게 정했는지 'rule'|'llm'|'default')
+
+    규칙이 하나만 걸리면 그것, 하나도 없으면 일정(지금 대화의 기본),
+    여러 개면 llm(call_llm)에 한 번 묻고, 못 물으면(시험용 가짜 AI 등) 일정
+    """
+    hits = intent_hits(text)
+    if len(hits) == 1:
+        return hits[0], 'rule'
+    if not hits:
+        return 'schedule', 'default'
+
+    if llm is not None:
+        try:
+            answer = llm([
+                {'role': 'system', 'content': _INTENT_PROMPT},
+                {'role': 'user', 'content': str(text)[:300]},
+            ])
+            word = re.search(r'schedule|weather|info', str(answer or '').lower())
+            if word:
+                return word.group(0), 'llm'
+        except ChatError:
+            logger.warning('의도 묻기 실패 → 일정으로', exc_info=True)
+
+    return 'schedule', 'default'
+
+
+# 정보 질문에서 장소 이름 읽기: '감천문화마을은 어떤 곳이야?' → '감천문화마을', '해동용궁사 주차 돼?' → '해동용궁사'
+_INFO_PLACE_RE = re.compile(
+    r'^(.+?)\s*(?:은|는|이|가|의|에|도)?\s*'
+    r'(?:어때|어떤|뭐|무슨|소개|유명|볼거리|특징|역사|입장료|주차|열어|여나|여는|쉬는|휴무|영업|몇\s*시|운영|가\s*볼\s*만)'
+)
+
+
+def guess_info_place(text):
+    """정보 질문의 장소 이름 (못 읽으면 None)"""
+    m = _INFO_PLACE_RE.search((text or '').strip())
+    if not m:
+        return None
+    place = m.group(1).strip()
+    # 뒤에 붙은 날짜 말 빼기: '부산박물관 월요일' → '부산박물관'
+    place = re.sub(r'\s+(?:[월화수목금토일]요일|오늘|내일|모레|주말|평일|이번\s*주|다음\s*주|\d+\s*일)\S*$', '', place)
+    place = re.sub(r'(은|는|이|가|의|에|도)$', '', place).strip()
+    return place if 2 <= len(place) <= 30 else None
+
+
+def _with_tour_context(ai_messages, text, tool_log):
+    """정보 질문이면 서버가 먼저 관광공사 근거(tour_rag)를 찾아 AI에게 같이 준다.
+    (모델이 도구를 안 부르고 지어내는 경우가 있어서 · 로컬 모델에서도 같게)"""
+    from .tour_rag import ask
+
+    place = guess_info_place(text)
+    try:
+        found = ask(text, place=place)
+    except Exception:
+        logger.warning('여행지 정보 근거 찾기 실패', exc_info=True)
+        return ai_messages
+
+    tool_log.append({'name': 'travel_info', 'args': {'place': place, 'question': text}, 'result': found})
+
+    if found['chunks']:
+        context = '\n'.join('- [%s] %s' % (c['name'], c['text']) for c in found['chunks'])
+        note = ('[한국관광공사 근거] 아래 글에 있는 내용으로만 reply를 쓰고, 글에 없는 내용은 '
+                '"관광공사 정보에는 그 내용이 없어요"라고 해. reply 끝에 (출처: 한국관광공사 · 장소 이름).\n' + context)
+    else:
+        note = ('[한국관광공사 근거] 관광공사 정보에서 %s을(를) 찾지 못했어. 지어내지 말고 '
+                '"관광공사 정보에는 없는 곳이에요"라고 reply에 써.' % (place or '그 장소'))
+
+    return ai_messages[:-1] + [{'role': 'system', 'content': note}] + ai_messages[-1:]
+
+
 def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile=None):
     today = today or date.today()
     llm = llm or call_llm
@@ -2112,8 +2223,15 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     tool_log = []
     ai_messages = [{'role': 'system', 'content': prompt}] + messages
 
+    # 질문 의도 → 그 의도에 맞는 도구만 (일정이면 지금과 같은 CHAT_TOOLS)
+    intent, intent_by = classify_intent(messages[-1]['content'], llm if llm is call_llm else None)
+    logger.info('질문 의도: %s (%s)', intent, intent_by)
+
+    if intent == 'info' and llm is call_llm:
+        ai_messages = _with_tour_context(ai_messages, messages[-1]['content'], tool_log)
+
     if llm is call_llm:
-        raw_text = llm(ai_messages, tools=CHAT_TOOLS, tool_log=tool_log)
+        raw_text = llm(ai_messages, tools=TOOLS_BY_INTENT.get(intent, CHAT_TOOLS), tool_log=tool_log)
     else:
         raw_text = llm(ai_messages)   # 시험용 가짜 AI
     result = _parse_json(raw_text)
@@ -2131,6 +2249,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
             'notes': [],
             'recommendation': None,
             'weather': None,
+            'intent': intent,
         }
 
     ai_draft = _keep_previous(result.get('draft'), prev)
@@ -2220,7 +2339,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         # 장소 이야기가 없는 말에도 AI가 앞의 추천을 다시 보내는 경우가 있었음 ("계산기 코드 짜줘" → 카페 카드)
         rec = None
 
-    if not rec:
+    if intent != 'schedule':
+        # 정보·날씨 질문에는 장소 카드를 붙이지 않는다 (🟩 11/11, '감천문화마을 어때?' → 카페 카드가 붙던 것)
+        rec = None
+    elif not rec:
         # AI가 추천 신호를 빠뜨렸어도, 사용자가 추천을 요청했다면 직접 조건을 읽는다
         rec = _guess_recommend(messages[-1]['content'])
         guessed = bool(rec)
@@ -2308,8 +2430,24 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     if new_draft.get('people'):
         reply = drop_people_questions(reply) or reply
 
+    # 여행지 정보 (🟩 11/11 RAG): 근거가 있으면 출처가 빠졌을 때 붙이고,
+    # 근거를 못 찾았으면 AI 답 대신 정해진 문장 (로컬 모델이 근거 없이 지어낸 적이 있어서)
+    if intent == 'info':
+        rag = [c['result'] for c in tool_log
+               if c.get('name') == 'travel_info' and isinstance(c.get('result'), dict)]
+        sources = [x.get('name') for r in rag for x in r.get('chunks') or [] if x.get('name')]
+        if sources and '출처' not in reply:
+            reply = '%s (출처: 한국관광공사 · %s)' % (reply, ', '.join(dict.fromkeys(sources)))
+        elif rag and not sources:
+            asked = rag[0].get('place') or '그 장소'
+            if rag[0].get('error'):
+                reply = '지금은 관광공사 정보를 불러올 수 없어요 (오늘 사용량 초과). 잠시 뒤에 다시 물어봐 주세요.'
+            else:
+                reply = "관광공사 정보에서 '%s'을(를) 찾지 못했어요. 장소 이름을 정확히 알려 주시면 다시 찾아볼게요." % asked
+
+    # 다음에 채울 칸 질문은 일정 대화에서만 (정보·날씨 질문 답 뒤에 '어디로 가세요?'가 붙지 않게)
     question = next_question(new_draft, category_names)
-    if question and not recommendation and '?' not in reply:
+    if question and not recommendation and '?' not in reply and intent == 'schedule':
         reply = '%s %s' % (reply, question)
 
     # 날씨: AI가 도구로 봤으면 그 결과, 아니면 지역·날짜가 이번에 정해지거나 바뀌었을 때 서버가 직접 본다
@@ -2323,6 +2461,26 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         note = rainy_note(weather, new_draft['start'])
         if note:
             notes.append(note)
+
+    # 날씨 질문이면 예보가 있을 때 답을 코드가 예보로 쓴다 (🟩 11/11)
+    # 로컬 모델이 비 예보를 '맑음'이라고 지어내거나 일정 안내만 한 적이 있어서, 날씨는 모델 문장에 맡기지 않음
+    if intent == 'weather':
+        if weather is None and all(trip_key(new_draft)):
+            weather = trip_weather(new_draft['place'], new_draft['start'], new_draft['end'],
+                                   new_draft.get('center')) or None
+        if weather:
+            days = ', '.join(
+                '%s %s%s' % (d['date'][5:].replace('-', '/'), d.get('label') or '?',
+                             ' %s℃' % d['temp'] if d.get('temp') is not None else '')
+                for d in weather
+            )
+            reply = '%s 날씨 예보예요: %s.' % (new_draft.get('place') or '여행지', days)
+            note = rainy_note(weather, new_draft.get('start'))
+            if note:
+                reply += ' ' + note
+                notes = [n for n in notes if n != note]   # 같은 안내가 두 번 나오지 않게
+        elif not re.search(r'맑|흐림|흐려|흐린|비가|비\s*(?:소식|예보)|눈이|기온|℃', reply):
+            reply = '여행 지역과 날짜를 알려 주시면 날씨를 찾아볼게요 (오늘부터 16일 안만 예보가 있어요).'
 
     missing = missing_fields(new_draft)
 
@@ -2338,6 +2496,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         'notes': notes,
         'recommendation': recommendation,
         'weather': weather,
+        'intent': intent,              # 🟩 11/11 질문 의도 schedule|weather|info (시험·화면 참고용, 추가 키)
     }
 
 

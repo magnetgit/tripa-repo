@@ -137,6 +137,12 @@ urlpatterns = [
         views.api_chat,
         name='api_chat'
     ),
+    # 장소 정보 한 번에 (🟩 11/11, mock.json place_info)
+    path(
+        'api/place_info/',
+        views.api_place_info,
+        name='api_place_info'
+    ),
     # API (mock.json 모양)
     path(
         'api/trips/<int:trip_id>/',
