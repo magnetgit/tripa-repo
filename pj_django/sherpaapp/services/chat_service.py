@@ -439,6 +439,8 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
         place['date'] = stay_date.isoformat()
         place['arrival_time'] = _clean_time(item.get('arrival_time'))
         place['departure_time'] = _clean_time(item.get('departure_time'))
+        # 그날 숙소에 들렀다(짐 두기) 다시 나갈 시각 — TravelDayPlan.checkin_time
+        place['checkin_time'] = _clean_time(item.get('checkin_time'))
 
         stays.append(place)
 
@@ -1261,6 +1263,7 @@ def _llm_view(draft):
                 'query': s.get('query'),
                 'arrival_time': s.get('arrival_time'),
                 'departure_time': s.get('departure_time'),
+                'checkin_time': s.get('checkin_time'),
             }
             for s in draft.get('stays') or []
         ],
@@ -1308,6 +1311,8 @@ def build_system_prompt(draft, category_names, today):
         "people은 여행 가는 사람 수(숫자)입니다. '혼자'는 1, '둘이서'·'커플'은 2입니다. 인원은 예상 비용을 1인 기준×인원으로 계산하는 데 쓰입니다.\n"
         "7. 숙소는 사용자가 알려준 것만 stays에 넣습니다. 숙소는 잠자는 밤마다 하나이고, 마지막 날은 집으로 돌아가므로 마지막 날에는 숙소를 넣지 않습니다(1박 2일이면 첫날 밤 숙소 하나만). date는 YYYY-MM-DD, query는 숙소 이름 또는 동네, "
         "arrival_time/departure_time은 HH:MM(모르면 null)입니다. 날짜가 정해진 뒤에만 넣을 수 있습니다. "
+        "checkin_time은 그날 숙소에 먼저 들러 체크인·짐을 두고 다시 나갈 시각(HH:MM)입니다. "
+        "사용자가 '3시에 체크인하고 다시 나갈래'처럼 말할 때만 넣고, 아니면 null로 둡니다(그때 arrival_time은 다시 들어오는 시각). "
         "사용자가 숙소를 추천해 달라고 하면 동네를 되묻지 말고 recommend의 query를 '숙소'로 채우세요(동네를 말했으면 near). "
         "추천받은 숙소는 사용자가 카드에서 직접 넣으니 stays에 지어 넣지 마세요.\n"
         "7-1. 도구: get_weather(place, start, end)로 날씨 예보를 볼 수 있습니다. "
@@ -1334,7 +1339,7 @@ def build_system_prompt(draft, category_names, today):
         '{"reply": "...", "draft": {"place": null, "title": null, "start": null, "end": null, '
         '"people": null, "budget_style": null, "budget_total": null, "transport": null, '
         '"categories": [], "start_time": null, "start_place_query": null, '
-        '"stays": [{"date": "YYYY-MM-DD", "query": "...", "arrival_time": null, "departure_time": null}]}, '
+        '"stays": [{"date": "YYYY-MM-DD", "query": "...", "arrival_time": null, "departure_time": null, "checkin_time": null}]}, '
         '"recommend": null}\n'
         "draft에는 이전 초안의 값을 유지하면서 이번 대화로 바뀐 부분만 갱신한 '전체 초안'을 적습니다. "
         "recommend 예시: {\"query\": \"카페\", \"near\": \"해운대\", \"day\": 2, \"time\": \"오후\", \"exclude\": []}\n\n"

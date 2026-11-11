@@ -15,7 +15,14 @@
                {"time": "11:00", "spot_id": 13, "name": "○○ 미술관", "kind": "문화시설",
                 "lat": 35.166, "lon": 129.136, "move_min": 30, "indoor": true, "cost": {"amount": 3000, "cat": "sight", "source": "tour"},
                 "photo": null,
-                "hours": {"open": "10:00", "close": "18:00", "estimated": false, "status": "ok", "wait": 0, "message": ""}}]}
+                "hours": {"open": "10:00", "close": "18:00", "estimated": false, "status": "ok", "wait": 0, "message": ""},
+                "stay_role": null},
+               {"time": "15:00", "spot_id": 20, "name": "○○ 게스트하우스", "kind": "숙박", "stay_role": "checkin",
+                "lat": 35.158, "lon": 129.160, "move_min": 25, "indoor": true, "photo": null, "hours": null,
+                "cost": {"amount": 90000, "cat": "stay", "source": "tour"}},
+               {"time": "21:30", "spot_id": 20, "name": "○○ 게스트하우스", "kind": "숙박", "stay_role": "return",
+                "lat": 35.158, "lon": 129.160, "move_min": 20, "indoor": true, "photo": null, "hours": null,
+                "cost": {"amount": 0, "cat": "stay", "source": "tour", "same_stay": true}}]}
   ]},
   "places": {"title": "해운대 근처 카페", "anchor": "해운대", "day": 2, "time": "오후",
              "weather": {"date": "2026-10-29", "kind": "rain", "label": "비", "rain_pct": 80},
