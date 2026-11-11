@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=8">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=9">
 </head>
 
 <body>
@@ -112,6 +112,8 @@
         </ul>
 
         <dl class="pp-stats">
+            <div><dt>전체 여행</dt><dd>{{ record.travel_count }}개</dd></div>
+            <div><dt>총예산 합계</dt><dd>{{ record.total_budget }}원</dd></div>
             <div><dt>총 지출</dt><dd>{{ record.total_spend }}원</dd></div>
             <div><dt>여행당 평균 지출</dt><dd>{{ record.avg_spend }}원</dd></div>
             <div><dt>여행당 평균 예산</dt><dd>{{ record.avg_budget }}원</dd></div>
@@ -124,6 +126,29 @@
                 <dd>{% if record.top_concept %}{{ record.top_concept }} <small>{{ record.top_concept_count }}번</small>{% else %}아직 없어요{% endif %}</dd>
             </div>
         </dl>
+
+        {# 지역별 여행 (지역마다 COUNT·SUM·AVG = GROUP BY, 여행 수 많은 순 6곳) #}
+        {% if record.regions %}
+        <h3 class="pp-region-title">지역별 여행 <em>/ By Region</em></h3>
+        <table class="pp-regions">
+            <thead>
+                <tr><th scope="col">지역</th><th scope="col">여행</th><th scope="col">총예산</th><th scope="col">평균 예산</th></tr>
+            </thead>
+            <tbody>
+                {% for r in record.regions %}
+                <tr>
+                    <th scope="row">{{ r.place }}</th>
+                    <td class="pp-regions__count">
+                        <span class="pp-regions__bar" style="width: {{ r.bar }}%"></span>
+                        <b>{{ r.count }}번</b>
+                    </td>
+                    <td>{{ r.budget }}원</td>
+                    <td>{{ r.avg }}원</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
     </section>
 
     <!-- 여권 맨 아래 기계 판독 줄 (꾸밈) -->
