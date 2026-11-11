@@ -1,6 +1,6 @@
 """데모 데이터 만들기 (발표 시연 · 추천 점수 · 리뷰 게시판 시험용)
 
-    python manage.py seed_demo              # 데모 회원 80명 + 여행·일정·리뷰·도움돼요·공유 루트·예산
+    python manage.py seed_demo              # 데모 회원 80명 + 여행·일정·리뷰·도움돼요·공유 루트·예산·고친 비용
     python manage.py seed_demo --reset      # 데모 데이터만 지우고 다시 만들기
     python manage.py seed_demo --clear      # 데모 데이터만 지우기 (만들지 않음)
     python manage.py seed_demo --members 30 --seed 7
@@ -14,7 +14,9 @@
 - 장소는 docs/data/busan_spots_draft.csv (팀이 고른 부산 장소, 실제 카카오 장소 번호).
   그래서 채팅 추천 카드에도 데모 리뷰 별점이 붙고, 같은 성별·나이대 가중이 보여요.
 - 같은 --seed 값이면 언제나 같은 데이터가 나와요 (발표 화면을 미리 맞춰 둘 수 있게).
-- 데모 회원이 아닌 데이터는 건드리지 않아요. 지울 때도 demo_ 회원과 그 회원의 여행·리뷰만 지워요.
+- 다녀온 여행의 일부는 회원이 비용 관리에서 장소 금액을 고친 것처럼 travel_budget_item 을 넣어요.
+  DB 트리거가 budget_log 를 남기고, 기록 시각은 그 여행 날짜 근처로 옮겨요 (대시보드 '장소별 비용' · 날짜별 추이).
+- 데모 회원이 아닌 데이터는 건드리지 않아요. 지울 때도 demo_ 회원과 그 회원의 여행·리뷰·비용 기록만 지워요.
 
 새 기능에 데이터가 더 필요하면: 아래 make_* 함수를 하나 더 만들고 handle()의 순서 목록에 한 줄 추가하면 돼요.
 """
@@ -30,8 +32,8 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from sherpaapp.models import (
-    AVATAR_CHOICES, Category, Member, Place, Review, ReviewHelpful, RouteComment, RouteRating,
-    Schedule, SchedulePlace, SharedRoute, Travel, TravelBudget, TravelCategory,
+    AVATAR_CHOICES, BudgetLog, Category, Member, Place, Review, ReviewHelpful, RouteComment, RouteRating,
+    Schedule, SchedulePlace, SharedRoute, Travel, TravelBudget, TravelBudgetItem, TravelCategory,
 )
 
 DEMO_PREFIX = 'demo_'
@@ -230,11 +232,12 @@ class Command(BaseCommand):
             helpfuls = make_helpfuls(rnd, members, reviews)
             routes = make_routes(rnd, members, travels)
             budgets = make_budgets(rnd, travels)
+            edited = make_budget_items(rnd, travels)
 
         summaries = make_summaries(reviews) if opts['summaries'] else 0
         self.stdout.write(self.style.SUCCESS(
             f'데모 데이터: 회원 {len(members)} · 여행 {len(travels)} · 리뷰 {len(reviews)} · 도움돼요 {helpfuls} · '
-            f'공유 루트 {routes} · 예산 {budgets}' + (f' · AI 요약 {summaries}' if opts['summaries'] else '')))
+            f'공유 루트 {routes} · 예산 {budgets} · 고친 비용 {edited}' + (f' · AI 요약 {summaries}' if opts['summaries'] else '')))
         self.stdout.write(f'로그인: {DEMO_PREFIX}01 (20대 여성), {DEMO_PREFIX}02 (40대 남성) / 비밀번호는 이 파일의 DEMO_PASSWORD')
 
 
@@ -245,7 +248,10 @@ def clear_demo():
     """demo_ 회원을 지우면 그 회원의 여행·일정·장소·리뷰·도움돼요·공유 루트·예산이 같이 지워진다 (CASCADE)."""
     qs = Member.objects.filter(user_id__startswith=DEMO_PREFIX)
     n = qs.count()
+    travel_ids = list(Travel.objects.filter(member__in=qs).values_list('t_id', flat=True))
     qs.delete()
+    # budget_log 는 여행과 연결(FK)이 없어서 따로 지움 (지울 때 트리거가 남긴 'delete' 줄까지)
+    BudgetLog.objects.filter(travel_id__in=travel_ids).delete()
     return n
 
 
@@ -492,6 +498,44 @@ def make_budgets(rnd, travels):
             rows.append(TravelBudget(travel=t, category=cat, amount=amount))
     TravelBudget.objects.bulk_create(rows)
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# 고친 비용 — 회원이 비용 관리에서 장소 금액을 직접 고친 것처럼 (대시보드 '장소별 비용')
+# ---------------------------------------------------------------------------
+# 컨셉별 1인 금액 범위(원). 바다·자연·공원·역사는 대개 무료라 거의 안 고침
+PAY_PER_PERSON = {
+    '음식': (12000, 28000), '카페': (6000, 11000), '쇼핑': (10000, 40000),
+    '전통문화': (5000, 20000), '랜드마크': (3000, 27000), '역사': (0, 5000),
+}
+
+
+def make_budget_items(rnd, travels):
+    """다녀온 여행의 60%에서 장소 2~4곳 금액을 넣고, 그중 일부는 한 번 더 고친다.
+    INSERT·UPDATE 때 DB 트리거(0018)가 budget_log 를 남기고, 그 기록 시각을 여행 날짜 근처로 옮긴다."""
+    today = date.today()
+    count = 0
+    for t in travels:
+        if t.t_end >= today or rnd.random() > .6:
+            continue
+        people = COMPANIONS[t.demo_with][1]
+        sps = [sp for sp in SchedulePlace.objects.filter(schedule__travel=t).select_related('place')
+               if sp.place.p_kind in PAY_PER_PERSON]
+        for sp in rnd.sample(sps, min(len(sps), rnd.randint(2, 4))):
+            low, high = PAY_PER_PERSON[sp.place.p_kind]
+            amount = rnd.randint(low, high) * people // 1000 * 1000
+            item = TravelBudgetItem.objects.create(travel=t, schedule_place=sp, amount=amount)
+            if rnd.random() < .35:                       # 다녀와서 실제 쓴 돈으로 한 번 더 고침
+                item.amount = max(0, int(amount * rnd.uniform(.7, 1.3)) // 1000 * 1000)
+                item.save(update_fields=['amount', 'updated_at'])
+            count += 1
+        # 트리거는 NOW() 로 남기니, 여행 준비(출발 전)·다녀온 뒤 날짜로 옮김
+        for log in BudgetLog.objects.filter(travel_id=t.t_id):
+            day = (t.t_start - timedelta(days=rnd.randint(1, 5)) if log.action == 'insert'
+                   else t.t_end + timedelta(days=rnd.randint(0, 3)))
+            log.changed_at = datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59)))
+            log.save(update_fields=['changed_at'])
+    return count
 
 
 # ---------------------------------------------------------------------------
