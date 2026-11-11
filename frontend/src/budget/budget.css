@@ -108,3 +108,20 @@
 .cb-items__sum { margin: 8px 0 0; font-size: 12.5px; font-weight: 700; color: var(--cb-ink); }
 .cb-items__sum span { font-weight: 400; color: var(--cb-sub); }
 @media (max-width: 640px) { .cb-items li { flex-wrap: wrap; } .cb-items__info { flex-basis: 100%; } }
+
+/* 예산 최근 변경 (budget_log) */
+.cb-log__list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.cb-log__row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 7px 2px; border-top: 1px dashed #e6ebf3; font-size: 13.5px;
+}
+.cb-log__row:first-child { border-top: 0; }
+.cb-log__text { min-width: 0; overflow-wrap: anywhere; }
+.cb-log__text b { color: var(--cb-ink); }
+.cb-log__at { flex: 0 0 auto; color: var(--cb-sub); font-size: 12px; font-variant-numeric: tabular-nums; }
+.cb-log__diff { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11.5px; font-weight: 800; }
+.cb-log__diff.is-up { background: #fff1f1; color: #d93a3f; }
+.cb-log__diff.is-down { background: #edf4ff; color: #2d6cdf; }
+.cb-log__row.is-delete .cb-log__text { color: var(--cb-sub); }
+.cb-log__note { font-size: 12px; color: var(--cb-sub); }
+.cb-log__empty { margin: 0; font-size: 13px; color: var(--cb-sub); }

@@ -361,7 +361,7 @@
     if (cost && cost.same_stay) return '숙박비는 체크인 줄에';   // 같은 날 같은 숙소 두 번째 줄 (금액 0)
     if (!cost || cost.per == null) return '';
     var n = peopleCount();
-    var tag = cost.source === 'tour' ? '관광공사 요금' : '보통 가격 예상';
+    var tag = cost.source === 'tour' ? '관광공사 요금' : cost.source === 'ai' ? 'AI 예상' : '보통 가격 예상';
     if (cost.unit === 'room') {
       var rooms = roomCount(cost, n);
       return '1박 방 ' + won(cost.per) + (rooms > 1 ? ' × ' + rooms + '개' : '') +

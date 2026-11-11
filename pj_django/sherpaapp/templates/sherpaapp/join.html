@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=9">
 </head>
 
 <body class="auth-page--join auth-ticket">
@@ -108,7 +108,8 @@
                         <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
                     </svg>
                     <input id="pwd" name="pwd" type="password" placeholder="비밀번호"
-                           autocomplete="new-password" oninput="checkPassword()">
+                           autocomplete="new-password" maxlength="30" aria-describedby="pwRules"
+                           oninput="checkPassword()">
                     <button type="button" class="pw-toggle" data-target="pwd" aria-label="비밀번호 보기" aria-pressed="false">
                         <svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                         <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
@@ -122,6 +123,16 @@
                            autocomplete="new-password" aria-label="비밀번호 확인" oninput="checkPassword()">
                 </div>
             </div>
+            <!-- 비밀번호 규칙: 적는 동안 하나씩 ✓/✕ (서버 password_problem 과 같은 규칙, 🟧 #80) -->
+            <ul id="pwRules" class="pw-rules" aria-label="비밀번호 규칙">
+                <li data-rule="len">8~30자</li>
+                <li data-rule="upper">영문 대문자</li>
+                <li data-rule="lower">영문 소문자</li>
+                <li data-rule="special">특수문자 (!@# 등)</li>
+                <li data-rule="space">띄어쓰기 없음</li>
+                <li data-rule="repeat">같은 글자 3번 연속 X</li>
+                <li data-rule="noid">아이디 넣지 않기</li>
+            </ul>
             <span id="pwd-msg" class="field-msg" aria-live="polite"></span>
         </div>
 
@@ -143,8 +154,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>
                 </svg>
-                <input id="nickname" name="nickname" type="text" placeholder="여행에서 불릴 이름" autocomplete="nickname">
+                <input id="nickname" name="nickname" type="text" placeholder="여행에서 불릴 이름 (2~10자)"
+                       autocomplete="nickname" maxlength="10" oninput="checkNickname()">
             </div>
+            <span id="nick-msg" class="field-msg" aria-live="polite"></span>
         </div>
 
         <!-- 프로필 캐릭터 (선택): 안 고르면 서버에서 랜덤으로 정함 -->
@@ -252,6 +265,7 @@
         idChecked = false;
         checkedId = "";
         setMsg("id-msg", "");
+        updatePwRules();   // '아이디 넣지 않기' 규칙도 다시 봄
     }
 
     // 아이디 중복확인 (주소 이름은 예전 그대로 check_email, 보내는 값은 user_id)
@@ -283,8 +297,51 @@
             });
     }
 
-    // 비밀번호 일치 확인
+    // 비밀번호 규칙 (서버 views.password_problem 과 같은 순서·같은 문장, 🟧 #80)
+    // [규칙 이름, 지키면 true 인지 보는 함수, 안 지켰을 때 서버와 같은 안내]
+    const PW_RULES = [
+        ["len", function (p) { return p.length >= 8 && p.length <= 30; }, "비밀번호는 8~30자로 정해 주세요."],
+        ["space", function (p) { return !/\s/.test(p); }, "비밀번호에 공백(띄어쓰기)은 넣을 수 없어요."],
+        ["upper", function (p) { return /[A-Z]/.test(p); }, "비밀번호에 영문 대문자를 하나 이상 넣어 주세요."],
+        ["lower", function (p) { return /[a-z]/.test(p); }, "비밀번호에 영문 소문자를 하나 이상 넣어 주세요."],
+        ["special", function (p) { return /[^A-Za-z0-9]/.test(p); }, "비밀번호에 특수문자(!@# 등)를 하나 이상 넣어 주세요."],
+        ["repeat", function (p) { return !/(.)\1\1/.test(p); }, "같은 글자를 3번 연속으로 쓸 수 없어요."],
+        ["noid", function (p, id) { return !id || !p.toLowerCase().includes(id.toLowerCase()); }, "비밀번호에 아이디를 넣을 수 없어요."]
+    ];
+
+    // 지키지 않은 첫 규칙의 안내 (다 지키면 "")
+    function passwordProblem(pwd, userId) {
+        const bad = PW_RULES.find(function (rule) { return !rule[1](pwd, userId); });
+        return bad ? bad[2] : "";
+    }
+
+    // 적는 동안 규칙마다 ✓(is-ok) / ✕(is-bad). 아직 아무것도 안 적었으면 회색
+    function updatePwRules() {
+        const pwd = document.getElementById("pwd").value;
+        const userId = document.getElementById("user_id").value.trim();
+        PW_RULES.forEach(function (rule) {
+            const li = document.querySelector('#pwRules [data-rule="' + rule[0] + '"]');
+            const ok = rule[1](pwd, userId);
+            li.classList.toggle("is-ok", !!pwd && ok);
+            li.classList.toggle("is-bad", !!pwd && !ok);
+        });
+    }
+
+    // 닉네임: 앞뒤 공백 빼고 2~10자 (서버 nickname_problem 과 같음)
+    function checkNickname() {
+        const n = document.getElementById("nickname").value.trim().length;
+        if (!n) {
+            setMsg("nick-msg", "");
+        } else if (n < 2) {
+            setMsg("nick-msg", "✕ " + n + "/10자 · 2자 이상 적어 주세요.", false);
+        } else {
+            setMsg("nick-msg", "✓ " + n + "/10자", true);
+        }
+    }
+
+    // 비밀번호 일치 확인 + 규칙 표시
     function checkPassword() {
+        updatePwRules();
         const pwd = document.getElementById("pwd").value;
         const pwdConfirm = document.getElementById("pwd_confirm").value;
 
@@ -308,11 +365,15 @@
         if (!email) return showError(f.email, "이메일을 입력해 주세요.");
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError(f.email, "이메일 형식이 올바르지 않아요. (예: example@tripa.com)");
         if (!f.pwd.value) return showError(f.pwd, "비밀번호를 입력해 주세요.");
+        const pwProblem = passwordProblem(f.pwd.value, userId);
+        if (pwProblem) return showError(f.pwd, pwProblem);
         if (f.pwd.value !== document.getElementById("pwd_confirm").value) {
             return showError(document.getElementById("pwd_confirm"), "비밀번호가 일치하지 않습니다.");
         }
         if (!f.name.value.trim()) return showError(f.name, "이름을 입력해 주세요.");
         if (!f.nickname.value.trim()) return showError(f.nickname, "닉네임을 입력해 주세요.");
+        const nickLen = f.nickname.value.trim().length;
+        if (nickLen < 2 || nickLen > 10) return showError(f.nickname, "닉네임은 2~10자로 정해 주세요.");
 
         // 성별·나이대를 골랐다면 [선택] 동의가 있어야 저장할 수 있음
         const agree = document.getElementById("agreeProfile");
