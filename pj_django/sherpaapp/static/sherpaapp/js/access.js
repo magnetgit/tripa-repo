@@ -206,9 +206,57 @@
                     <span>${hm(l.minutes)}${detail ? " · " + esc(detail) : ""}</span></div>
             </li>`;
         }).join("");
-        return `<div class="ac-legs${back ? " ac-legs--back" : ""}">
-            <div class="ac-legs__title">${title}<small>${fare ? won(fare) : ""}</small></div><ol>${rows}</ol></div>`;
+        const which = back ? "back" : "go";
+        const folded = isFolded(which);
+        const first = legs[0] || {};
+        const last = legs[legs.length - 1] || {};
+        const summary = legs.map(function (l) { return (ICON[l.mode] || "") + " " + l.label; }).join(" › ")
+            + ` · ${first.depart || ""} → ${last.arrive || ""}`;
+        const foot = !back && route && route.ready && route.arrive
+            ? `<p class="ac-legs__foot">${esc(route.ready)}부터 ${esc(route.arrive.name)}에서 아래 일정 길안내를 시작해요.</p>`
+            : "";
+        return `<div class="ac-legs${back ? " ac-legs--back" : ""}${folded ? " is-folded" : ""}" data-which="${which}">
+            <button type="button" class="ac-legs__title" aria-expanded="${folded ? "false" : "true"}">
+                <span>${title}</span>
+                <small>${fare ? won(fare) + " · " : ""}<span class="ac-legs__fold">${folded ? "펼치기 ▾" : "접기 ▴"}</span></small>
+            </button>
+            <p class="ac-legs__summary">${esc(summary)}</p>
+            <ol>${rows}</ol>${foot}</div>`;
     }
+
+    // 접은 상태는 이 브라우저에만 기억 (여행·가는 길/오는 길마다)
+    function foldKey(which) {
+        return `ac-legs-folded:${travelId}:${which}`;
+    }
+
+    function isFolded(which) {
+        try {
+            return window.localStorage.getItem(foldKey(which)) === "1";
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function setFolded(which, folded) {
+        try {
+            window.localStorage.setItem(foldKey(which), folded ? "1" : "0");
+        } catch (e) {
+            /* 저장이 막혀 있어도 화면은 바꿈 */
+        }
+    }
+
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".ac-legs__title");
+        if (!btn) {
+            return;
+        }
+        const box = btn.closest(".ac-legs");
+        const folded = !box.classList.contains("is-folded");
+        box.classList.toggle("is-folded", folded);
+        btn.setAttribute("aria-expanded", folded ? "false" : "true");
+        btn.querySelector(".ac-legs__fold").textContent = folded ? "펼치기 ▾" : "접기 ▴";
+        setFolded(box.dataset.which, folded);
+    });
 
     function renderDayLegs(day) {
         const box = document.getElementById("timelineContainer");
