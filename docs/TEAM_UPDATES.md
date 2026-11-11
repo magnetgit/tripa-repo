@@ -10,6 +10,60 @@
 
 ---
 
+## 2026-11-11 · 3주차 🟩 마무리: 일정 고칠 때 운영시간 검사 · 장소 정보 API · 질문 의도 나누기 · 여행지 정보 RAG · 로컬 LLM 시험 — 🟩 서지윤
+DB·마이그레이션·`.env` 변경 없음 · 기존 응답 키·함수 이름 그대로, **추가만** · 새 파일 `services/tour_rag.py`, `management/commands/index_tour.py` · `mock.json`에 `place_info`·`hours_blocked`·`chat_intent`
+
+### 1. 일정을 고칠 때도 운영시간 검사 (`views.py`)
+- `schedule_place_add`·`schedule_place_reorder`·`schedule_place_time_update`: 고치기 전 그날 문제 목록 → `transaction.atomic()` 안에서 고치고 다시 계산 → **새로 생긴 문제**가 있으면 되돌리고 400
+  - 문제 = 휴무(`closed`) · 문 열기 전 도착(`early`) · 마감 직전 도착(`late`) · 행사 기간 밖(`festival`, 축제 이름이 같은 곳)
+  - 이미 있던 문제는 막지 않아요 (다른 수정이 막히지 않게). 마감을 조금 넘는 체류는 '운영시간에 맞추기' 버튼 몫이라 안 막아요
+  - 답: `{success: false, message: "장소: 이유 · 바꾸기 전으로 되돌렸어요", hours_problems: [{name, status, message}]}` (추가 키)
+  - POST에 `ignore_hours=1` → 검사 안 함 (화면에 "그래도 바꾸기" 버튼을 만들 때)
+- 공통 함수: `_day_hours_problems(schedule)` · `_new_hours_problems(before, after)` (🟦 `hours_service.fit_stay`·`schedule_hours` 그대로 씀)
+
+### 2. 장소 정보 API `GET /api/place_info/?kakao_id=…`
+- 이름·주소·종류·좌표 + 사진(`photo_service.get_photo`) + 운영시간(`hours_service.place_hours`, `&date=` 없으면 오늘) + 리뷰 별점(`review_rank.review_stats`) 한 번에. 새 계산 없음
+- 일정에 담긴 장소(`Place.p_kakao_id`) → 리뷰의 장소 이름 순서로 찾고, 처음 보는 장소는 `&name=&lat=&lon=`을 같이 보내면 돼요. 못 찾으면 `success: false` (404 아님)
+
+### 3. AI 질문 의도 나누기 (`chat_service.classify_intent`, 수업 52일차 라우팅)
+- 규칙 먼저: 날씨·비 와·우산 → `weather` / 어때·어떤 곳·입장료·주차·열어 → `info` / 일정·추천·N박·숙소·인원 → `schedule` / 아무것도 없으면 `schedule`
+- 여러 개가 걸려 애매하면 LLM에 한 번만 물어 하나 고름 (`'날씨 어때?'`는 날씨로)
+- 의도별 도구만 넘김: `agent_tools.TOOLS_BY_INTENT` (`schedule` = 지금 `CHAT_TOOLS` 그대로, `weather` = 날씨, `info` = 여행지 정보·쉬는 날)
+- 채팅 응답에 `intent` **추가**. 정보·날씨 답 뒤에는 "어느 지역으로 가세요?" 같은 다음 질문·장소 카드를 안 붙여요 (일정 대화는 지금과 같음)
+- 날씨 질문은 예보가 있으면 답을 코드가 예보로 써요 (모델이 지어내지 않게, 아래 5번)
+- 질문 12개 의도 12/12
+
+### 4. 여행지 정보 RAG (`services/tour_rag.py`, 수업 49·50일차, 🟧 `embed_service` 그대로)
+- 관광공사 소개글(`detailCommon2` overview) + 이용 안내(`detailIntro2` 이용시간·쉬는 날·요금·주차)를 300~500자 조각 → `save_chunks('tour', contentid, 조각, meta={name, addr, source})`
+- 정보 질문이면 서버가 먼저 장소 이름을 읽어(`guess_info_place`, '해동용궁사 주차 돼?' → 해동용궁사) 그 장소 조각 3개를 찾아 AI에게 근거로 줌 → 근거에 없는 건 "관광공사 정보에는 그 내용이 없어요", 답 끝에 `(출처: 한국관광공사 · 장소)`
+  - 모델이 도구를 안 부르고 지어내는 경우가 있어서 서버가 먼저 찾아요 (로컬 모델도 같게). 에이전트 도구 `agent_tools.travel_info`도 있어요
+  - 안 넣은 장소도 처음 물을 때 그 자리에서 넣어요
+- 미리 넣기: `python manage.py index_tour` (부산 장소 표 + 데모 여행지 표의 관광지, 식당·카페·숙소 뺌 · `--region 부산` `--limit 20` `--again`) → 로컬에 124곳·조각 270개 넣었어요 (관광공사에 같은 이름이 없는 곳은 빠짐)
+  - 한 곳에 관광공사 API 2~3번 → **`--limit`으로 나눠서**, 429(사용량 초과)면 바로 멈춰요
+  - 임베딩 모델이 다르면 따로 넣어야 해요 (설정 A `text-embedding-3-small` / 설정 B `bge-m3`) → **시연 PC(설정 B)에서 한 번 `index_tour`**
+- 예: "흰여울문화마을 어때?" → 피난민 마을·촬영지·상시 개방 (출처 붙음) / "해동용궁사 입장료 얼마야?" → 관광공사 정보에 없어요 / "우리집앞놀이터 어때?" → 관광공사 정보에는 없는 곳이에요
+
+### 5. 로컬 LLM 시험 (설정 B: `qwen3:8b` · 예비 `exaone3.5:7.8b` · 임베딩 `bge-m3`)
+- 시험: 11/05 7턴 대화 + 새 2턴("감천문화마을은 어떤 곳이야?" 정보 · "여행 첫날 날씨 어때?" 날씨) = **9턴 × 3번**, `.env`는 그대로 두고 시험 때만 설정 B로
+  | 설정 | 맞음 | 평균 응답 |
+  |---|---|---|
+  | B `qwen3:8b` (RTX 3060, Ollama) | **27/27** | 7.1초 |
+  | A `gpt-4o-mini` (지금 `.env`, 2번) | 17/18 | 4.7초 |
+- 시험하면서 찾아 코드로 보완한 것 (틀린 턴 원인 → 고침)
+  - 모델이 도구를 안 부르고 장소 정보를 **지어냄** ("감천문화마을은 전통 건축물과 정원…") → 정보 질문은 서버가 먼저 관광공사 근거를 넣어 줌, 근거를 못 찾으면 코드가 정해진 문장으로 답
+  - 날씨를 **지어냄** (예보는 11/14 비인데 "맑은 날씨예요") · 날씨 대신 일정 안내만 → 날씨 질문은 예보가 있으면 **코드가 예보로 답** ("부산 날씨 예보예요: 11/14 비 17℃, …" + 비 오는 날 실내 안내)
+  - 정보·날씨 질문에 엉뚱한 카페 카드가 붙음 → 정보·날씨 질문에는 카드 안 붙임
+- GPT 2번째의 틀린 1턴: "셋째 날 박물관 추천" → 카페 카드 (앞 턴 추천 종류를 다시 씀, 이번 변경 전에도 가끔 있던 것으로 보여요. 더 보고 고칠게요)
+- ⚠️ 관광공사 API 하루 사용량: `index_tour`를 한 번에 400곳 돌렸더니 사용량을 다 써서(429) 그날 사진·운영시간 조회도 같이 막혔어요 → 이제 429면 바로 멈추고, 설정 B 조각은 `--copy-from text-embedding-3-small`로 **관광공사 안 부르고** 다시 임베딩만 (시연 PC는 이걸로)
+- 🟩 시연 PC 준비: `python manage.py index_tour --copy-from text-embedding-3-small` (설정 B `.env`로) → 끝나면 설정 A로 되돌리기
+
+### 🟦 영준 · 🟧 수한
+- [ ] 🟦 일정 편집 화면: 400 답에 `hours_problems`가 오면 `message`를 보여 주세요 (지금도 `message`는 그대로 떠요). "그래도 바꾸기"를 넣으려면 같은 요청에 `ignore_hours=1`
+- [ ] 🟦 장소 상세·지도 팝업에서 장소 정보가 필요하면 `/api/place_info/` 하나로 (사진·오늘 운영시간·별점)
+- [ ] 🟧 서버에서 `python manage.py index_tour --limit 100` (서버 임베딩 모델 기준. 관광공사 사용량 때문에 하루 100곳쯤씩 나눠서, 이미 넣은 곳은 건너뜀)
+
+---
+
 ## 2026-11-11 · FastAPI AI 서버 B안 3단계: 서버에 `tripa-ai` 띄우고 연결 — 🟧 이수한
 코드 변경 없음 (서버 설정만) · 로컬은 그대로 (`AI_SERVER_URL` 안 넣으면 예전과 같음)
 
