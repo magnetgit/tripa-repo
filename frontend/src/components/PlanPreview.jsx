@@ -152,10 +152,12 @@ export default function PlanPreview({
                   <div className="tc-tl__head">
                     <strong>{it.name}</strong>
                     {it.is_stay ? (
-                      // 같은 숙소가 앞에 이미 있으면 이 줄은 귀가 (숙소 두 줄 규칙)
+                      // 🟩 stay_role: checkin / return (없으면 같은 숙소가 앞에 있는지로 짐작, 숙소 두 줄 규칙)
                       <span className="tc-tag tc-tag--stay">
                         <Icon name="bed" sprite={sprite} />
-                        {items.slice(0, i).some((x) => x.is_stay && x.name === it.name) ? ' 숙소로 귀가' : ' 체크인'}
+                        {(it.stay_role ? it.stay_role === 'return' : items.slice(0, i).some((x) => x.is_stay && x.name === it.name))
+                          ? ' 숙소로 귀가'
+                          : it.stay_role === 'checkin' ? ' 체크인 · 짐 두기' : ' 체크인'}
                       </span>
                     ) : it.pin ? (
                       <span className="tc-tag tc-tag--pin">담은 장소</span>
