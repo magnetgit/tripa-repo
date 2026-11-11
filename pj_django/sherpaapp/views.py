@@ -34,6 +34,7 @@ from .models import Category
 from .models import SchedulePlace
 from .services.schedule_service import (
     build_accommodation_candidate,
+    checkin_badge,
     generate_schedule,
     get_or_create_place,
     get_day_start_time,
@@ -41,6 +42,7 @@ from .services.schedule_service import (
     hours_badge as schedule_hours_badge,
     move_closed_pins,
     resolve_effective_accommodations,
+    stay_checkin_time,
 )
 from .services.review_service import summarize_review
 from .services import chat_service
@@ -5494,11 +5496,28 @@ def _chat_apply_order(travel, order):
         recalculate_schedule_timeline(schedule)
 
 
+def _keep_stay_times(schedule, stay_times):
+    """식사 시간대를 맞추느라 시각이 다시 계산돼도 숙소 줄(체크인·귀가)은 만든 시각 그대로 (🟩 11/11)
+    stay_times: {sp_id: 도착 시각} (방문 순서대로). 앞 장소가 늦게 끝나 그 시각에 못 닿으면 늦은 쪽 그대로"""
+    for sp_id, arrive in stay_times.items():
+        row = SchedulePlace.objects.filter(sp_id=sp_id).first()
+        if row and arrive and row.arrive_time and row.arrive_time < arrive:
+            row.arrive_time = arrive
+            row.save(update_fields=['arrive_time'])
+            recalculate_schedule_timeline(schedule, anchor_sp_id=sp_id)
+
+
 def _fit_meal_windows(schedule, fixed_times=None):
     """채팅 적용 때만: 점심 12~13시·저녁 18~19시 도착에 맞춰 식사 앞 장소들 체류를 범위 안에서 늘리고 줄인다
     fixed_times: {장소 이름: 'HH:MM'} 시각을 정해 담은 곳 (그 시각 그대로)"""
     fixed_times = fixed_times or {}
     anchor = None                         # 이 줄 뒤만 다시 계산 (점심 차례는 하루 처음부터)
+    stay_times = {                        # 🟩 숙소 줄(체크인·귀가) 시각은 그대로 둠
+        r.sp_id: r.arrive_time
+        for r in SchedulePlace.objects.filter(schedule=schedule)
+                 .select_related('place').order_by('visit_order', 'sp_id')
+        if '숙' in (r.place.p_kind or '')
+    }
     for window in (stay_rules.LUNCH, stay_rules.DINNER):
         meal_row = None
         for _ in range(3):                # 이동 시간이 다시 계산되며 조금씩 달라져서 최대 3번
@@ -5511,6 +5530,9 @@ def _fit_meal_windows(schedule, fixed_times=None):
                          if hours_service.is_food(rows[i].place.p_kind)), None)
             if meal is None or not rows[meal].arrive_time:
                 return
+            # 🟩 점심이 없는 날: 첫 식사가 시간대보다 2시간 넘게 늦으면(예: 18:30 저녁) 이 시간대 식사가 아님
+            if _time_minutes(rows[meal].arrive_time) > window[1] + 120:
+                break
             meal_row = rows[meal]
 
             # 식사 앞에 시각 정한 장소가 있으면 → 그 시각으로 되돌리고 기준점으로, 그 뒤만 움직임
@@ -5519,6 +5541,9 @@ def _fit_meal_windows(schedule, fixed_times=None):
                 if pinned:
                     rows[i].arrive_time = datetime.strptime(pinned, '%H:%M').time()
                     rows[i].save(update_fields=['arrive_time'])
+                    anchor, begin = rows[i].sp_id, i + 1
+                elif rows[i].sp_id in stay_times:
+                    # 🟩 체크인 줄도 시각이 정해진 곳 → 기준점 (그 앞 장소 체류는 안 건드림)
                     anchor, begin = rows[i].sp_id, i + 1
 
             need = stay_rules.meal_shift(_time_minutes(meal_row.arrive_time), window)
@@ -5538,12 +5563,14 @@ def _fit_meal_windows(schedule, fixed_times=None):
                 r.stay_time = stay
             SchedulePlace.objects.bulk_update(movable, ['stay_time'])
             recalculate_schedule_timeline(schedule, anchor_sp_id=anchor)
+            _keep_stay_times(schedule, stay_times)
 
         # 그래도 이르면: 식사를 시간대 시작에 고정하고 기다리기
         if meal_row and _time_minutes(meal_row.arrive_time) < window[0]:
             meal_row.arrive_time = time(window[0] // 60, window[0] % 60)
             meal_row.save(update_fields=['arrive_time'])
             recalculate_schedule_timeline(schedule, anchor_sp_id=meal_row.sp_id)
+            _keep_stay_times(schedule, stay_times)
 
         anchor = meal_row.sp_id if meal_row else anchor     # 저녁 차례는 점심 뒤부터
 
@@ -5648,11 +5675,17 @@ def _chat_attach_hours(travel, days):
     롤백(transaction) 밖에서 불러야 한다. 안에서 여러 스레드가 캐시 표를 읽으면 잠금을 기다리느라 50초씩 멈춘다.
     """
     notes = getattr(travel, 'hours_notes', None) or {}
-    jobs = [(day, item) for day in days for item in day['items'] if not item['is_stay']]
+    # 숙소는 귀가 줄(stay_role 'return')만 빼고 체크인 시각을 읽는다 (items[].checkin)
+    jobs = [
+        (day, item) for day in days for item in day['items']
+        if not item['is_stay'] or item.get('stay_role') != 'return'
+    ]
 
     def one(job):
         day, item = job
         try:
+            if item['is_stay']:
+                return stay_checkin_time(item['name'], item['lat'], item['lon'], item['kakao_id'])
             return hours_service.place_hours(
                 item['name'], item['kind'], date.fromisoformat(day['date']),
                 item['lat'], item['lon'], item['kakao_id'],
@@ -5673,6 +5706,14 @@ def _chat_attach_hours(travel, days):
         previous_leave = minutes(day['start_time'])
 
         for item in day['items']:
+            if item['is_stay']:
+                # 체크인 시각 안내만 (막지 않음, 11/05 결정). 숙소는 운영시간 hours가 없음
+                item['checkin'] = checkin_badge(found.get(id(item)), item['arrive'])
+                item['hours'] = None
+                previous_leave = minutes(item['leave']) or previous_leave
+                continue
+
+            item['checkin'] = None
             arrive = minutes(item['arrive'])
             hours = found.get(id(item))
             wait = 0
