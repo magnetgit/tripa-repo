@@ -36,6 +36,40 @@ DB·마이그레이션 변경 없음 · `admin.py`와 새 템플릿 2개만 (`te
 
 ---
 
+## 2026-11-11 · 아이디 찾기·비밀번호 변경 결과를 팝업(alert) 대신 화면 카드로 — 🟦 임영준
+DB·주소 변경 없음 · ⚠️ **🟧 `views.py`에 추가만**: `id_find`에 화면용 JSON 답, `pw_find` 위에 장식 `@_alert_as_json` 한 줄 (함수 안은 그대로)
+
+- `idpw.html`이 `fetch`로 보낼 때(`X-Requested-With: fetch`)만 JSON으로 답해요. 일반 폼 제출은 **예전 팝업 그대로**
+  - `id_find` → `{success, ids: [...], message}`
+  - `pw_find` → `{success, message, next}` (`_alert_as_json`이 `<script>alert('…')</script>` 답을 바꿔 줌, 로그인 화면으로 가는 답 = 성공)
+- 화면: 아이디 찾기 결과 카드(찾은 아이디 + [로그인하기]·[비밀번호 찾기] → 비밀번호 탭에 미리 채움), 비밀번호 변경 성공 카드 + [로그인하기] (성공 뒤 칸 잠금), 실패는 빨간 카드에 서버 문구
+
+### 🟧 수한
+- [ ] `pw_find` 문구를 바꿀 때 `alert('…')` 모양은 그대로 두면 화면 카드도 같이 바뀌어요 (작은따옴표 안 문장을 읽음)
+
+---
+
+## 2026-11-11 · ⚠️ `travel.ACCESS_WAY`·`ACCESS_ROUTE` 추가 (여행지까지 가는 길) + 데모 여행지 15곳·이동 방법 다양하게 — 🟧 이수한
+⚠️ **pull 뒤 `python manage.py migrate` 필요** (0021) · 주소·응답 키 변경 없음
+
+- `Travel.access_way` (`ACCESS_WAY`): 여행지까지 큰 이동 수단 하나 — `car`(자차)·`ktx`·`train_transfer`(환승)·`bus`(고속버스)·`flight`·`ferry`
+- `Travel.access_route` (`ACCESS_ROUTE`, JSON): 구간 목록 `[{mode, label, from, to, minutes, depart, arrive}]`
+  - 예: `지하철 망원동→김포국제공항 07:10` → `비행기 김포→제주국제공항 07:56` → `렌터카 인수 09:11`
+  - `mode`: `car`·`rental`·`ktx`·`itx`·`bus`·`subway`·`local_bus`·`flight`·`ferry`·`taxi` / `depart`·`arrive` 는 `"MM-DD HH:MM"`
+  - 지금은 **데모 데이터만** 채워요 (채팅으로 만드는 여행은 비어 있음). 화면에 보여 줄지는 🟦와 상의
+- `t_way` 는 그대로 **여행지 안에서** 다니는 방법 (`car`·`public_transport`). 데모가 `'CAR'`(대문자)로 넣던 것을 앱과 같은 `'car'` 로 고침
+- 데모: 여행지 15곳(+광주·대전·울산·춘천·인천·울릉도), 회원마다 사는 곳(제주 포함)에서 출발
+  - 제주: 가까운 공항 경유 비행기 / 배(목포·완도·부산·인천항, 차를 싣기도, 부산·인천은 밤배) / 제주 안 렌터카·급행버스
+  - 제주 → 육지, 울릉도(포항·강릉·묵호·후포항 배), KTX 환승(오송·서울·용산 ITX), 고속버스, 자차, 내린 뒤 렌터카
+  - 첫날 일정은 도착 시각 뒤부터
+- 🐛 `photo_service._distance_m`: DB 좌표(`Decimal`)가 들어오면 여행 상세가 500 나던 것 고침 (`float` 로 바꿔 계산)
+
+### 🟦 영준 · 🟩 지윤
+- [ ] pull 뒤 `migrate` (안 하면 여행 화면에서 `Unknown column 'ACCESS_WAY'`)
+- [ ] 로컬 데모 다시: `python manage.py seed_demo --reset`
+
+---
+
 ## 2026-11-11 · 데모 데이터 도시 9곳 + 출발지 다양하게 — 🟧 이수한
 코드·DB·응답 키 변경 없음 (`seed_demo` 와 데이터 표만)
 

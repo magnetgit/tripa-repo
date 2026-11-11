@@ -1210,3 +1210,76 @@ body {
     padding: 0;
     border: 0;
 }
+
+/* 아이디 찾기 결과 카드 (팝업 대신, 🟦 11/11) */
+.find-result {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border: 1.5px dashed #b9cdf3;
+    border-radius: 12px;
+    background: #f3f8ff;
+    color: #1f2d4a;
+}
+
+.find-result[hidden] { display: none; }
+
+.find-result.is-bad {
+    border-color: #f6c9ca;
+    background: #fff5f5;
+}
+
+.find-result__title {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 800;
+}
+
+.find-result.is-ok .find-result__title { color: #1f9d55; }
+.find-result.is-bad .find-result__title { color: #e5484d; }
+
+/* 찾은 아이디: 손글씨처럼 크게 */
+.find-result__ids {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.find-result__ids li {
+    font-family: "Nanum Pen Script", "Malgun Gothic", cursive;
+    font-size: 30px;
+    line-height: 1.25;
+    color: #2d6cdf;
+    word-break: break-all;
+}
+
+.find-result__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.find-result__btn {
+    flex: 1;
+    padding: 9px 10px;
+    border: 1px solid #c9d8f3;
+    border-radius: 10px;
+    background: #fff;
+    color: #2d6cdf;
+    font-size: 13.5px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.find-result__btn.is-primary {
+    border-color: #2d6cdf;
+    background: #2d6cdf;
+    color: #fff;
+}
+
+.find-result__desc {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #475569;
+}

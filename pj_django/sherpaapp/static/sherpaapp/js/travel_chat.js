@@ -1244,6 +1244,14 @@
         body.appendChild(meta);
       }
 
+      // 🟩 숙소 체크인 시각 안내 (경고 아님, 없으면 안 보임)
+      if (it.checkin && it.checkin.message) {
+        var checkinRow = make('p', 'tc-tl__checkin');
+        checkinRow.appendChild(icon('clock'));
+        checkinRow.appendChild(document.createTextNode(' ' + it.checkin.message));
+        body.appendChild(checkinRow);
+      }
+
       // 예상 비용 (인원 기준, 자동으로 들어간 식당·카페 포함)
       var stopCost = costText(it.cost);
       if (stopCost) {

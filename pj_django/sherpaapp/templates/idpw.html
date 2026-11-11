@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=9">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/auth.css' %}?v=11">
 </head>
 
 <body class="auth-page--find auth-ticket">
@@ -95,7 +95,7 @@
     <section class="auth-panel" id="panelId" role="tabpanel" aria-labelledby="tabId">
         <p class="auth-panel__desc">이름과 가입할 때 적은 이메일을 입력하면 아이디를 알려드려요.</p>
 
-        <form action="{% url 'id_find' %}" method="post">
+        <form action="{% url 'id_find' %}" method="post" id="idForm">
             {% csrf_token %}
 
             <div class="field">
@@ -120,6 +120,9 @@
 
             <button type="submit" class="btn-submit">아이디 찾기</button>
         </form>
+
+        <!-- 아이디 찾기 결과 (팝업 대신 이 자리에 카드로) -->
+        <div class="find-result" id="idResult" role="status" aria-live="polite" hidden></div>
     </section>
 
     <!-- 비밀번호 찾기 -->
@@ -211,6 +214,9 @@
 
             <button type="submit" class="btn-submit" id="pwSubmit" hidden>비밀번호 변경</button>
         </form>
+
+        <!-- 비밀번호 변경 결과 (팝업 대신 이 자리에 카드로) -->
+        <div class="find-result" id="pwResult" role="status" aria-live="polite" hidden></div>
     </section>
 
     <div class="auth-links">
@@ -435,8 +441,114 @@
             newPwdCheck.focus();
             return false;
         }
-        return true;
+        sendPwForm();     // 폼을 새 화면으로 보내지 않고 fetch 로 → 결과 카드
+        return false;
     }
+
+    // 비밀번호 변경: 팝업(alert) 대신 결과 카드 (서버 pw_find 가 X-Requested-With: fetch 면 JSON)
+    function showPwResult(data) {
+        var box = document.getElementById('pwResult');
+        box.innerHTML = '';
+        box.className = 'find-result ' + (data.success ? 'is-ok' : 'is-bad');
+        box.appendChild(el('p', 'find-result__title',
+            data.success ? '✓ 비밀번호를 바꿨어요' : '✕ ' + data.message));
+        if (data.success) {
+            box.appendChild(el('p', 'find-result__desc', '새 비밀번호로 로그인해 주세요.'));
+            var actions = el('div', 'find-result__actions');
+            var login = el('a', 'find-result__btn is-primary', '로그인하기');
+            login.href = data.next || "{% url 'login' %}";
+            actions.appendChild(login);
+            box.appendChild(actions);
+            // 바꾼 뒤에는 칸을 잠가 같은 코드로 또 보내지 않게
+            pwForm.querySelectorAll('input, button').forEach(function (n) { n.disabled = true; });
+        }
+        box.hidden = false;
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        placeNotch();
+    }
+
+    function sendPwForm() {
+        pwSubmit.disabled = true;
+        fetch(pwForm.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'fetch' },
+            body: new FormData(pwForm)
+        })
+            .then(function (res) { return res.json(); })
+            .then(showPwResult)
+            .catch(function () {
+                showPwResult({ success: false, message: '잠시 뒤 다시 시도해 주세요.' });
+            })
+            .finally(function () {
+                if (!pwForm.querySelector('input').disabled) pwSubmit.disabled = false;
+            });
+    }
+
+    // 아이디 찾기: 팝업(alert) 대신 결과 카드 (서버 id_find 가 X-Requested-With: fetch 면 JSON 으로 답함)
+    var idForm = document.getElementById('idForm');
+    var idResult = document.getElementById('idResult');
+
+    function el(tag, cls, text) {
+        var node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text) node.textContent = text;   // 아이디는 글자로만 넣음
+        return node;
+    }
+
+    function showIdResult(data) {
+        idResult.innerHTML = '';
+        idResult.className = 'find-result ' + (data.success ? 'is-ok' : 'is-bad');
+        idResult.appendChild(el('p', 'find-result__title', data.success ? '✓ ' + data.message : '✕ ' + data.message));
+
+        if (data.success) {
+            var list = el('ul', 'find-result__ids');
+            data.ids.forEach(function (id) { list.appendChild(el('li', null, id)); });
+            idResult.appendChild(list);
+
+            var actions = el('div', 'find-result__actions');
+            var login = el('a', 'find-result__btn is-primary', '로그인하기');
+            login.href = "{% url 'login' %}";
+            var toPw = el('button', 'find-result__btn', '비밀번호 찾기');
+            toPw.type = 'button';
+            toPw.addEventListener('click', function () {
+                selectTab(document.getElementById('tabPw'));
+                document.getElementById('pwId').value = data.ids[0];       // 찾은 아이디 미리 넣기
+                document.getElementById('pwEmail').value = idForm.email.value;
+                document.getElementById('pwName').value = idForm.name.value;
+            });
+            actions.appendChild(login);
+            actions.appendChild(toPw);
+            idResult.appendChild(actions);
+        }
+        idResult.hidden = false;
+        placeNotch();
+    }
+
+    idForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!idForm.reportValidity()) return;
+        var btn = idForm.querySelector('.btn-submit');
+        btn.disabled = true;
+        fetch(idForm.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'fetch' },
+            body: new FormData(idForm)
+        })
+            .then(function (res) { return res.json(); })
+            .then(showIdResult)
+            .catch(function () {
+                showIdResult({ success: false, message: '잠시 뒤 다시 시도해 주세요.' });
+            })
+            .finally(function () { btn.disabled = false; });
+    });
+
+    // 이름·이메일을 고치면 지난 결과는 숨김
+    idForm.addEventListener('input', function () {
+        if (!idResult.hidden) {
+            idResult.hidden = true;
+            placeNotch();
+        }
+    });
 </script>
 
 </body>

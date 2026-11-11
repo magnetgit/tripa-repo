@@ -172,6 +172,22 @@ class Travel(models.Model):
         blank=True
     )
 
+    # 여행지까지 가는 방법 (t_way 는 여행지 안에서 다니는 방법: car·public_transport·walk·bike)
+    # access_way: 큰 이동 수단 하나 = car(자차)·ktx·train_transfer(환승)·bus(고속버스)·flight·ferry
+    access_way = models.CharField(
+        max_length=20,
+        db_column='ACCESS_WAY',
+        null=True,
+        blank=True
+    )
+
+    # 구간 목록 [{mode, label, from, to, minutes, depart, arrive}] (예: 지하철 → 김포공항 → 비행기 → 제주공항 → 렌터카)
+    access_route = models.JSONField(
+        db_column='ACCESS_ROUTE',
+        null=True,
+        blank=True
+    )
+
     t_start = models.DateField(
         db_column='T_START',
     )
