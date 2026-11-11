@@ -59,7 +59,7 @@ def change(now, before):
     """증감 글자와 색: 늘면 빨간 ▲, 줄면 파란 ▼, 같으면 회색 –"""
     diff = now - before
     mark, color = ('▲', 'red') if diff > 0 else ('▼', 'blue') if diff < 0 else ('–', 'gray')
-    rate = f' ({diff / before:+.0%})' if before else (' (새로)' if now else '')
+    rate = '' if not diff else f' ({diff / before:+.0%})' if before else ' (새로)'
     return f'{mark} {abs(diff):,}{rate}', color
 
 
