@@ -6,14 +6,14 @@
     <meta charset="UTF-8">
 
     <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+          content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
     <title>TRIPA - 여행 수정</title>
 
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261029">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
 
 </head>
 
@@ -27,6 +27,9 @@
     <!-- =========================
          SIDEBAR
     ========================= -->
+
+    {# 휴대폰 화면(900px 이하) 위 막대 + 아래 탭 #}
+    {% include "_mobile_nav.html" with tab="schedule" title="여행 수정" %}
 
     <aside class="sidebar">
 

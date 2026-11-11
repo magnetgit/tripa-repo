@@ -10,6 +10,20 @@
 
 ---
 
+## 2026-11-11 · 휴대폰 화면(위 막대 + 아래 탭 5칸) + 홈 'PC에서 폰 화면 미리보기' — 🟦 임영준
+DB·주소·응답 키 변경 없음 · ⚠️ **`settings.py`에 `X_FRAME_OPTIONS = "SAMEORIGIN"` 추가** (기본 DENY → 같은 사이트만 틀 허용, 다른 사이트는 그대로 막음)
+
+- **900px 이하**: 왼쪽 메뉴(`.sidebar`) 대신 위 막대(로고·화면 이름·내 여행·내 정보) + 아래 탭 5칸(홈·일정·만들기·비용·리뷰), 노치·홈 막대 안전 영역(`viewport-fit=cover`, `env(safe-area-inset-*)`)
+  - 공통 조각 `templates/_mobile_nav.html` → 페이지 10개(`detail-container` 쓰는 화면)에 `{% include "_mobile_nav.html" with tab=… title=… %}`
+  - 컴퓨터 화면은 그대로 (왼쪽 메뉴)
+- **홈 오른쪽 아래 `[💻 PC | 📱 폰]`**: 폰을 누르면 폰 크기(390×844) 틀 안에 우리 사이트가 떠서 그대로 눌러 볼 수 있어요 (발표용). 진짜 폰·좁은 화면에서는 버튼 안 보임
+- 새 페이지를 만들면 `.sidebar` 옆에 같은 include 한 줄을 넣어 주세요 (안 넣으면 폰에서 메뉴가 없어요)
+
+### 🟧 수한 · 🟩 지윤
+- [ ] `X_FRAME_OPTIONS` 바꾼 것 확인 (배포 서버도 같은 settings)
+
+---
+
 ## 2026-11-11 · 예상 비용: 관광지 가격 못 찾던 문제(창덕궁 등) + 'AI 예상' 가격 — 🟦 임영준
 DB·주소 변경 없음 · `cost.source`에 값 **`'ai'` 추가** (기존 `'tour'`·`'estimate'` 그대로) · `budget_service.py`(🟦)만
 

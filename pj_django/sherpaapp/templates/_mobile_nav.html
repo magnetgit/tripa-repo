@@ -1,0 +1,36 @@
+{% comment %}
+휴대폰 화면(900px 이하) 위 막대 + 아래 탭 5칸 — 🟦 4주차
+쓰는 법: {% include "_mobile_nav.html" with tab="schedule" title="일정 관리" %}
+  tab: home · schedule · create · budget · review (지금 화면의 탭이 파랗게)
+  컴퓨터 화면에서는 CSS로 숨기고, 기존 왼쪽 메뉴(.sidebar)를 그대로 씀 (style.css '휴대폰 화면')
+{% endcomment %}
+<header class="m-topbar">
+    <a class="m-topbar__logo" href="{% url 'index' %}" aria-label="TRIPA 홈">
+        {% include "_icon.html" with name="mountain" %}<span>TRIPA</span>
+    </a>
+    <strong class="m-topbar__title">{{ title }}</strong>
+    <a class="m-topbar__btn" href="{% url 'travel_list' %}" aria-label="내 여행">
+        {% include "_icon.html" with name="suitcase" %}
+    </a>
+    <a class="m-topbar__btn" href="{% url 'mypage' %}" aria-label="내 정보">
+        {% include "_icon.html" with name="user" %}
+    </a>
+</header>
+
+<nav class="m-tabbar" aria-label="아래 메뉴">
+    <a href="{% url 'index' %}" class="m-tab{% if tab == 'home' %} is-on{% endif %}"{% if tab == 'home' %} aria-current="page"{% endif %}>
+        {% include "_icon.html" with name="home" %}<span>홈</span>
+    </a>
+    <a href="{% url 'schedule_manage' %}" class="m-tab{% if tab == 'schedule' %} is-on{% endif %}"{% if tab == 'schedule' %} aria-current="page"{% endif %}>
+        {% include "_icon.html" with name="calendar" %}<span>일정</span>
+    </a>
+    <a href="{% url 'travel_create' %}" class="m-tab m-tab--create{% if tab == 'create' %} is-on{% endif %}"{% if tab == 'create' %} aria-current="page"{% endif %}>
+        <b>{% include "_icon.html" with name="plus" %}</b><span>만들기</span>
+    </a>
+    <a href="{% url 'budget' %}" class="m-tab{% if tab == 'budget' %} is-on{% endif %}"{% if tab == 'budget' %} aria-current="page"{% endif %}>
+        {% include "_icon.html" with name="wallet" %}<span>비용</span>
+    </a>
+    <a href="{% url 'review_board' %}" class="m-tab{% if tab == 'review' %} is-on{% endif %}"{% if tab == 'review' %} aria-current="page"{% endif %}>
+        {% include "_icon.html" with name="chat" %}<span>리뷰</span>
+    </a>
+</nav>
