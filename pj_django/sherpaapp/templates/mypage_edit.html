@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=6">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=8">
 </head>
 
 <body>
@@ -75,6 +75,35 @@
                            placeholder="example@tripa.com" maxlength="100" autocomplete="email">
                     <small>{% if member.email %}아이디·비밀번호를 찾을 때 이 이메일로 확인해요.{% else %}아직 등록 안 됐어요. 등록하면 아이디·비밀번호를 찾을 수 있어요.{% endif %}</small>
                 </div>
+                <!-- 성별·나이대 (선택, 회의 안건 8: 내 정보에서 넣기·고치기·지우기) -->
+                <div class="pp-field" id="profile">
+                    <span class="pp-label">성별 · 나이대 <em>/ 선택</em></span>
+                    <input type="hidden" name="profile_form" value="1">
+
+                    <!-- 눌러서 고르는 칩 (라디오 버튼, 고른 칩만 도장처럼 진하게) -->
+                    <div class="pp-chips" role="radiogroup" aria-label="성별">
+                        <label class="pp-chip"><input type="radio" name="gender" value=""
+                               {% if not member.gender %}checked{% endif %}><span>선택 안 함</span></label>
+                        <label class="pp-chip"><input type="radio" name="gender" value="M"
+                               {% if member.gender == 'M' %}checked{% endif %}><span>남성</span></label>
+                        <label class="pp-chip"><input type="radio" name="gender" value="F"
+                               {% if member.gender == 'F' %}checked{% endif %}><span>여성</span></label>
+                    </div>
+                    <div class="pp-chips" role="radiogroup" aria-label="나이대">
+                        <label class="pp-chip"><input type="radio" name="age_group" value=""
+                               {% if not member.age_group %}checked{% endif %}><span>선택 안 함</span></label>
+                        {% for value, label in age_groups %}
+                        <label class="pp-chip"><input type="radio" name="age_group" value="{{ value }}"
+                               {% if member.age_group == value %}checked{% endif %}><span>{{ label }}</span></label>
+                        {% endfor %}
+                    </div>
+                    <label class="pp-agree">
+                        <input type="checkbox" id="agreeProfile" name="agree_profile" value="1"
+                               {% if member.gender or member.age_group %}checked{% endif %}>
+                        <span><b>[선택]</b> 성별·나이대를 맞춤 장소 추천에 쓰는 데 동의해요</span>
+                    </label>
+                    <small>넣으면 나와 비슷한 사람들이 좋아한 곳을 먼저 보여 드려요. 안 넣어도 추천은 그대로 돼요(전체 평점 순). 동의를 끄면 저장된 값이 지워져요.</small>
+                </div>
                 <p class="pp-error" id="formError" role="alert">{{ error|default:'' }}</p>
             </div>
 
@@ -134,8 +163,25 @@
             return false;
         }
         f.email.value = email;
+
+        // 성별·나이대를 골랐으면 [선택] 동의가 있어야 저장 (회원가입과 같은 규칙)
+        if ((f.gender.value || f.age_group.value) && !f.agree_profile.checked) {
+            err.textContent = "성별·나이대를 저장하려면 [선택] 동의에 체크해 주세요. 원하지 않으면 '선택 안 함'으로 두세요.";
+            f.agree_profile.focus();
+            return false;
+        }
         return true;
     }
+
+    // 동의를 끄면 두 칸도 '선택 안 함'으로 (지우기)
+    document.getElementById("agreeProfile").addEventListener("change", function () {
+        if (!this.checked) {
+            // '선택 안 함' 칩(값이 빈 라디오)을 직접 고름 (묶음.value = "" 는 크롬에서 안 먹음)
+            this.form.querySelector('input[name="gender"][value=""]').checked = true;
+            this.form.querySelector('input[name="age_group"][value=""]').checked = true;
+        }
+        document.getElementById("formError").textContent = "";
+    });
 
     document.getElementById("email").addEventListener("input", function () {
         document.getElementById("formError").textContent = "";

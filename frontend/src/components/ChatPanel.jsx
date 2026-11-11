@@ -4,7 +4,7 @@ import Icon from './Icon.jsx';
 import RecCards from './RecCards.jsx';
 import { EXAMPLES } from '../lib/util.js';
 
-function Bubble({ m, draft, sprite, onAddPin, onAddStay, focus, onFocusPlace }) {
+function Bubble({ m, draft, sprite, onAddPin, onAddStay, focus, onFocusPlace, profileHint }) {
   const isUser = m.role === 'user';
   const hasRec = !!(m.rec && m.rec.items && m.rec.items.length);
   const text = <div className={`tc-bubble${m.error ? ' tc-bubble--error' : ''}`}>{m.content}</div>;
@@ -20,7 +20,7 @@ function Bubble({ m, draft, sprite, onAddPin, onAddStay, focus, onFocusPlace }) 
         <div className="tc-col">
           {text}
           <RecCards rec={m.rec} draft={draft} sprite={sprite} onAddPin={onAddPin} onAddStay={onAddStay}
-            focus={focus} onFocus={onFocusPlace} />
+            focus={focus} onFocus={onFocusPlace} profileHint={profileHint} />
         </div>
       ) : (
         text
@@ -31,9 +31,13 @@ function Bubble({ m, draft, sprite, onAddPin, onAddStay, focus, onFocusPlace }) 
 
 export default function ChatPanel({
   state, sprite, input, setInput, placeholder, inputRef,
-  onSend, onReset, onAddPin, onAddStay, focus, onFocusPlace,
+  onSend, onReset, onAddPin, onAddStay, focus, onFocusPlace, profileHint,
 }) {
   const listRef = useRef(null);
+
+  // 성별·나이대 안내는 가장 최근 추천 카드 위에만 (매번 반복하지 않기)
+  let lastRec = -1;
+  state.messages.forEach((m, i) => { if (m.rec && m.rec.items && m.rec.items.length) lastRec = i; });
 
   // 새 말풍선이 생기면 맨 아래로
   useEffect(() => {
@@ -59,7 +63,7 @@ export default function ChatPanel({
       <div className="tc-messages" ref={listRef} aria-live="polite">
         {state.messages.map((m, i) => (
           <Bubble key={i} m={m} draft={state.draft} sprite={sprite} onAddPin={onAddPin} onAddStay={onAddStay}
-            focus={focus} onFocusPlace={onFocusPlace} />
+            focus={focus} onFocusPlace={onFocusPlace} profileHint={i === lastRec ? profileHint : null} />
         ))}
         {state.busy && (
           <div className="tc-msg tc-msg--bot">

@@ -46,6 +46,22 @@ export default function App({ cfg }) {
   const [input, setInput] = useState('');
   // 추천 카드를 눌러 지도에 띄울 장소 {name, lat, lon, key}
   const [focus, setFocus] = useState(null);
+
+  // 성별·나이대 안내 (안 넣은 회원만, × 누르면 이 브라우저에서 다시 안 보임)
+  const hintKey = `tripa_profile_hint_off_${cfg.member}`;
+  const [hintOff, setHintOff] = useState(() => {
+    try { return localStorage.getItem(hintKey) === '1'; } catch { return false; }
+  });
+  const profileHint = !hintOff && (cfg.profile === 'none' || cfg.profile === 'half')
+    ? {
+      half: cfg.profile === 'half',
+      url: cfg.profileUrl,
+      onClose: () => {
+        setHintOff(true);
+        try { localStorage.setItem(hintKey, '1'); } catch { /* 저장 못 해도 이번엔 닫힘 */ }
+      },
+    }
+    : null;
   const [placeholder, setPlaceholder] = useState(PLACEHOLDER);
   const [applyLabel, setApplyLabel] = useState('');   // 적용 중 버튼 글자
   const [applyLink, setApplyLink] = useState('');     // 경고가 있을 때 '만들어진 여행 보러 가기'
@@ -334,7 +350,8 @@ export default function App({ cfg }) {
         input={input} setInput={setInput} placeholder={placeholder} inputRef={inputRef}
         onSend={send} onReset={onReset} onAddPin={addPin} onAddStay={addStay}
         focus={focus}
-        onFocusPlace={(item) => setFocus({ name: item.name, lat: Number(item.lat), lon: Number(item.lon), key: Date.now() })}
+        onFocusPlace={(item) => setFocus({ name: item.name, lat: Number(item.lat), lon: Number(item.lon), key: Date.now(), item })}
+        profileHint={profileHint}
       />
       <DraftPanel
         ref={draftBodyRef}
@@ -342,6 +359,9 @@ export default function App({ cfg }) {
         applyLabel={applyLabel} applyLink={applyLink}
         onRemoveStay={removeStay} onRemovePin={removePin} onApply={apply} onEdit={onEdit}
         plan={{
+          focus,
+          // 미리보기 장소를 누르면 지도에서 위치·팝업 (info: lib/mapPopup.js planPopupInfo)
+          onFocusPlace: (it, info) => setFocus({ name: it.name, lat: Number(it.lat), lon: Number(it.lon), key: Date.now(), info }),
           onTab: (i) => update(() => ({ dayTab: i })),
           onMove: moveItem, onRemove: removeItem, onResetOrder: resetOrder, onRestore: restoreDay, onRefresh: refreshPlan,
         }}

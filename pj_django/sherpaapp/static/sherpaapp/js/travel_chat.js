@@ -24,7 +24,10 @@
     csrf: tokenInput ? tokenInput.value : '',
     prefill: (app.dataset.prefill || '').trim(),
     budget: app.dataset.budget || '',
-    transitUrl: app.dataset.transitUrl || ''
+    transitUrl: app.dataset.transitUrl || '',
+    // 성별·나이대: full(둘 다) / half(하나만) / none(안 넣음) / ''(손님) → 추천 카드 위 안내
+    profile: app.dataset.profile || '',
+    profileUrl: app.dataset.profileUrl || '/mypage_edit/#profile'
   };
 
   // 대화 보관 칸을 회원마다 따로 둔다 (같은 탭에서 다른 계정으로 로그인해도 섞이지 않게)
@@ -217,8 +220,45 @@
       el.list.appendChild(typing);
     }
 
+    placeProfileHint();
     el.list.scrollTop = el.list.scrollHeight;
     el.examples.hidden = state.messages.length > 1 || state.busy;
+  }
+
+  // 성별·나이대를 안 넣은 회원에게만, 가장 최근 추천 카드 위에 한 줄 (× 누르면 이 브라우저에서 다시 안 보임)
+  var PROFILE_HINT_KEY = 'tripa_profile_hint_off_' + cfg.member;
+
+  function profileHintOff() {
+    try { return localStorage.getItem(PROFILE_HINT_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function placeProfileHint() {
+    el.list.querySelectorAll('.tc-rec__profile').forEach(function (n) { n.remove(); });
+    if ((cfg.profile !== 'none' && cfg.profile !== 'half') || profileHintOff()) return;
+
+    var recs = el.list.querySelectorAll('.tc-rec');
+    if (!recs.length) return;
+    var box = recs[recs.length - 1];
+
+    var hint = make('p', 'tc-rec__profile');
+    var text = make('span', null, '💡 ' + (cfg.profile === 'half' ? '성별·나이대를 다 넣으면' : '성별·나이대를 넣으면')
+      + ' 나와 비슷한 사람들이 좋아한 곳을 먼저 보여 드려요. ');
+    var link = make('a', 'tc-link', '내 정보에서 넣기');
+    link.href = cfg.profileUrl;
+    text.appendChild(link);
+    var close = make('button', 'tc-x', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', '안내 닫기');
+    close.addEventListener('click', function () {
+      try { localStorage.setItem(PROFILE_HINT_KEY, '1'); } catch (e) { /* 저장 못 해도 이번엔 닫힘 */ }
+      hint.remove();
+    });
+    hint.appendChild(text);
+    hint.appendChild(close);
+
+    // 조건·비 안내 줄 다음 (카드들 바로 위)
+    var firstCard = box.querySelector('.tc-card');
+    box.insertBefore(hint, firstCard);
   }
 
   function bubble(role, text, isError, rec) {
@@ -313,11 +353,12 @@
 
   // 인원 기준 금액 (가격 모르면 0)
   function costAmount(cost, n) {
-    if (!cost || cost.per == null) return 0;
+    if (!cost || cost.per == null || cost.same_stay) return 0;   // 숙소 두 번째 줄은 0원
     return cost.unit === 'room' ? cost.per * roomCount(cost, n) : cost.per * n;
   }
 
   function costText(cost) {
+    if (cost && cost.same_stay) return '숙박비는 체크인 줄에';   // 같은 날 같은 숙소 두 번째 줄 (금액 0)
     if (!cost || cost.per == null) return '';
     var n = peopleCount();
     var tag = cost.source === 'tour' ? '관광공사 요금' : '보통 가격 예상';
@@ -1101,6 +1142,15 @@
 
     items.forEach(function (it, i) {
       var row = make('li', 'tc-tl__item' + (it.is_stay ? ' is-stay' : '') + (it.pin ? ' is-pin' : ''));
+      // 위치가 있으면 눌러서 지도에서 보기 (↑↓·삭제·실내 대안 버튼은 그대로)
+      if (it.lat != null && it.lon != null) {
+        row.classList.add('is-clickable');
+        row.title = '눌러서 지도에서 위치 보기';
+        row.addEventListener('click', function (e) {
+          if (e.target.closest('button, a')) return;
+          focusPlace(it, row, planInfo(it, i + 1));
+        });
+      }
       // 순서를 바꿔서 시간을 다시 계산하는 동안에는 옛 시간을 보여 주지 않는다
       row.appendChild(make('span', 'tc-tl__time', reordered && pending ? '··:··' : (it.arrive || '')));
       row.appendChild(make('span', 'tc-tl__dot', String(i + 1)));
@@ -1110,9 +1160,11 @@
       head.appendChild(make('strong', null, it.name));
 
       if (it.is_stay) {
+        // 같은 숙소가 앞에 이미 있으면 이 줄은 귀가 (숙소 두 줄 규칙)
+        var back = items.slice(0, i).some(function (x) { return x.is_stay && x.name === it.name; });
         var stayTag = make('span', 'tc-tag tc-tag--stay');
         stayTag.appendChild(icon('bed'));
-        stayTag.appendChild(document.createTextNode(' 체크인'));
+        stayTag.appendChild(document.createTextNode(back ? ' 숙소로 귀가' : ' 체크인'));
         head.appendChild(stayTag);
       } else if (it.pin) {
         head.appendChild(make('span', 'tc-tag tc-tag--pin', '담은 장소'));
@@ -1433,11 +1485,79 @@
     });
   }
 
-  // 추천 카드를 누르면 그 장소로 지도를 옮기고 표시 (다른 표시는 그대로)
+  // 추천 카드 item → 팝업 값 (React lib/mapPopup.js recPopupInfo 와 같음)
+  function recInfo(item) {
+    var lines = [];
+    if (item.addr) lines.push(item.addr);
+    if (item.pick && item.pick.hours) lines.push('영업 ' + item.pick.hours);
+    else if (item.open && item.open.closed) lines.push('오늘 휴무');
+    return {
+      name: item.name,
+      kind: item.kind || '',
+      lines: lines,
+      rating: item.review && item.review.count
+        ? '★ ' + Number(item.review.rating).toFixed(1) + ' · 리뷰 ' + item.review.count + '개' : '',
+      photo: item.photo && item.photo.url ? item.photo.url : ''
+    };
+  }
+
+  // 일정 미리보기 한 줄 → 팝업 값 (React planPopupInfo 와 같음)
+  function planInfo(it, order) {
+    var time = [it.arrive ? it.arrive + ' 도착' : '', !it.is_stay && it.leave ? it.leave + ' 출발' : '']
+      .filter(Boolean).join(' · ');
+    var lines = [];
+    if (time) lines.push(time);
+    if (it.addr) lines.push(it.addr);
+    if (it.hours && it.hours.open && it.hours.close) lines.push('영업 ' + it.hours.open + '~' + it.hours.close);
+    return {
+      name: order ? order + '. ' + it.name : it.name,
+      kind: it.is_stay ? '숙소 체크인' : (it.kind || ''),
+      lines: lines,
+      rating: '',
+      photo: it.photo && it.photo.url ? it.photo.url : ''
+    };
+  }
+
+  // 지도 위 장소 팝업 카드: [사진] 이름·종류 / 주소·영업 / 평점 + × (React lib/mapPopup.js 와 같은 모양)
+  function popupCard(info, onClose) {
+    var wrap = make('div', 'tc-mappop');
+    var card = make('div', 'tc-mappop__card');
+
+    if (info.photo) {
+      var img = make('img', 'tc-mappop__photo');
+      img.src = info.photo;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.onerror = function () { img.remove(); };
+      card.appendChild(img);
+    }
+
+    var body = make('div', 'tc-mappop__body');
+    body.appendChild(make('strong', 'tc-mappop__name', info.name));
+    if (info.kind) body.appendChild(make('span', 'tc-mappop__kind', info.kind));
+    info.lines.forEach(function (t) { body.appendChild(make('span', 'tc-mappop__line', t)); });
+    if (info.rating) body.appendChild(make('span', 'tc-mappop__rating', info.rating));
+    card.appendChild(body);
+
+    var close = make('button', 'tc-mappop__close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', '닫기');
+    close.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    close.addEventListener('click', function (e) { e.stopPropagation(); onClose(); });
+    card.appendChild(close);
+
+    wrap.appendChild(card);
+    wrap.appendChild(make('span', 'tc-mappop__tail'));
+    wrap.appendChild(make('span', 'tc-mappop__dot'));
+    return wrap;
+  }
+
+  // 추천 카드·일정 미리보기 장소를 누르면 그 장소로 지도를 옮기고 표시 (다른 표시는 그대로)
+  // info: 팝업 값 (없으면 추천 카드 item 으로 만듦)
   var focusOverlay = null;
   var focusCard = null;
 
-  function focusPlace(item, card) {
+  function focusPlace(item, card, info) {
     if (item.lat == null || item.lon == null) return;
     if (focusCard) focusCard.classList.remove('is-focus');
     focusCard = card || null;
@@ -1446,12 +1566,19 @@
 
     if (focusOverlay) focusOverlay.setMap(null);
     focusOverlay = pin('focus', item.name, Number(item.lat), Number(item.lon));
+    // 사진·정보 팝업 카드로 바꿔 끼움 (× 누르면 원래 작은 핀)
+    var smallPin = focusOverlay.getContent();
+    var overlay = focusOverlay;
+    overlay.setContent(popupCard(info || recInfo(item), function () { overlay.setContent(smallPin); }));
     focusOverlay.setZIndex(10);
     focusOverlay.setMap(map);
 
     map.relayout();
     map.setLevel(5);
-    map.panTo(new kakao.maps.LatLng(Number(item.lat), Number(item.lon)));
+    // 장소를 가운데보다 70px 아래에 둬서 위에 뜨는 팝업이 지도 안에 들어오게
+    var proj = map.getProjection();
+    var point = proj.containerPointFromCoords(new kakao.maps.LatLng(Number(item.lat), Number(item.lon)));
+    map.panTo(proj.coordsFromContainerPoint(new kakao.maps.Point(point.x, point.y - 70)));
 
     // 폰처럼 지도가 화면 밖이면 지도까지 내려가 보여 준다
     var r = el.mapBox.getBoundingClientRect();
