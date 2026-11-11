@@ -2,14 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>TRIPA - 리뷰 쓰기</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261062">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
     <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=5">
 </head>
 <body>
 <div class="detail-container">
+
+    {# 휴대폰 화면(900px 이하) 위 막대 + 아래 탭 #}
+    {% include "_mobile_nav.html" with tab="review" title="리뷰 쓰기" %}
 
     <aside class="sidebar">
         <div class="logo">

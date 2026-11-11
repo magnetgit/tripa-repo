@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>TRIPA - 여행 만들기</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261077">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
 
     <style>
         .search-input-row {
@@ -366,6 +366,9 @@
 
 <body>
 <div class="detail-container">
+    {# 휴대폰 화면(900px 이하) 위 막대 + 아래 탭 #}
+    {% include "_mobile_nav.html" with tab="create" title="여행 만들기" %}
+
     <aside class="sidebar">
         <div class="logo">
             <a href="{% url 'index' %}">{% include "_icon.html" with name="mountain" %} TRIPA</a>

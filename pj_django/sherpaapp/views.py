@@ -25,7 +25,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from .models import Member, Review, ReviewHelpful
 from .models import AVATAR_CHOICES, AVATAR_KEYS
-from .models import AGE_GROUP_CHOICES
+from .models import AGE_GROUP_CHOICES, GENDER_CHOICES
 from .models import Travel
 from .models import Place
 from .models import Schedule
@@ -208,7 +208,14 @@ REVIEW_GROUPS = [
     ('kind', '카테고리', 'place__p_kind'),
     ('region', '지역', 'place__travel__t_place'),
     ('tag', '태그', None),
+    ('age', '나이대', 'member__age_group'),     # 리뷰 쓴 회원 기준
+    ('gender', '성별', 'member__gender'),
 ]
+# 칩에 보일 이름 (DB 값 → 화면 글자). 없는 기준은 값 그대로
+REVIEW_GROUP_LABELS = {
+    'age': {str(k): v for k, v in AGE_GROUP_CHOICES},
+    'gender': dict(GENDER_CHOICES),
+}
 
 
 # 거르는 함수
@@ -217,6 +224,8 @@ def _filter_reviews(reviews, by, v):
         return reviews
     if by == 'tag':
         return reviews.filter(tags__contains=[v])
+    if by == 'age' and not v.isdigit():      # ?v=abc 같은 값은 숫자 칸에서 오류 → 결과 없음
+        return reviews.none()
     for key, label, field in REVIEW_GROUPS:
         if key == by and field:
             return reviews.filter(**{field: v})
@@ -237,10 +246,16 @@ def _group_chips(by):
             rows = (
                 Review.objects
                 .exclude(**{field + '__isnull': True})
+                .exclude(**({} if by == 'age' else {field: ''}))   # 나이대는 숫자 칸이라 '' 비교 안 함
                 .values(field)
                 .annotate(count=Count('rv_id'))
                 .order_by('-count')
             )
+            names = REVIEW_GROUP_LABELS.get(by)
+            if names:   # 나이대·성별: 선택지 순서대로(10대 → 60대 이상, 남성 → 여성), 값은 글자로 (?v= 와 비교)
+                rows = sorted(rows, key=lambda r: list(names).index(str(r[field])) if str(r[field]) in names else 99)
+                return [{'value': str(r[field]), 'label': names.get(str(r[field]), r[field]), 'count': r['count']}
+                        for r in rows]
             return [{'value': r[field], 'label': r[field], 'count': r['count']} for r in rows]
 
     # 3) 모르는 기준이면 칩 없음

@@ -36,6 +36,91 @@ DB·마이그레이션 변경 없음 · `admin.py`와 새 템플릿 2개만 (`te
 
 ---
 
+## 2026-11-11 · 데모 데이터 도시 9곳 + 출발지 다양하게 — 🟧 이수한
+코드·DB·응답 키 변경 없음 (`seed_demo` 와 데이터 표만)
+
+- 도착 도시: 부산·서울·제주·강릉·경주·여수·전주·속초·대구 (`REGION_WEIGHTS`), 장소는 새 표 `docs/data/demo_spots_regions.csv` (카카오 키워드 검색으로 모은 실제 장소 번호, 도시마다 31~44곳) + 기존 `busan_spots_draft.csv`
+- 출발지: 서울역·수서역·서울고속버스터미널·김포·부산역·김해·대전역·동대구역·광주송정역·청주공항 (`start_place`·`start_addr`·`start_lat`·`start_lon`), 제주는 공항에서만 출발·렌터카 많게
+- 리뷰 문장의 "부산" 고정 글자 없앰 (`{지역} 오면 꼭 들르세요`)
+- 로컬에서 반영: `python manage.py seed_demo --reset` (데모 회원 데이터만 다시 만듦)
+
+---
+
+## 2026-11-11 · 리뷰 게시판 분류 기준에 나이대·성별 추가 — 🟧 이수한
+DB·응답 키 변경 없음 · 주소는 기존 모양 그대로 `?tab=places&by=age&v=20`, `?by=gender&v=F`
+
+- `views.REVIEW_GROUPS` 에 `('age', '나이대', 'member__age_group')`, `('gender', '성별', 'member__gender')` (리뷰 쓴 회원 기준)
+- 칩 이름은 `REVIEW_GROUP_LABELS` (10대~60대 이상, 남성·여성), 선택지 순서대로. 안 넣은 회원 리뷰는 칩에 없음 (전체에는 있음)
+- 칩 색 (`review.css`): 나이대 = 보라 `.rv-chips--age`, 성별 = 살구 `.rv-chips--gender` (장소 베이지·카테고리 하늘·지역 연두·태그 분홍과 안 겹치게)
+
+### 🟦 영준
+- [ ] 리뷰 게시판 화면에서 칩 줄 확인 (폰 화면은 기존처럼 가로 스크롤)
+
+---
+
+## 2026-11-11 · ⚠️ DB 칸 2개 추가 (`member.JOINED_AT`, `travel.CREATED_AT`) + 대시보드 '한눈에' 월별·연도별 증감 — 🟧 이수한
+⚠️ **pull 뒤 `python manage.py migrate` 필요** (0020) · 주소·응답 키 변경 없음
+
+- `Member.joined_at` (`JOINED_AT`, 가입 시각), `Travel.created_at` (`CREATED_AT`, 여행 만든 시각) — 둘 다 `default=timezone.now`, `editable=False`
+  - 따로 넣지 않아도 만들 때 자동으로 채워져요 (가입·여행 만들기 코드 수정 없음). 칸이 생기기 전 회원·여행은 migrate 한 시각으로 채워짐
+  - `T_DAY` 는 그대로 **출발일**이에요 (만든 날이 아님)
+- `seed_demo` 가 데모 회원 가입 시각·여행 만든 시각도 넣어요 (`--reset` 하면 반영). 데모는 **2020년 1월부터** 오늘까지 (가입은 해마다 늘게)
+- 대시보드 **한눈에**: 회원·여행·리뷰·예산 변경 기록을 월별(전달 대비)·연도별(작년 대비)로, 늘면 빨간 ▲ · 줄면 파란 ▼ + 최근 12달 막대 + 기간별 표
+
+### 🟦 영준 · 🟩 지윤
+- [ ] pull 뒤 `migrate` (안 하면 회원가입·여행 만들기에서 `Unknown column 'JOINED_AT'`·`'CREATED_AT'` 오류)
+
+---
+
+## 2026-11-11 · Streamlit 운영 대시보드 (서버 `/dashboard/`, 비밀번호) — 🟧 이수한
+DB·주소·응답 키 변경 없음 · 새 폴더 `pj_django/dashboard/` (PR #122) · 서버에 새 서비스 `tripa-dashboard`
+
+- **탭 4개**: 한눈에(회원·여행·리뷰·예산 변경 기록 수) · 날짜별 추이(여행 날짜·리뷰 쓴 날) · 선호 장소(🟩 `stats_service.favorite_places`, 성별·나이대·방문/리뷰/별점 순) · 장소별 비용(`place_spending`, 아직 기록 없으면 안내만)
+- **서버에서 보기**: https://3-106-104-143.sslip.io/dashboard/ → 로그인 창(아이디·비밀번호는 🟧 수한에게 직접 물어봐 주세요. 문서·카톡에 적지 않아요)
+  - 로그인 창에서 취소하면 `401 Authorization Required` 화면 → 새로고침(F5) 또는 시크릿 창
+  - 비밀번호 없이 SSH 키로 보기: `ssh -i <키> -N -L 8501:127.0.0.1:8501 ubuntu@3.106.104.143` 켜 두고 http://localhost:8501/dashboard/
+- **내 PC에서 보기**: `pip install -r pj_django/dashboard/requirements.txt` → `pj_django` 폴더에서 `streamlit run dashboard/app.py` (DB 값은 기존 `.env` 그대로, 새 키 없음)
+- **배포**: `~/deploy.sh`가 대시보드 패키지 설치·재시작까지 같이 함 (따로 할 일 없음)
+
+### 🟩 지윤
+- [ ] `stats_service` 함수 이름·돌려주는 키를 바꾸면 대시보드 "선호 장소·장소별 비용" 탭도 같이 깨져요 → 바꾸기 전에 여기 공유
+- [ ] 관리자 통계 화면에서 값이 대시보드와 같게 나오는지 한 번 비교
+
+### 🟦 영준
+- 변경 없음 (발표 때 데이터 화면으로 쓸 수 있어요)
+
+---
+
+## 2026-11-11 · 휴대폰 화면(위 막대 + 아래 탭 5칸) + 홈 'PC에서 폰 화면 미리보기' — 🟦 임영준
+DB·주소·응답 키 변경 없음 · ⚠️ **`settings.py`에 `X_FRAME_OPTIONS = "SAMEORIGIN"` 추가** (기본 DENY → 같은 사이트만 틀 허용, 다른 사이트는 그대로 막음)
+
+- **900px 이하**: 왼쪽 메뉴(`.sidebar`) 대신 위 막대(로고·화면 이름·내 여행·내 정보) + 아래 탭 5칸(홈·일정·만들기·비용·리뷰), 노치·홈 막대 안전 영역(`viewport-fit=cover`, `env(safe-area-inset-*)`)
+  - 공통 조각 `templates/_mobile_nav.html` → 페이지 10개(`detail-container` 쓰는 화면)에 `{% include "_mobile_nav.html" with tab=… title=… %}`
+  - 컴퓨터 화면은 그대로 (왼쪽 메뉴)
+- **홈 오른쪽 아래 `[💻 PC | 📱 폰]`**: 폰을 누르면 폰 크기(390×844) 틀 안에 우리 사이트가 떠서 그대로 눌러 볼 수 있어요 (발표용). 진짜 폰·좁은 화면에서는 버튼 안 보임
+- 새 페이지를 만들면 `.sidebar` 옆에 같은 include 한 줄을 넣어 주세요 (안 넣으면 폰에서 메뉴가 없어요)
+
+### 🟧 수한 · 🟩 지윤
+- [ ] `X_FRAME_OPTIONS` 바꾼 것 확인 (배포 서버도 같은 settings)
+
+---
+
+## 2026-11-11 · FastAPI로 AI 서버를 나누면 구조가 어떻게 바뀌나 (그림 설명) — 🟧 이수한
+코드 변경 없음. 🟧 선택 작업 "FastAPI AI 서버 분리"를 할지 정하기 전에 구조를 그림으로 정리했어요 → **[TRIPA AI 서버 분리 구조](https://claude.ai/artifact/TQiGa5AMZXzV7pr9ZrmNLs)**
+
+- **지금:** Django 하나가 화면·DB·AI 호출을 다 함 (로컬 모델이 느리면 사이트 전체가 느려질 수 있음)
+- **A안 · AI 부르는 곳만 FastAPI로 (약 1~2일):** `call_llm`·`embed_texts` 이름·모양은 그대로, 안에서 `ai_client`가 FastAPI(`/chat`·`/embed`)에 부탁. 도구 실행·DB는 Django에 남음. `.env`에 `AI_SERVER_URL`이 없으면 지금처럼
+- **B안 · 채팅 에이전트 전체를 FastAPI로 (약 3~5일):** 추천 카드의 사진·리뷰·비용 때문에 FastAPI도 DB를 읽어야 함, 🟩 `chat_service.py`가 크게 바뀜
+- 추천: 한다면 **A안**, B안은 발표 뒤로 (11/19 동결까지 작업일 5일)
+
+### 🟩 지윤
+- [ ] 그림 한 번 봐 주세요. A안이면 `call_llm`·`_chat_model` 안쪽 몇 줄만 바뀌고 함수 이름·응답은 그대로예요 (도구 호출이 오가는지만 같이 시험)
+
+### 🟦 영준
+- 변경 없음 (입장료 예상 `_ai_price`는 `call_llm`을 써서 A안이어도 그대로)
+
+---
+
 ## 2026-11-11 · 📐 공유 정의: `services/stats_service.py` 함수 이름·모양 (🟩 관리자 통계 · 🟧 Streamlit) — 🟩 서지윤
 코드는 아직 없음 (11/09 규칙: 모양 먼저 공유). 아래 요청(🟧)의 제안을 거의 그대로 쓰고 몇 개만 더했어요. **🟧는 이 모양 그대로 불러 쓰면 돼요.** 바꿀 게 있으면 만들기 전에 알려 줘.
 

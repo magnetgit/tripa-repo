@@ -1,6 +1,6 @@
 """데모 데이터 만들기 (발표 시연 · 추천 점수 · 리뷰 게시판 시험용)
 
-    python manage.py seed_demo              # 데모 회원 80명 + 여행·일정·리뷰·도움돼요·공유 루트·예산
+    python manage.py seed_demo              # 데모 회원 80명 + 여행·일정·리뷰·도움돼요·공유 루트·예산·고친 비용
     python manage.py seed_demo --reset      # 데모 데이터만 지우고 다시 만들기
     python manage.py seed_demo --clear      # 데모 데이터만 지우기 (만들지 않음)
     python manage.py seed_demo --members 30 --seed 7
@@ -11,10 +11,16 @@
   10대~60대·성별 안 넣은 회원까지 섞여 있어요.
 - 여행마다 동행(혼자·연인·친구·가족·아이·부모님)과 인원이 정해지고, 리뷰는 그 동행·나이대·장소·계절에 맞는
   문장을 조합해요 (장소별 문장 PLACE_LINES, 동행 문장 WITH_LINES, 나이대 말투 AGE_LINES). 리뷰 태그도 동행에 맞춰요.
-- 장소는 docs/data/busan_spots_draft.csv (팀이 고른 부산 장소, 실제 카카오 장소 번호).
+- 장소는 docs/data/busan_spots_draft.csv (팀이 고른 부산 장소) + docs/data/demo_spots_regions.csv
+  (서울·제주·강릉·경주·여수·전주·속초·대구, 카카오 키워드 검색으로 모은 실제 장소 번호). 여행마다 도착 도시
+  (REGION_WEIGHTS)와 출발지(역·터미널·공항, DEPARTURES)를 고르고, 제주는 공항에서 출발해요.
   그래서 채팅 추천 카드에도 데모 리뷰 별점이 붙고, 같은 성별·나이대 가중이 보여요.
 - 같은 --seed 값이면 언제나 같은 데이터가 나와요 (발표 화면을 미리 맞춰 둘 수 있게).
-- 데모 회원이 아닌 데이터는 건드리지 않아요. 지울 때도 demo_ 회원과 그 회원의 여행·리뷰만 지워요.
+- 기간: 2020년 1월부터 오늘까지. 가입은 해마다 늘어나게(JOIN_YEAR_WEIGHTS) 퍼지고, 여행은 가입한 뒤
+  오늘까지 1년에 1~2번꼴 + 다가오는 여행 1개(60%). 리뷰·공유 루트·고친 비용은 그 여행 날짜를 따라가요.
+- 다녀온 여행의 일부는 회원이 비용 관리에서 장소 금액을 고친 것처럼 travel_budget_item 을 넣어요.
+  DB 트리거가 budget_log 를 남기고, 기록 시각은 그 여행 날짜 근처로 옮겨요 (대시보드 '장소별 비용' · 날짜별 추이).
+- 데모 회원이 아닌 데이터는 건드리지 않아요. 지울 때도 demo_ 회원과 그 회원의 여행·리뷰·비용 기록만 지워요.
 
 새 기능에 데이터가 더 필요하면: 아래 make_* 함수를 하나 더 만들고 handle()의 순서 목록에 한 줄 추가하면 돼요.
 """
@@ -30,19 +36,37 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from sherpaapp.models import (
-    AVATAR_CHOICES, Category, Member, Place, Review, ReviewHelpful, RouteComment, RouteRating,
-    Schedule, SchedulePlace, SharedRoute, Travel, TravelBudget, TravelCategory,
+    AVATAR_CHOICES, BudgetLog, Category, Member, Place, Review, ReviewHelpful, RouteComment, RouteRating,
+    Schedule, SchedulePlace, SharedRoute, Travel, TravelBudget, TravelBudgetItem, TravelCategory,
 )
 
 DEMO_PREFIX = 'demo_'
+DEMO_SINCE = date(2020, 1, 1)               # 데모 데이터 시작 (운영 대시보드 연도별 증감용)
+JOIN_YEAR_WEIGHTS = {2020: 1, 2021: 2, 2022: 3, 2023: 4, 2024: 5, 2025: 7, 2026: 6}   # 해마다 가입이 늘게
 DEMO_PASSWORD = 'Tripa#Demo2026'    # 시험용 (데모 회원 모두 같음)
 SPOTS_CSV = Path(settings.BASE_DIR).parent / 'docs' / 'data' / 'busan_spots_draft.csv'
+REGION_SPOTS_CSV = Path(settings.BASE_DIR).parent / 'docs' / 'data' / 'demo_spots_regions.csv'
+REGION_WEIGHTS = {'부산': 3, '서울': 3, '제주': 3, '강릉': 2, '경주': 2, '여수': 2, '전주': 2, '속초': 1, '대구': 1}
+# 출발지: (이름, 주소, 위도, 경도, 그 도시) — 도착 도시와 같은 도시에서는 출발하지 않음
+DEPARTURES = [
+    ('서울역', '서울 용산구 한강대로 405', 37.5547, 126.9707, '서울'),
+    ('수서역', '서울 강남구 밤고개로 99', 37.4873, 127.1015, '서울'),
+    ('서울고속버스터미널', '서울 서초구 신반포로 194', 37.5049, 127.0049, '서울'),
+    ('김포국제공항', '서울 강서구 하늘길 112', 37.5587, 126.7945, '서울'),
+    ('부산역', '부산 동구 중앙대로 206', 35.1151, 129.0422, '부산'),
+    ('김해국제공항', '부산 강서구 공항진입로 108', 35.1732, 128.9468, '부산'),
+    ('대전역', '대전 동구 중앙로 215', 36.3324, 127.4342, '대전'),
+    ('동대구역', '대구 동구 동대구로 550', 35.8793, 128.6286, '대구'),
+    ('광주송정역', '광주 광산구 상무대로 201', 35.1374, 126.7914, '광주'),
+    ('청주국제공항', '충북 청주시 청원구 내수읍 오창대로 980', 36.7166, 127.4991, '청주'),
+]
+AIRPORTS = {'김포국제공항', '김해국제공항', '청주국제공항'}
 
 TAGS = ['가족과', '친구와', '연인과', '혼자', '아이와', '다시 가고 싶어요', '사진 맛집', '가성비']   # views.REVIEW_TAGS 와 같게
 
-NICKS = ['바다좋아', '카페투어', '먹방여행', '느린여행자', '역사덕후', '사진찍는곰', '주말부산', '혼행러',
+NICKS = ['바다좋아', '카페투어', '먹방여행', '느린여행자', '역사덕후', '사진찍는곰', '주말여행자', '혼행러',
          '가족여행단', '산책왕', '야경사냥꾼', '시장탐방', '빵지순례', '한옥좋아', '드라이브', '뚜벅이',
-         '노을맛집', '여행기록', '감성여행', '파도소리', '골목탐험', '맛집지도', '휴가중', '부산사랑']
+         '노을맛집', '여행기록', '감성여행', '파도소리', '골목탐험', '맛집지도', '휴가중', '국내여행러']
 
 # (성별, 나이대): 이 그룹이 좋아하는 컨셉 → 별점에 더하는 값. 같은 성별·나이대 가중 추천이 눈에 보이게 일부러 차이를 둠
 GROUP_LIKES = {
@@ -83,16 +107,16 @@ GOOD = {
            '자리 간격이 넓어서 편하게 쉬었어요', '빵이 금방 나와서 따뜻했어요'],
     '음식': ['양이 많고 맛있어요', '현지인 맛집 느낌이에요', '줄 서도 먹을 만해요', '국물이 진하고 깔끔해요',
            '반찬이 넉넉하게 나와요', '회전이 빨라서 생각보다 금방 먹었어요'],
-    '역사': ['설명이 잘 되어 있어 공부가 돼요', '천천히 둘러보기 좋아요', '전시가 알차고 동선이 편해요', '부산 역사를 한눈에 볼 수 있어요',
+    '역사': ['설명이 잘 되어 있어 공부가 돼요', '천천히 둘러보기 좋아요', '전시가 알차고 동선이 편해요', '이 지역 역사를 한눈에 볼 수 있어요',
            '해설을 들으니 훨씬 재미있었어요'],
     '전통문화': ['분위기가 멋져요', '구경하는 재미가 있어요', '사진 찍기 좋은 골목이 많아요', '먹거리 구경이 재미있어요',
-              '부산다운 모습을 볼 수 있어요'],
+              '이 동네다운 모습을 볼 수 있어요'],
     '자연': ['숲길 산책이 정말 좋아요', '풍경이 시원하게 트여 있어요', '공기가 맑고 조용해요', '바다와 절벽이 한눈에 보여요',
            '걷는 내내 경치가 바뀌어서 지루하지 않아요'],
     '공원': ['산책하기 좋은 공원이에요', '벤치가 많아서 쉬어 가기 좋아요', '야경이 예뻐요', '길이 잘 정돈되어 있어요',
            '조용히 바람 쐬기 좋아요'],
     '쇼핑': ['구경할 게 많아요', '기념품 사기 좋아요', '브랜드가 다양해요', '할인 매장이 많아서 득템했어요', '푸드코트도 괜찮아요'],
-    '랜드마크': ['야경이 정말 멋져요', '전망대에서 본 풍경이 최고예요', '포토 스팟이 많아요', '부산 오면 한 번은 꼭 와 볼 곳이에요',
+    '랜드마크': ['야경이 정말 멋져요', '전망대에서 본 풍경이 최고예요', '포토 스팟이 많아요', '여기 오면 한 번은 꼭 와 볼 곳이에요',
              '생각보다 훨씬 볼거리가 많아요'],
 }
 BAD = {
@@ -192,7 +216,7 @@ AGE_LINES = {
 }
 OUTDOOR = {'바다', '자연', '공원', '랜드마크', '전통문화'}   # 계절 한 줄을 붙이는 컨셉
 REVIEW_MAX = 100    # Review.content max_length
-INTROS = ['처음 부산 가는 분께 추천하는 코스예요', '걷기 편하게 동선을 짰어요', '맛집 위주로 다닌 여행이에요',
+INTROS = ['처음 가는 분께 추천하는 코스예요', '걷기 편하게 동선을 짰어요', '맛집 위주로 다닌 여행이에요',
           '아이와 함께 다녀온 코스예요', '바다를 실컷 본 여행이에요', '사진 찍기 좋은 곳만 모았어요']
 COMMENTS = ['동선 참고할게요!', '저도 다음 주에 가요', '여기 카페 저도 좋았어요', '일정 짜는 데 도움 됐어요', '좋은 코스네요']
 
@@ -230,11 +254,12 @@ class Command(BaseCommand):
             helpfuls = make_helpfuls(rnd, members, reviews)
             routes = make_routes(rnd, members, travels)
             budgets = make_budgets(rnd, travels)
+            edited = make_budget_items(rnd, travels)
 
         summaries = make_summaries(reviews) if opts['summaries'] else 0
         self.stdout.write(self.style.SUCCESS(
             f'데모 데이터: 회원 {len(members)} · 여행 {len(travels)} · 리뷰 {len(reviews)} · 도움돼요 {helpfuls} · '
-            f'공유 루트 {routes} · 예산 {budgets}' + (f' · AI 요약 {summaries}' if opts['summaries'] else '')))
+            f'공유 루트 {routes} · 예산 {budgets} · 고친 비용 {edited}' + (f' · AI 요약 {summaries}' if opts['summaries'] else '')))
         self.stdout.write(f'로그인: {DEMO_PREFIX}01 (20대 여성), {DEMO_PREFIX}02 (40대 남성) / 비밀번호는 이 파일의 DEMO_PASSWORD')
 
 
@@ -245,7 +270,10 @@ def clear_demo():
     """demo_ 회원을 지우면 그 회원의 여행·일정·장소·리뷰·도움돼요·공유 루트·예산이 같이 지워진다 (CASCADE)."""
     qs = Member.objects.filter(user_id__startswith=DEMO_PREFIX)
     n = qs.count()
+    travel_ids = list(Travel.objects.filter(member__in=qs).values_list('t_id', flat=True))
     qs.delete()
+    # budget_log 는 여행과 연결(FK)이 없어서 따로 지움 (지울 때 트리거가 남긴 'delete' 줄까지)
+    BudgetLog.objects.filter(travel_id__in=travel_ids).delete()
     return n
 
 
@@ -253,11 +281,17 @@ def clear_demo():
 # 장소 표 읽기
 # ---------------------------------------------------------------------------
 def load_spots():
-    """부산 장소 표 → [{concept, name, kind, addr, lat, lon, kakao_id}] (숙소는 일정 장소에서 뺌)"""
-    if not SPOTS_CSV.exists():
-        return []
+    """장소 표 두 개 → [{region, concept, name, addr, lat, lon, kakao_id}] (숙소는 일정 장소에서 뺌)"""
     spots = []
-    with open(SPOTS_CSV, encoding='utf-8-sig', newline='') as f:
+    for path in (SPOTS_CSV, REGION_SPOTS_CSV):
+        if path.exists():
+            spots += _read_spots(path)
+    return spots
+
+
+def _read_spots(path):
+    spots = []
+    with open(path, encoding='utf-8-sig', newline='') as f:
         for row in csv.DictReader(f):
             concept = (row.get('컨셉') or '').strip()
             m = re.search(r'/(\d+)\s*$', row.get('카카오맵') or '')
@@ -267,9 +301,16 @@ def load_spots():
                 lat, lon = float(row['위도']), float(row['경도'])
             except (TypeError, ValueError):
                 continue
-            spots.append({'concept': concept, 'name': row['이름'].strip(), 'addr': (row.get('주소') or '').strip(),
+            spots.append({'region': (row.get('지역') or '부산').strip(),
+                          'concept': concept, 'name': row['이름'].strip(), 'addr': (row.get('주소') or '').strip(),
                           'lat': lat, 'lon': lon, 'kakao_id': m.group(1)})
     return spots
+
+
+def _not_future(rnd, when):
+    """방금 끝난 여행의 리뷰·기록이 내일 날짜가 되지 않게: 지금보다 뒤면 지금 몇 분~몇 시간 전으로"""
+    now = datetime.now()
+    return when if when < now else now - timedelta(minutes=rnd.randint(5, 600))
 
 
 # ---------------------------------------------------------------------------
@@ -279,13 +320,19 @@ def make_members(rnd, count):
     pwd = make_password(DEMO_PASSWORD)
     avatars = [a[0] for a in AVATAR_CHOICES]
     members = []
+    latest = date.today() - timedelta(days=30)          # 가입 뒤 여행 하나는 다녀올 수 있게
+    years = [y for y in JOIN_YEAR_WEIGHTS if y <= latest.year]
     for i in range(count):
         gender, age = MEMBER_GROUPS[i % len(MEMBER_GROUPS)]
         no = f'{i + 1:02d}'
+        year = rnd.choices(years, weights=[JOIN_YEAR_WEIGHTS[y] for y in years])[0]
+        first, last = max(date(year, 1, 1), DEMO_SINCE), min(date(year, 12, 31), latest)
+        joined = first + timedelta(days=rnd.randint(0, (last - first).days))
         members.append(Member.objects.create(
             user_id=f'{DEMO_PREFIX}{no}', email=f'{DEMO_PREFIX}{no}@example.com', pwd=pwd,
             nickname=NICKS[i % len(NICKS)] + ('' if i < len(NICKS) else no), name=f'데모{no}',
             gender=gender, age_group=age, profile_img=rnd.choice(avatars),
+            joined_at=datetime.combine(joined, time(rnd.randint(8, 23), rnd.randint(0, 59))),
         ))
     return members
 
@@ -297,29 +344,48 @@ DAY_SLOTS = [(time(10, 0), 90), (time(12, 30), 60), (time(14, 30), 90), (time(17
 
 
 def make_travels(rnd, members, spots):
-    by_concept = {}
+    by_region = {}                           # 도시 → 컨셉 → 장소들
     for s in spots:
-        by_concept.setdefault(s['concept'], []).append(s)
-    concepts = list(by_concept)
+        by_region.setdefault(s['region'], {}).setdefault(s['concept'], []).append(s)
+    regions = [r for r in REGION_WEIGHTS if r in by_region]
+    concepts = sorted({s['concept'] for s in spots})
     categories = {c.c_name: c for c in Category.objects.all()}
     today = date.today()
     travels = []
     for m in members:
         likes = GROUP_LIKES.get((m.gender, m.age_group), {})
         favorite = [c for c, v in sorted(likes.items(), key=lambda x: -x[1]) if v > 0] or concepts
-        # 지난 여행 3개(계절이 다르게) + 다가오는 여행 1개
-        starts = [today - timedelta(days=rnd.randint(150, 240)), today - timedelta(days=rnd.randint(40, 120)),
-                  today - timedelta(days=rnd.randint(5, 30)), today + timedelta(days=rnd.randint(7, 40))]
+        # 가입 뒤 ~ 오늘: 지난 여행 1년에 1~2번꼴(2~8개) + 다가오는 여행 1개(60%)
+        joined = m.joined_at.date()
+        span = (today - timedelta(days=5) - (joined + timedelta(days=14))).days
+        past = max(2, min(8, round(span / 365 * 1.3) + rnd.randint(0, 1)))
+        starts = sorted([joined + timedelta(days=rnd.randint(14, 14 + min(span, 90)))] +      # 첫 여행은 가입 뒤 석 달 안
+                        [joined + timedelta(days=14 + rnd.randint(0, span)) for _ in range(past - 1)])
+        if rnd.random() < .6:
+            starts.append(today + timedelta(days=rnd.randint(7, 40)))
         for start in starts:
+            region = rnd.choices(regions, weights=[REGION_WEIGHTS[r] for r in regions])[0]
+            by_concept = by_region[region]
+            region_spots = [s for pool in by_concept.values() for s in pool]
+            here = [c for c in concepts if c in by_concept]
+            dep = rnd.choice([d for d in DEPARTURES if d[4] != region and (region != '제주' or d[0] in AIRPORTS)])
             days = rnd.choice([2, 2, 3])
-            main = rnd.choice(favorite[:2]) if rnd.random() < .4 else rnd.choice(concepts)
-            picks = [main, rnd.choice(concepts)]
+            liked = [c for c in favorite[:2] if c in by_concept]
+            main = rnd.choice(liked) if liked and rnd.random() < .4 else rnd.choice(here)
+            picks = [main, rnd.choice(here)]
             who = rnd.choice(COMPANION_BY_AGE.get(m.age_group, COMPANION_BY_AGE[None]))
             people = COMPANIONS[who][1]
             car = .7 if who in ('아이', '가족', '부모님') else .3     # 아이·가족 여행은 차가 많게
+            if region == '제주':
+                car = .85                                            # 제주는 렌터카가 많게
+            planned = max(joined, start - timedelta(days=rnd.randint(3, 20)))     # 계획한 날 (가입 뒤)
+            made = min(planned, today - timedelta(days=rnd.randint(0, 6)))        # 만든 날은 오늘까지
             t = Travel.objects.create(
-                member=m, t_day=start - timedelta(days=rnd.randint(3, 20)), t_place='부산',
-                t_title=f'부산 {days - 1}박 {days}일 {COMPANIONS[who][2]} {main} 여행',
+                member=m, t_day=planned, t_place=region,
+                start_place=dep[0], start_addr=dep[1], start_lat=dep[2], start_lon=dep[3],
+                created_at=_not_future(rnd, max(m.joined_at + timedelta(minutes=30),        # 가입한 날이면 가입 뒤
+                                                datetime.combine(made, time(rnd.randint(9, 23), rnd.randint(0, 59))))),
+                t_title=f'{region} {days - 1}박 {days}일 {COMPANIONS[who][2]} {main} 여행',
                 t_way='CAR' if rnd.random() < car else 'public_transport',
                 t_start=start, t_end=start + timedelta(days=days - 1),
                 t_budget=rnd.randrange(150000, 300001, 10000) * people, start_time=time(9, 0),
@@ -332,8 +398,8 @@ def make_travels(rnd, members, spots):
             for d in range(days):
                 sched = Schedule.objects.create(travel=t, s_day=start + timedelta(days=d))
                 for order, (at, stay) in enumerate(DAY_SLOTS, start=1):
-                    pool = by_concept.get('음식' if order == 2 else (main if order == 1 else rnd.choice(picks)), spots)
-                    pool = [s for s in pool if s['kakao_id'] not in used] or [s for s in spots if s['kakao_id'] not in used]
+                    pool = by_concept.get('음식' if order == 2 else (main if order == 1 else rnd.choice(picks)), region_spots)
+                    pool = [s for s in pool if s['kakao_id'] not in used] or [s for s in region_spots if s['kakao_id'] not in used]
                     if not pool:
                         break
                     s = rnd.choice(pool)
@@ -390,7 +456,7 @@ def review_text(rnd, member, place, rating, who, month):
         rnd.shuffle(extras)
         parts += [e for e in extras if e][:rnd.choice([1, 2, 2])]
         if rating == 5 and rnd.random() < .4:
-            parts.append(rnd.choice(['다음에 또 올 거예요', '강력 추천해요', '부산 오면 꼭 들르세요']))
+            parts.append(rnd.choice(['다음에 또 올 거예요', '강력 추천해요', f'{place.travel.t_place} 오면 꼭 들르세요']))
     season = _season_line(rnd, month, concept)
     if season and rnd.random() < .6:
         parts.append(season)
@@ -439,7 +505,8 @@ def make_reviews(rnd, travels):
             rv = Review.objects.create(member=t.member, place=p, kakao_id=p.p_kakao_id, place_name=p.p_name,
                                        rating=r, content=text, tags=tags)
             # 작성일: 여행 끝난 뒤 1~7일 (auto_now_add라 만든 뒤 따로 고침)
-            written = datetime.combine(t.t_end + timedelta(days=rnd.randint(1, 7)), time(rnd.randint(9, 22), rnd.randint(0, 59)))
+            written = _not_future(rnd, datetime.combine(t.t_end + timedelta(days=rnd.randint(1, 7)),
+                                                        time(rnd.randint(9, 22), rnd.randint(0, 59))))
             Review.objects.filter(pk=rv.pk).update(created_at=written)
             reviews.append(rv)
     return reviews
@@ -492,6 +559,44 @@ def make_budgets(rnd, travels):
             rows.append(TravelBudget(travel=t, category=cat, amount=amount))
     TravelBudget.objects.bulk_create(rows)
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# 고친 비용 — 회원이 비용 관리에서 장소 금액을 직접 고친 것처럼 (대시보드 '장소별 비용')
+# ---------------------------------------------------------------------------
+# 컨셉별 1인 금액 범위(원). 바다·자연·공원·역사는 대개 무료라 거의 안 고침
+PAY_PER_PERSON = {
+    '음식': (12000, 28000), '카페': (6000, 11000), '쇼핑': (10000, 40000),
+    '전통문화': (5000, 20000), '랜드마크': (3000, 27000), '역사': (0, 5000),
+}
+
+
+def make_budget_items(rnd, travels):
+    """다녀온 여행의 60%에서 장소 2~4곳 금액을 넣고, 그중 일부는 한 번 더 고친다.
+    INSERT·UPDATE 때 DB 트리거(0018)가 budget_log 를 남기고, 그 기록 시각을 여행 날짜 근처로 옮긴다."""
+    today = date.today()
+    count = 0
+    for t in travels:
+        if t.t_end >= today or rnd.random() > .6:
+            continue
+        people = COMPANIONS[t.demo_with][1]
+        sps = [sp for sp in SchedulePlace.objects.filter(schedule__travel=t).select_related('place')
+               if sp.place.p_kind in PAY_PER_PERSON]
+        for sp in rnd.sample(sps, min(len(sps), rnd.randint(2, 4))):
+            low, high = PAY_PER_PERSON[sp.place.p_kind]
+            amount = rnd.randint(low, high) * people // 1000 * 1000
+            item = TravelBudgetItem.objects.create(travel=t, schedule_place=sp, amount=amount)
+            if rnd.random() < .35:                       # 다녀와서 실제 쓴 돈으로 한 번 더 고침
+                item.amount = max(0, int(amount * rnd.uniform(.7, 1.3)) // 1000 * 1000)
+                item.save(update_fields=['amount', 'updated_at'])
+            count += 1
+        # 트리거는 NOW() 로 남기니, 여행 준비(출발 전)·다녀온 뒤 날짜로 옮김
+        for log in BudgetLog.objects.filter(travel_id=t.t_id):
+            day = (t.t_start - timedelta(days=rnd.randint(1, 5)) if log.action == 'insert'
+                   else t.t_end + timedelta(days=rnd.randint(0, 3)))
+            log.changed_at = _not_future(rnd, datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59))))
+            log.save(update_fields=['changed_at'])
+    return count
 
 
 # ---------------------------------------------------------------------------
