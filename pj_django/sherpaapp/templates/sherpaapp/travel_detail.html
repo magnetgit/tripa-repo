@@ -1578,6 +1578,10 @@
         .fest-card__title { margin: 0; font-size: 14px; font-weight: 800; color: #1f2d4a; line-height: 1.35; word-break: keep-all; }
         .fest-card__period { font-size: 11.5px; font-weight: 700; color: #2d6cdf; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .fest-card__addr { grid-column: 1 / 2; margin: 0; font-size: 11.5px; color: #7b88a1; line-height: 1.4; }
+        /* 축제 요금 한 줄 (🟧 fee 키, 11/10) */
+        .fest-card__fee { grid-column: 1 / 2; margin: 0; font-size: 12px; font-weight: 800; color: #475569; }
+        .fest-card__fee.is-free { color: #15803d; }
+        .fest-card__fee.is-unknown { color: #a16207; font-weight: 700; }
         .fest-card__days { display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 6px; background: #e8efff; color: #2d6cdf; font-size: 10.5px; font-weight: 700; }
         .fest-card__add {
             grid-column: 2 / 3; grid-row: 2 / 3; align-self: end;
@@ -5525,7 +5529,7 @@ function applySpCosts() {
         badge.className = "sp-cost";
         badge.textContent = spCostText(c);
         badge.title = [
-            c.source === "tour" ? "관광공사 요금" : "보통 가격으로 예상",
+            c.source === "tour" ? "관광공사 요금" : c.source === "ai" ? "AI가 예상한 입장료" : "보통 가격으로 예상",
             c.text || ""
         ].filter(Boolean).join("\n");
         main.appendChild(badge);
@@ -7994,6 +7998,29 @@ function goToTravelDetail(travelId) {
         return places.map(function (p) { return (p.place_name || "").trim(); });
     }
 
+    // 축제 요금 한 줄 (🟧 fee: per 1인 금액·amount 인원 금액·paid 유료 여부, 11/10 TEAM_UPDATES 표)
+    //   금액 읽음 → '1인 10,000원 · 2명 20,000원' / 무료 → '무료' / 유료인데 금액 없음 → '유료 · 금액은 홈페이지' / 정보 없음 → 안 보임
+    function feeHtml(fee) {
+        if (!fee) {
+            return "";
+        }
+        var won = function (n) { return Number(n).toLocaleString("ko-KR") + "원"; };
+        var text = "", cls = "";
+        if (fee.per != null && fee.per > 0) {
+            text = "1인 " + won(fee.per) + (fee.people > 1 && fee.amount != null ? " · " + fee.people + "명 " + won(fee.amount) : "");
+        } else if (fee.per === 0) {
+            text = "무료";
+            cls = " is-free";
+        } else if (fee.paid) {
+            text = "유료 · 금액은 홈페이지";
+            cls = " is-unknown";
+        } else {
+            return "";
+        }
+        // 관광공사 요금 원문은 마우스를 올리면 보이게
+        return '<p class="fest-card__fee' + cls + '" title="' + esc(fee.text || "") + '">🎟 ' + esc(text) + '</p>';
+    }
+
     // ---------- 목록 ----------
     function cardHtml(f, i) {
         var total = document.querySelectorAll("#dayList .day").length;
@@ -8007,6 +8034,7 @@ function goToTravelDetail(travelId) {
             + '<p class="fest-card__title">' + esc(f.title) + '</p>'
             + '<span class="fest-card__period">' + esc(f.period) + '</span>'
             + '<p class="fest-card__addr">' + esc(f.addr) + days + always + time + '</p>'
+            + feeHtml(f.fee)
             + '<button type="button" class="fest-card__add" data-fest-add="' + i + '">+ 일정에</button>'
             + '</article>';
     }

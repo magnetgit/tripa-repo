@@ -7,6 +7,7 @@ import CategoryRow from './CategoryRow.jsx';
 import ChartPanel from './ChartPanel.jsx';
 import FlowPanel from './FlowPanel.jsx';
 import { fetchBudget, saveLimits } from './api.js';
+import LogPanel from './LogPanel.jsx';
 import { CATS, won } from './cats.js';
 
 // 서버 금액 {분류: 숫자} → 입력 칸 값 {분류: '숫자 글자'}
@@ -223,6 +224,9 @@ export default function BudgetApp({ cfg }) {
         {/* AI가 장소를 고르는 방식 + 분류별 한 곳당 상한 */}
         <FlowPanel cfg={cfg} limits={limits} counts={data.counts || {}} people={data.people || 1} />
       </div>
+
+      {/* 예산 최근 변경 (🟧 budget_log): 저장·바꾸기 뒤 reloadKey 가 바뀌면 다시 불러옴 */}
+      <LogPanel cfg={cfg} reloadKey={reloadKey} />
 
       {/* 예전 비용 관리의 차트 3개 (고치는 금액이 바로 반영됨) */}
       <ChartPanel

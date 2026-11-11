@@ -18,6 +18,7 @@ export function readBudgetConfig(root) {
     altUrl: ds.altUrl,
     swapUrl: ds.swapUrl,
     detailUrl: ds.detailUrl,
+    logUrl: ds.logUrl || '',
     sprite: ds.sprite,
     csrf: token ? token.value : '',
     travels,
@@ -47,6 +48,12 @@ export async function saveLimits(cfg, limit, items = {}, total = null) {
     body: JSON.stringify(total == null ? { limit, items } : { limit, items, total }),
   });
   return (await readJson(res)).budget;
+}
+
+// 예산 최근 변경 (🟧 budget_log, DB 트리거 기록) → [{name, action: insert|update|delete, old, new, at: 'YYYY-MM-DD HH:MM'}]
+export async function fetchBudgetLog(cfg) {
+  const res = await fetch(cfg.logUrl, { credentials: 'same-origin' });
+  return (await readJson(res)).logs || [];
 }
 
 // 분류 하나의 더 싼 대안 → [{sp_id, day, name, cat, amount, options: [...]}]

@@ -266,6 +266,45 @@ body {
 .field-msg.is-ok  { color: #1f9d55; }
 .field-msg.is-bad { color: #e5484d; }
 
+/* 회원가입 비밀번호 규칙: 적는 동안 ✓(초록) / ✕(빨강), 아직 안 적었으면 회색 · (서버 password_problem 과 같은 규칙) */
+.pw-rules {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pw-rules li {
+    padding: 2px 9px;
+    border: 1px solid #e3e0d8;
+    border-radius: 999px;
+    background: #faf8f3;
+    color: #8a8579;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.6;
+}
+
+.pw-rules li::before { content: "· "; }
+
+.pw-rules li.is-ok {
+    border-color: #bfe5cf;
+    background: #eefaf3;
+    color: #1f9d55;
+}
+
+.pw-rules li.is-ok::before { content: "✓ "; }
+
+.pw-rules li.is-bad {
+    border-color: #f6c9ca;
+    background: #fff3f3;
+    color: #e5484d;
+}
+
+.pw-rules li.is-bad::before { content: "✕ "; }
+
 .field-stack {
     display: grid;
     gap: 8px;
