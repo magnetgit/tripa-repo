@@ -7,6 +7,7 @@
    - 숙박(32): detailInfo2 객실 요금(roomoffseasonminfee1 등) 중 가장 싼 방, 방 기준 인원(roombasecount)
    - 성인·어른·대인·일반 요금을 먼저 읽고, 없으면 처음 나온 금액. '무료'만 있으면 0원
 2) 관광공사에 요금이 없으면 분류별 보통 가격으로 '예상'(source='estimate')
+   - 관광지처럼 보통 가격도 없으면 AI에게 성인 1명 입장료를 물어 'AI 예상'(source='ai', 30일 캐시)
    - 식당은 메뉴 종류(횟집·고기·분식 …)로, 카페는 음료 한 잔, 숙소는 방 하나 하룻밤
 3) 인원 계산
    - 1인 요금(unit='person'): 1인 요금 × 인원
@@ -25,7 +26,8 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 from django.core.cache import cache
 
-from .tour_service import _tour_get, find_tour_item
+from .tour_service import _tour_get
+from .photo_service import _distance_m, _same_name, _squash
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +116,73 @@ def parse_fee(text):
 
 def _key(*parts):
     raw = ':'.join(str(p) for p in parts)
-    return 'place_price:v1:%s' % hashlib.md5(raw.encode('utf-8')).hexdigest()
+    return 'place_price:v2:%s' % hashlib.md5(raw.encode('utf-8')).hexdigest()   # v2: 이름 맞추기·AI 예상 (11/11)
+
+
+# 요금이 적힐 수 있는 관광공사 분류 (쇼핑 38·음식점 39 는 빼기: '창덕궁' → '창덕궁상품관' 같은 잘못 찾기 막기)
+PRICED_TYPES = (SPOT, CULTURE, FESTIVAL, LEPORTS, STAY)
+PRICE_NEAR_M = 1500   # 궁궐·공원처럼 넓은 곳은 카카오 좌표와 관광공사 좌표가 멀 수 있어서 넉넉히
+
+
+def _find_priced_item(name, lat, lon):
+    """요금을 읽을 관광공사 항목: 이름이 똑같은 것 먼저, 없으면 이름이 겹치는 관광지·문화시설 등"""
+    exact, similar = None, None
+    for item in _tour_get('searchKeyword2', keyword=name, numOfRows=10, pageNo=1):
+        if str(item.get('contenttypeid') or '') not in PRICED_TYPES or not _same_name(name, item.get('title')):
+            continue
+        if lat is not None and lon is not None:
+            try:
+                far = _distance_m(float(lat), float(lon), float(item.get('mapy')), float(item.get('mapx')))
+            except (TypeError, ValueError):
+                continue
+            if far > PRICE_NEAR_M:
+                continue
+        if _squash(item.get('title')) == _squash(name):
+            exact = exact or item
+        else:
+            similar = similar or item
+    return exact or similar
+
+
+AI_PRICE_SECONDS = 60 * 60 * 24 * 30
+AI_PRICE_PROMPT = (
+    '너는 한국 여행지 입장료를 아는 도우미야. 장소 이름과 종류를 보고 성인 1명 입장료(원)를 정수로만 답해. '
+    '입장료가 없는 곳(거리·공원·해변·광장 등)은 0. 확실히 모르면 null. '
+    'JSON 한 줄로만: {"per": 3000} 또는 {"per": 0} 또는 {"per": null}'
+)
+
+
+def _ai_price(name, kind):
+    """AI가 짐작한 성인 1명 입장료(원). 모르거나 AI 실패면 None (30일 캐시, 실패는 하루)"""
+    cache_key = _key('ai_price', name, kind)
+    saved = cache.get(cache_key)
+    if saved is not None:
+        return saved if saved >= 0 else None   # -1 = 지난번에 모름
+
+    # chat_service 가 이 파일을 불러와서, 여기서는 함수 안에서 불러옴 (서로 부르기 막기)
+    from .chat_service import call_llm, ChatError, _parse_json
+    try:
+        data = _parse_json(call_llm([
+            {'role': 'system', 'content': AI_PRICE_PROMPT},
+            {'role': 'user', 'content': '장소: %s / 종류: %s' % (name, kind or '관광지')},
+        ]))
+    except ChatError:
+        logger.warning('AI 입장료 예상 실패: %s', name)
+        cache.set(cache_key, -1, 60 * 60 * 24)
+        return None
+
+    per = data.get('per') if isinstance(data, dict) else None
+    if isinstance(per, str) and per.replace(',', '').isdigit():
+        per = int(per.replace(',', ''))
+    if not isinstance(per, int) or isinstance(per, bool) or not 0 <= per <= 200000:
+        per = None
+    cache.set(cache_key, -1 if per is None else per, AI_PRICE_SECONDS)
+    return per
 
 
 def _tour_price(name, lat, lon):
     """관광공사 요금 → {'per', 'unit', 'cap', 'text'} 또는 None (요금 정보 없음)"""
-    item = find_tour_item(name, lat, lon)
+    item = _find_priced_item(name, lat, lon)
     if not item:
         return None
 
@@ -284,6 +347,12 @@ def place_price(name, kind, lat=None, lon=None, kakao_id=None, category=None, fe
         typical = _typical_price(name, words)
         if typical:
             found = dict(typical, source='estimate', text='')
+
+    # 관광지인데 관광공사 요금도 보통 가격도 없으면 AI에게 입장료를 물어봄 (예: 창덕궁)
+    if found is None and cat in ('sight', 'etc'):
+        per = _ai_price(name, kind)
+        if per is not None:
+            found = {'per': per, 'unit': 'person', 'cap': 1, 'source': 'ai', 'text': 'AI 예상 (성인 1명 입장료)'}
 
     if found:
         found['cat'] = cat

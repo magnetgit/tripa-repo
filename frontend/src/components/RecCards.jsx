@@ -48,7 +48,7 @@ export function costText(cost, people) {
   if (cost && cost.same_stay) return '숙박비는 체크인 줄에'; // 같은 날 같은 숙소 두 번째 줄 (금액 0)
   if (!cost || cost.per == null) return '';
   const n = Math.max(1, Number(people) || 1);
-  const tag = cost.source === 'tour' ? '관광공사 요금' : '보통 가격 예상';
+  const tag = cost.source === 'tour' ? '관광공사 요금' : cost.source === 'ai' ? 'AI 예상' : '보통 가격 예상';
   if (cost.unit === 'room') {
     const rooms = Math.ceil(n / Math.max(1, cost.cap || 2));
     return `1박 방 ${wonText(cost.per)}${rooms > 1 ? ` × ${rooms}개` : ''} = ${n}명 ${wonText(cost.per * rooms)} (${tag})`;

@@ -3391,20 +3391,27 @@ def schedule_place_delete(request):
         )
 
 
-    schedule_place = (
-        get_object_or_404(
-            SchedulePlace,
-            sp_id=sp_id
-        )
-    )
+    login_user = request.session.get('login_ok_user')
+    if not login_user:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
 
+    schedule_place = get_object_or_404(
+        SchedulePlace.objects.select_related('schedule__travel__member', 'place'), sp_id=sp_id
+    )
+    if schedule_place.schedule.travel.member.user_id != login_user:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
 
     schedule = (
         schedule_place.schedule
     )
-
+    was_stay = '숙' in (schedule_place.place.p_kind or '')
+    stay_place_id = schedule_place.place_id
 
     schedule_place.delete()
+
+    # 숙소 줄을 지워서 그날 같은 숙소가 한 줄 이하로 남으면 = 체크인 없음 → 하루 계획의 체크인 시각도 비우기
+    if was_stay and SchedulePlace.objects.filter(schedule=schedule, place_id=stay_place_id).count() < 2:
+        TravelDayPlan.objects.filter(travel=schedule.travel, plan_date=schedule.s_day).update(checkin_time=None)
 
 
     # ==========================================
@@ -6299,6 +6306,9 @@ def travel_checkin(request, travel_id, day):
             schedule=schedule, place=stay.place, visit_order=stay.visit_order,
             stay_time=CHECKIN_STAY_MIN, arrive_time=checkin, start_time=leave,
         )
+
+        # 하루 계획에도 저장 → 날짜 옮기기·일정 다시 만들기 때도 체크인이 남게 (🟩 generate_schedule 이 읽는 칸)
+        TravelDayPlan.objects.filter(travel=travel, plan_date=schedule.s_day).update(checkin_time=checkin)
         reorder_schedule_places_by_time(schedule)                         # 체크인 시각 자리로
         recalculate_schedule_timeline(schedule, anchor_sp_id=row.sp_id)   # 그 뒤 일정 시간 다시
 

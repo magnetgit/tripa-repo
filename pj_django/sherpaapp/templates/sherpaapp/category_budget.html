@@ -48,6 +48,7 @@
              data-alt-url="{% url 'budget_alternatives' travel.t_id %}"
              data-swap-url="{% url 'budget_swap' travel.t_id %}"
              data-detail-url="{% url 'travel_detail' travel.t_id %}"
+             data-log-url="{% url 'budget_log' travel.t_id %}"
              data-sprite="{% static 'sherpaapp/icons/icons.svg' %}?v=5">
             {% csrf_token %}
             <!-- 여행 바꾸기: React 밖의 일반 링크 목록 (data 로 넘김) -->
