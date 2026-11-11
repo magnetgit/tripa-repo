@@ -38,7 +38,7 @@ from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from ._demo_routes import HOMES, plan_route, with_times
+from ._demo_routes import HOMES, access_route, plan_route, with_times
 from sherpaapp.models import (
     AVATAR_CHOICES, BudgetLog, Category, Member, Place, Review, ReviewHelpful, RouteComment, RouteRating,
     Schedule, SchedulePlace, SharedRoute, Travel, TravelBudget, TravelBudgetItem, TravelCategory,
@@ -370,19 +370,23 @@ def make_travels(rnd, members, spots):
             access_way, legs, t_way = plan_route(rnd, home[0], home[1], region)
             arrived, _ = with_times(rnd, legs, start)                       # 여행지에 닿는 시각
             first_at = (arrived + timedelta(minutes=30)).time() if arrived.date() == start else time(7, 0)
+            begin = max(time(9, 0), time(first_at.hour, first_at.minute // 10 * 10))
+            route, arrive = access_route(access_way, legs, t_way, home, region, people, begin)
             planned = max(joined, start - timedelta(days=rnd.randint(3, 20)))     # 계획한 날 (가입 뒤)
             made = min(planned, today - timedelta(days=rnd.randint(0, 6)))        # 만든 날은 오늘까지
             t = Travel.objects.create(
                 member=m, t_day=planned, t_place=region,
-                start_place=home[1], start_addr=home[2], start_lat=home[3], start_lon=home[4],
-                access_way=access_way, access_route=legs,
+                # 실제로 고른 것처럼: 첫날 출발점은 도착 공항·역·항구, 집은 access_route.origin
+                start_place=f"{arrive['name']} (도착)", start_addr=arrive['addr'] or None,
+                start_lat=round(arrive['lat'], 7), start_lon=round(arrive['lon'], 7),
+                access_way=access_way, access_route=route,
                 created_at=_not_future(rnd, max(m.joined_at + timedelta(minutes=30),        # 가입한 날이면 가입 뒤
                                                 datetime.combine(made, time(rnd.randint(9, 23), rnd.randint(0, 59))))),
                 t_title=f'{region} {days - 1}박 {days}일 {COMPANIONS[who][2]} {main} 여행',
                 t_way=t_way,
                 t_start=start, t_end=start + timedelta(days=days - 1),
                 t_budget=rnd.randrange(150000, 300001, 10000) * people,
-                start_time=max(time(9, 0), time(first_at.hour, first_at.minute // 10 * 10)),
+                start_time=begin,
             )
             t.demo_with = who    # 리뷰 문장·태그에 씀 (DB 칸 아님, 이번 실행 동안만)
             for name in set(picks):

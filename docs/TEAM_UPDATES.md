@@ -10,6 +10,49 @@
 
 ---
 
+## 2026-11-11 · 여행지까지 가는 길: 방법별 가격 비교·선택 → 첫날 일정·지도 바로 반영 + 대시보드 교통수단 원형 그래프 — 🟧 이수한
+DB 변경 없음 (11/11 #130 의 `ACCESS_WAY`·`ACCESS_ROUTE` 를 씀) · 새 주소 2개 · 여행 상세 화면에 패널 추가 (cloud-tripa 참고, TRIPA 모양으로)
+
+### 주소 (공유 정의)
+| 주소 | 요청 | 응답 |
+|---|---|---|
+| `GET /travel_access/<id>/?people=2` | 인원(없으면 비용 화면 인원) | `{success, applicable, options[], recommended, chosen, route, note, origin, destination, origin_city, people}` |
+| `POST /travel_access/<id>/choose/` | `mode`, `people` | `{success, route, start: {name, lat, lon, time}}` |
+
+- `options[]` 하나 = `access_route` 모양 그대로: `{mode, title, total(왕복), per_person, minutes, people, items[{label, amount}], real, origin, arrive, ready, t_way, go[leg], back[leg], note, tags[추천·최저가·가장 빠름]}`
+- `mode`: `car`·`ktx`·`ktx_rent`·`train_transfer`·`bus`·`flight`·`flight_rent`·`ferry`·`ferry_car` (→ `access_way` 는 `car·ktx·train_transfer·bus·flight·ferry`)
+- `leg`: `{mode, label, from, to, minutes, depart, arrive('HH:MM'), fare, detail, real, from_pt, to_pt, overnight?}`
+
+### 고르면 서버가 바꾸는 것 (`access_service.choose`)
+- `start_place/addr/lat/lon` → 도착 공항·역·항구 `(도착)`, 집은 `access_route.origin` 에 보관
+- `start_time` → 도착(렌터카 수령) 뒤 시각, `t_way` → 렌터카·자차면 `car`, 아니면 `public_transport`
+- 교통 예산(`TravelBudget` `move`)에 왕복 금액 더함 (다시 고르면 예전 금액 빼고)
+- 첫날 일정 `recalculate_schedule_timeline` 다시 계산
+
+### 가격·시간
+- 열차·항공·고속버스: 국토교통부 TAGO, 여객선: 해양교통안전공단 (공공데이터 키 = 기존 `TOUR_API_KEY`, 새 키 없음) — `services/transport_timetable.py` (🟩 `timetable_service` 와 따로: 편 목록·역·터미널 ID 낱개. 고르기 전에는 🟩 첫날 자동 맞춤, 고른 뒤엔 출발점이 도착 거점이라 80km 안 → 🟩 로직은 안 돎)
+- 집 ↔ 역·공항: 카카오 대중교통, 시간표가 없으면 어림 (카드에 "실제 시간표 / 어림 시간")
+- 고속버스 시간표는 하루 뒤까지만 나와서 먼 날짜는 내일 운행 시각, 여객선도 며칠 뒤까지만 → 평소 출항 시각
+- 돌아오는 편은 마지막 날 마지막 장소가 끝나고 1시간 뒤 첫 편
+
+### 화면 (`static/sherpaapp/js/access.js`·`css/access.css`, 여행 상세에는 연결 몇 줄만)
+- 위쪽 **🧭 여행지까지 가는 길** 패널: 인원 → [가격 비교] → 카드(추천·최저가·가장 빠름, 왕복·1인, 구간 아이콘, 요금 내역) → [이걸로 갈게요]
+- 고르면 새로 고침 없이 DAY 1 다시 불러옴(`loadDay` 감쌈), DAY 1 위 **가는 길**, 마지막 날 아래 **오는 길** 구간 목록, 지도에 점선
+- 여행 정보 '교통 수단'을 `car` 대신 **자동차·대중교통** 으로
+- 데모(`seed_demo`)도 같은 모양으로 넣고 출발점을 도착 거점으로
+
+### 대시보드
+- 새 탭 **교통수단**: 여행지까지 가는 방법·여행지 안에서 다니는 방법 원형 그래프 2개 + 여행지별 표, 여행지·성별·나이대로 거르기
+
+### 🟦 영준
+- [ ] `travel_detail.html` 바뀐 곳: 머리 아래 `#accessPanel` 섹션 + `json_script acRoute`, 맨 아래 `access.js`, `<head>` 의 `access.css`, 여행 정보 '교통 수단' 한 줄. 화면 모양 바꾸고 싶으면 `access.css` 만 고치면 돼요
+- [ ] `loadDay` 이름·역할을 바꾸면 알려 주세요 (access.js 가 감싸서 씀)
+
+### 🟩 지윤
+- [ ] 채팅 '적용'으로 만든 여행은 아직 `access_route` 가 비어 있어요 (상세에서 고르면 채워짐). 채팅에서도 고르게 하려면 `access_service.compare/choose` 를 그대로 부르면 돼요
+
+---
+
 ## 2026-11-11 · 가는 길·돌아오는 길 실제 시간표 (열차·항공·배) + 📐 공유 정의 `timetable_service` · 체류 시간 = `stay_range` 보통 — 🟩 서지윤
 DB·마이그레이션·`.env` 변경 없음 (지금 `TOUR_API_KEY` 그대로) · 새 파일 `services/timetable_service.py` · 기존 응답 키·함수 이름 그대로, **추가만** · `mock.json`에 `move_fares_far`·`timetable` 예시
 
