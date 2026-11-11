@@ -134,6 +134,11 @@ AI_BACKUP_MODEL = env(
 # 임베딩 모델 (설정 A: OpenAI / 설정 B:bge-m3)
 AI_EMBED_MODEL = env("AI_EMBED_MODEL", default="text-embedding-3-small")
 
+# FastAPI AI 서버 (ai_server/, B안). 비우면 Django 가 직접 AI 를 부름 (예전과 같음)
+# 서버: AI_SERVER_URL=http://127.0.0.1:8100 , AI_SERVER_TOKEN 은 Django·FastAPI 가 같은 값
+AI_SERVER_URL = env("AI_SERVER_URL", default="")
+AI_SERVER_TOKEN = env("AI_SERVER_TOKEN", default="")
+
 
 # =========================================================
 # Application definition
