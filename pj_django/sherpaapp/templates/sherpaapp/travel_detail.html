@@ -1154,6 +1154,47 @@
             }
         }
 
+        /* 휴대폰 화면(900px 이하): 이동 구간 칸이 오른쪽으로 잘리지 않게
+           - 칸이 화면 폭보다 넓어지지 않게(min-width: 0, max-width: 100%)
+           - 긴 노선 제목('버스 25-1 / 26 / 21 → 버스 1000 …')도 줄바꿈 */
+        @media (max-width: 900px) {
+            .transport-segment-content {
+                min-width: 0;
+            }
+
+            .transport-chip {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .transport-chip-main {
+                align-items: flex-start;
+                white-space: normal;
+            }
+
+            /* 아이콘은 왼쪽에 그대로, 제목만 남은 폭 안에서 줄바꿈 */
+            .transport-chip-main > span:first-child {
+                flex: none;
+            }
+
+            .transport-chip-main > span:last-child {
+                flex: 1 1 0;
+                min-width: 0;
+            }
+
+            .transport-chip-main > span:last-child,
+            .transport-detail-text,
+            .transit-step {
+                overflow-wrap: anywhere;
+                word-break: keep-all;
+            }
+
+            .transit-steps {
+                width: 100%;
+            }
+        }
+
 
         /* =========================================
            간단한 리스트형 일정 (사진은 눌렀을 때만)
