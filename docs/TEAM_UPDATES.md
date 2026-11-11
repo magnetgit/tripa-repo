@@ -10,6 +10,61 @@
 
 ---
 
+## 2026-11-11 · 📐 공유 정의: FastAPI AI 서버 분리 B안 — 채팅 에이전트 전체를 `ai_server/` 로 — 🟧 이수한
+코드는 아직 없음 (11/09 규칙: 모양 먼저 공유). 아래 모양대로 만들 예정이에요. **바꿀 게 있으면 만들기 전에 알려 줘.**
+그림: [TRIPA AI 서버 분리 구조](https://claude.ai/artifact/TQiGa5AMZXzV7pr9ZrmNLs) · 참고: cloud-tripa `ai_server/`
+
+### 구조
+```
+브라우저 ──(지금 그대로)──▶ Django :8000 (/travel_chat/ … 로그인·요청 횟수 제한·미리보기·적용·DB 쓰기)
+                                │  AI_SERVER_URL 이 있으면
+                                ▼  POST /chat/turn · /llm · /embed  (헤더 X-AI-Token)
+                         FastAPI :8100 (ai_server/main.py, uvicorn, 서버 안 127.0.0.1 만)
+                                │  django.setup() → sherpaapp.services 그대로 불러 씀 (같은 DB·같은 캐시)
+                                ▼
+                    LLM(OpenAI·로컬 모델) · 카카오 · TourAPI · Open-Meteo
+```
+- **채팅 한 턴 전체**(`chat_service.run_chat_turn`: 프롬프트·도구 호출 `get_weather`·`check_open`·초안 정리·추천 카드 사진·리뷰 순위·비용)가 FastAPI 프로세스에서 돌아요
+- **Django에 남는 것**: 로그인(`_chat_member`)·요청 횟수 제한(세션)·카테고리 목록·미리보기·적용(`_chat_create_travel`·`generate_schedule`·핀·순서)·`save_limits`·리뷰 요약 저장·`similar_places`
+- **`.env` 에 `AI_SERVER_URL` 이 비어 있으면 지금과 똑같이 Django 가 직접 처리** (로컬 PC 기본값, 🟦·🟩 따로 할 일 없음)
+- DB·캐시(DatabaseCache)는 같은 MariaDB 를 같이 써요 → 사진(`place_photo`)·리뷰 순위·`_ai_price` 캐시 그대로
+
+### 새 `.env` 키 (기본은 비움)
+| 키 | 뜻 | 서버 값 |
+|---|---|---|
+| `AI_SERVER_URL` | 비면 Django 가 직접, 있으면 FastAPI 로 | `http://127.0.0.1:8100` |
+| `AI_SERVER_TOKEN` | Django ↔ FastAPI 사이 비밀 글자 (`X-AI-Token`) | 🟧 가 서버 `.env` 에 직접 |
+
+### FastAPI 주소 (Django 만 부름, 브라우저는 안 부름)
+| 주소 | 요청 | 응답 |
+|---|---|---|
+| `GET /health` | – | `{ok, model, embed_model, db}` |
+| `POST /chat/turn` | `{messages: [{role, content}], draft, category_names: [], profile: {gender, age_group}, today: "YYYY-MM-DD"}` | **`/travel_chat/` 응답과 똑같음**: `{ok, reply, draft, missing, ready, hint, changed, notes, recommendation, weather}` |
+| `POST /llm` | `{messages: [{role, content}], json: false, max_tokens: null}` | `{text}` — `call_llm` 대신 (리뷰 요약·`_ai_price`) |
+| `POST /embed` | `{texts: ["…"]}` | `{model, vectors: [[…]]}` — `embed_texts` 대신 (`index_reviews`·`similar_places`) |
+- 오류: `401` 토큰 틀림, `422` 요청 모양 틀림, `502` LLM 실패 → `{detail: "…"}` → Django 가 `ChatError(detail)` 로 바꿔서 지금처럼 `{ok: false, error}`
+- 문서: `http://127.0.0.1:8100/docs` (FastAPI 자동 문서, 발표 때 보여 주기 좋음)
+
+### 함수 이름·모양은 그대로
+- `chat_service.run_chat_turn(messages, draft, category_names, today, llm=None, profile=None)` · `call_llm(...)` · `embed_service.embed_texts(texts)` — **이름·인자·돌려주는 모양 안 바꿈**
+- Django 쪽 새 파일 `services/ai_client.py`: `enabled()` · `chat_turn(...)` · `llm(...)` · `embed(...)`
+  - `travel_chat` 뷰: `ai_client.enabled()` 면 `ai_client.chat_turn(...)`, 아니면 지금처럼 `run_chat_turn(...)`
+  - `call_llm`·`embed_texts` 맨 앞: `AI_SERVER_URL` 이 있고 **FastAPI 프로세스 안이 아니면** 서버에 부탁 (FastAPI 안에서는 환경변수 `TRIPA_AI_SERVER=1` 이라 돌고 돌지 않음)
+- 서버: systemd `tripa-ai` (uvicorn 127.0.0.1:8100, 포트 밖으로 안 엶), `deploy.sh` 가 같이 재시작
+
+### 🟩 지윤
+- [ ] `chat_service`·`agent_tools` 는 그대로 고쳐도 돼요. 다만 **채팅 턴 안에서 `request`·`session` 을 쓰지 말기** (FastAPI 에는 없음, 필요한 값은 인자로)
+- [ ] `run_chat_turn` 응답 키는 추가만 (지금처럼). 새로 DB 를 쓰는 건 괜찮아요 (같은 DB)
+- [ ] 바꿀 점 있으면 이 항목에 답 주세요
+
+### 🟦 영준
+- 변경 없음 (`/travel_chat/` 주소·응답 그대로)
+
+### 순서 (11/19 동결 전)
+1. 이 공유 (오늘) → 2. `ai_server/`·`ai_client`·스위치 (URL 비면 지금과 같음) + 시험 → 3. 서버 `tripa-ai` 서비스·`AI_SERVER_URL` → 4. 그림·발표 자료 갱신
+
+---
+
 ## 2026-11-11 · 여행지까지 가는 길: 방법별 가격 비교·선택 → 첫날 일정·지도 바로 반영 + 대시보드 교통수단 원형 그래프 — 🟧 이수한
 DB 변경 없음 (11/11 #130 의 `ACCESS_WAY`·`ACCESS_ROUTE` 를 씀) · 새 주소 2개 · 여행 상세 화면에 패널 추가 (cloud-tripa 참고, TRIPA 모양으로)
 
