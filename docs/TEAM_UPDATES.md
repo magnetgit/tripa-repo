@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-11-11 · FastAPI AI 서버 B안 2단계: `ai_server/` + `ai_client` + 스위치 (기본은 예전과 같음) — 🟧 이수한
+DB·응답 키 변경 없음 · 새 폴더 `ai_server/` (저장소 맨 위) · 새 `.env` 키 `AI_SERVER_URL`·`AI_SERVER_TOKEN` (**비우면 지금과 똑같음**, 로컬은 안 넣어도 됨)
+
+- `ai_server/main.py`: `GET /health` · `POST /chat/turn` · `POST /llm` · `POST /embed` (아래 📐 공유 정의 그대로), `django.setup()` 으로 `chat_service`·`embed_service` 그대로 부름, `/docs` 자동 문서
+- `services/ai_client.py`: `enabled()`·`remote()`·`chat_turn()`·`llm()`·`embed()` — 실패하면 `ChatError`·`EmbedError` 로 바꿔서 화면 오류 처리 그대로
+- 스위치 3곳 (URL 있을 때만): `travel_chat` 뷰 → `ai_client.chat_turn`, `call_llm`(도구 없는 호출만) → `/llm`, `embed_texts` → `/embed`
+- 로컬 실행: `ai_server/README.md` (`uvicorn ai_server.main:app --port 8100`)
+- 시험: 직접·FastAPI 경유 응답 키 같음(10개), `/llm`·`/embed` 200, AI 서버 꺼짐 → 502 "AI 서버에 연결하지 못했어요", 토큰 없음·틀림 401
+
+### 🟩 지윤
+- [ ] `run_chat_turn` 을 고치면 FastAPI 로도 시험해 보기 (README 의 두 줄) — 채팅 턴 안에서 `request`·`session` 안 쓰기
+
+### 🟦 영준
+- 변경 없음
+
+---
+
 ## 2026-11-11 · 📐 공유 정의: FastAPI AI 서버 분리 B안 — 채팅 에이전트 전체를 `ai_server/` 로 — 🟧 이수한
 코드는 아직 없음 (11/09 규칙: 모양 먼저 공유). 아래 모양대로 만들 예정이에요. **바꿀 게 있으면 만들기 전에 알려 줘.**
 그림: [TRIPA AI 서버 분리 구조](https://claude.ai/artifact/TQiGa5AMZXzV7pr9ZrmNLs) · 참고: cloud-tripa `ai_server/`

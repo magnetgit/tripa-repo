@@ -51,6 +51,7 @@ from .services import embed_service
 from .services import transit_service
 from .services import fare_service
 from .services import access_service
+from .services import ai_client
 from .services.photo_service import attach_photos, place_photo_url
 from .services import festival_service
 from .services import region_photo_service
@@ -5105,8 +5106,10 @@ def travel_chat(request):
         Category.objects.order_by('c_id').values_list('c_name', flat=True)
     )
 
+    # AI_SERVER_URL 이 있으면 채팅 한 턴 전체를 FastAPI(ai_server)에, 없으면 지금처럼 여기서 (🟧 B안)
+    turn = ai_client.chat_turn if ai_client.remote() else chat_service.run_chat_turn
     try:
-        result = chat_service.run_chat_turn(
+        result = turn(
             body.get('messages'),
             body.get('draft'),
             category_names,
