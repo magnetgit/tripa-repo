@@ -10,6 +10,39 @@
 
 ---
 
+## 2026-11-11 · 📐 공유 정의: `services/stats_service.py` 함수 이름·모양 (🟩 관리자 통계 · 🟧 Streamlit) — 🟩 서지윤
+코드는 아직 없음 (11/09 규칙: 모양 먼저 공유). 아래 요청(🟧)의 제안을 거의 그대로 쓰고 몇 개만 더했어요. **🟧는 이 모양 그대로 불러 쓰면 돼요.** 바꿀 게 있으면 만들기 전에 알려 줘.
+
+### 공통 규칙
+- 장고 ORM만 씀 (request·HTML 모름) → Streamlit은 `django.setup()` 뒤 `from sherpaapp.services import stats_service`
+- 걸러 보기 값: `gender` = `'M'`·`'F'`·`'none'`(안 넣음)·`None`(전체), `age_group` = `10`·`20`·…·`60`·`'none'`·`None`(전체)
+- **방문** = 일정에 들어간 장소(`schedule_places`) 수 (그 여행 회원 기준), **리뷰** = `review` 수, **별점** = 리뷰 별점 평균(소수 1자리, 리뷰 없으면 `None`)
+- 같은 장소는 `kakao_id`로 묶음 (없으면 이름으로). `kind`는 `place.p_kind` 그대로 (`음식`·`바다`·`관광`·`카페`…). 숙소(`숙`)는 장소 순위에서 뺌
+- 돌려주는 값은 모두 `list`·`dict`·숫자·글자 (pandas `DataFrame(rows)`로 바로 바꿀 수 있게)
+
+### 함수
+| 함수 | 돌려주는 것 |
+|---|---|
+| `labels()` | `{'gender': {'M': '남성', 'F': '여성', 'none': '안 넣음'}, 'age': {10: '10대', …, 60: '60대 이상', 'none': '안 넣음'}}` (화면 이름, `models` 선택지 그대로) |
+| `member_summary()` | `{'members': 80, 'by_gender': {'M': 35, 'F': 38, 'none': 7}, 'by_age': {10: 6, 20: 20, …, 'none': 5}}` |
+| `favorite_places(gender=None, age_group=None, limit=5, order='visits')` | `[{'kakao_id', 'name', 'kind', 'visits', 'reviews', 'rating'}]` — `order`: `'visits'`(방문 많은 순, 같으면 리뷰 수)·`'reviews'`·`'rating'`(리뷰 3개 이상만) |
+| `group_preferences()` | `[{'gender', 'age_group', 'kind', 'visits', 'reviews', 'rating'}]` — 성별 × 나이대 × 장소 종류 (표·히트맵용, 0인 칸은 없음) |
+| `place_spending(limit=10)` | `[{'kakao_id', 'name', 'edited_total', 'edited_avg', 'edits'}]` — 회원이 비용 관리에서 고친 금액(`travel_budget_item.amount`) 합계·평균, `edits` = `budget_log` 줄 수. 합계 많은 순 |
+
+```python
+# 예: 20대 여성이 많이 간 곳
+stats_service.favorite_places(gender='F', age_group=20)
+# [{'kakao_id': '8202423', 'name': '광안리해수욕장', 'kind': '바다', 'visits': 31, 'reviews': 18, 'rating': 4.4}, ...]
+```
+
+### 🟧 수한
+- [ ] 이 모양으로 괜찮은지 (Streamlit에서 날짜별 추이는 🟧가 pandas로, 여기엔 안 넣음)
+
+### 🟩 지윤
+- [ ] `stats_service.py` 만들기 → 관리자 통계 화면에서 불러 쓰기 (데이터는 `python manage.py seed_demo`로 시험)
+
+---
+
 ## 2026-11-11 · 📐 회원 통계 계산은 `services/stats_service.py` 한 곳에 (🟩 관리자 통계 + 🟧 Streamlit이 같이 씀) — 🟧 이수한 (요청)
 코드 변경 없음. 🟩 관리자 페이지 통계와 🟧 Streamlit 운영 대시보드가 **같은 숫자**를 보여 주도록, 집계 쿼리를 한 파일에 두고 둘 다 불러 써요.
 
