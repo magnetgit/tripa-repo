@@ -47,6 +47,7 @@ from .services.schedule_service import (
 )
 from .services.review_service import summarize_review
 from .services import chat_service
+from .i18n_middleware import request_lang
 from .services import embed_service
 from .services import transit_service
 from .services import fare_service
@@ -5276,6 +5277,12 @@ def api_trip(request, trip_id):
     return JsonResponse(data, json_dumps_params={'ensure_ascii': False})
 
 
+def _screen_lang(request):
+    """언어 버튼으로 고른 화면 언어. 한국어(또는 안 고름)면 None → 챗봇이 사용자가 쓴 글자로 짐작"""
+    lang = request_lang(request)
+    return None if lang == 'ko' else lang
+
+
 @require_POST
 def travel_chat(request):
     member = _chat_member(request)
@@ -5304,7 +5311,9 @@ def travel_chat(request):
             category_names,
             today=date.today(),
             profile={'gender':member.gender, 'age_group':member.age_group,
-                     'lang': body.get('lang')},   # 🟩 화면 언어(ko·en·ja·zh), 없으면 사용자가 쓴 글자로
+                     # 🟩 화면 언어(ko·en·ja·zh), 없으면 사용자가 쓴 글자로
+                     # 🟧 11/12 화면이 lang 을 안 보내면 언어 버튼으로 고른 값(쿠키 tripa_lang). 한국어·안 고름은 지금처럼 글자로 짐작
+                     'lang': body.get('lang') or _screen_lang(request)},
         )
     except chat_service.ChatError as error:
         return _chat_error(str(error), 502)
