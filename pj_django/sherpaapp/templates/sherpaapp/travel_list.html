@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261082">
 
 </head>
 
@@ -111,6 +111,23 @@
             <svg class="tl-cloud tl-cloud--2" viewBox="0 0 240 90"><ellipse cx="34" cy="42" rx="27" ry="18"/><ellipse cx="67" cy="45" rx="37" ry="25"/><ellipse cx="102" cy="49" rx="30" ry="21"/><ellipse cx="127" cy="46" rx="35" ry="24"/><ellipse cx="146" cy="45" rx="32" ry="22"/><ellipse cx="184" cy="52" rx="38" ry="26"/><rect x="20" y="55" width="200" height="25" rx="12"/></svg>
             <svg class="tl-cloud tl-cloud--3" viewBox="0 0 240 90"><ellipse cx="37" cy="44" rx="31" ry="21"/><ellipse cx="71" cy="55" rx="36" ry="25"/><ellipse cx="99" cy="42" rx="35" ry="24"/><ellipse cx="118" cy="55" rx="30" ry="21"/><ellipse cx="154" cy="47" rx="29" ry="20"/><ellipse cx="185" cy="55" rx="34" ry="23"/><rect x="20" y="55" width="200" height="25" rx="12"/></svg>
 
+            <!-- 관제탑 (활주로 너머 지평선 위) -->
+            <svg class="tl-tower" viewBox="0 0 120 260">
+                <rect x="4" y="226" width="112" height="34" rx="3" fill="#dfe6ef"/>
+                <rect x="12" y="234" width="96" height="6" rx="2" fill="#c9d4e2"/>
+                <polygon points="47,226 73,226 69,92 51,92" fill="#eef2f7"/>
+                <polygon points="60,226 73,226 69,92 60,92" fill="#dce4ee"/>
+                <rect x="30" y="80" width="60" height="12" rx="2" fill="#e3e9f1"/>
+                <polygon points="27,50 93,50 87,80 33,80" fill="#3b5b86"/>
+                <polygon points="33,54 45,54 44,76 37,76" fill="#7fa3cf" opacity="0.7"/>
+                <polygon points="53,54 67,54 66,76 54,76" fill="#7fa3cf" opacity="0.6"/>
+                <polygon points="75,54 87,54 83,76 76,76" fill="#7fa3cf" opacity="0.5"/>
+                <rect x="24" y="42" width="72" height="10" rx="3" fill="#f4f7fb"/>
+                <rect x="44" y="34" width="32" height="9" rx="2" fill="#e3e9f1"/>
+                <line x1="60" y1="34" x2="60" y2="12" stroke="#9aa7b8" stroke-width="2.5"/>
+                <circle class="tl-tower__light" cx="60" cy="10" r="4" fill="#e5484d"/>
+            </svg>
+
             <div class="tl-runway">
                 <span class="tl-runway__line"></span>
             </div>
@@ -118,8 +135,9 @@
             <!-- 서 있는 큰 비행기 -->
             <svg class="tl-parked" viewBox="0 0 120 48"><path d="M58 21 L49 11 L56 11 L73 21 Z"/><path d="M15 21 L6 4 L18 4 L33 20 Z"/><path d="M8 26 C8 22 14 20 22 20 L96 20 C106 20 116 23 118 26 C116 29 106 31 96 31 L22 31 C14 31 8 29 8 26 Z"/><path d="M50 27 L38 44 L48 44 L72 28 Z"/></svg>
 
-            <!-- 활주로를 달리다 이륙하는 비행기 -->
-            <div class="tl-takeoff"><svg viewBox="0 0 120 48"><path d="M58 21 L49 11 L56 11 L73 21 Z"/><path d="M15 21 L6 4 L18 4 L33 20 Z"/><path d="M8 26 C8 22 14 20 22 20 L96 20 C106 20 116 23 118 26 C116 29 106 31 96 31 L22 31 C14 31 8 29 8 26 Z"/><path d="M50 27 L38 44 L48 44 L72 28 Z"/></svg></div>
+            <!-- 활주로를 달리다 이륙하는 비행기
+                 바깥: 옆으로 (계속 빨라짐) · 가운데: 위로 떠오름 · 안: 기수 들기 → 움직임마다 따로라 속도가 끊기지 않음 -->
+            <div class="tl-takeoff"><div class="tl-takeoff__climb"><div class="tl-takeoff__pitch"><svg viewBox="0 0 120 48"><path d="M58 21 L49 11 L56 11 L73 21 Z"/><path d="M15 21 L6 4 L18 4 L33 20 Z"/><path d="M8 26 C8 22 14 20 22 20 L96 20 C106 20 116 23 118 26 C116 29 106 31 96 31 L22 31 C14 31 8 29 8 26 Z"/><path d="M50 27 L38 44 L48 44 L72 28 Z"/></svg></div></div></div>
 
             <!-- 대합실 창틀 -->
             <div class="tl-frame"></div>

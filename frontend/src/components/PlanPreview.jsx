@@ -1,7 +1,7 @@
 // 일정 미리보기: 일차 탭 + 날짜별 타임라인 (순서 바꾸기·삭제·끌어서 옮기기)
 import { useState } from 'react';
 import Icon from './Icon.jsx';
-import { dayItems, isPlanFresh, removedKey } from '../lib/plan.js';
+import { dayItems, farLeg, farLegText, isPlanFresh, removedKey } from '../lib/plan.js';
 import { PlaceTag, costText } from './RecCards.jsx';
 import { planPopupInfo } from '../lib/mapPopup.js';
 
@@ -57,7 +57,10 @@ export default function PlanPreview({
   const items = dayItems(state, day);
   const reordered = !!state.order[day.day];
   const pending = state.plan.rkey !== removedKey(state.removed, state.order);
-  const moveSum = items.reduce((s, it) => s + (it.move != null ? it.move : 0), 0);
+  // 첫날 첫 구간이 바다 건너·아주 먼 길이면 차 길 시간 대신 안내 (합계에서도 빼기)
+  const far = farLeg(state, day);
+  const farText = far ? farLegText(far) : null;
+  const moveSum = items.reduce((s, it, i) => s + (it.move != null && !(far && i === 0) ? it.move : 0), 0);
   const goneToday = state.removed.filter((r) => r.day === day.day).length;
 
   return (
@@ -113,7 +116,7 @@ export default function PlanPreview({
           {/* 2) 그다음 장소들을 순서대로 */}
           {items.map((it, i) => {
             const sub = [];
-            if (it.move != null) sub.push(`${it.move}분 이동${state.plan.transport ? ` · ${state.plan.transport} 기준` : ''}`);
+            if (it.move != null && !(farText && i === 0)) sub.push(`${it.move}분 이동${state.plan.transport ? ` · ${state.plan.transport} 기준` : ''}`);
             if (it.stay && !it.is_stay) sub.push(`체류 ${it.stay}분`);
 
             const cls = ['tc-tl__item'];
@@ -174,6 +177,12 @@ export default function PlanPreview({
                     <button type="button" className="tc-tl__del" aria-label={`${it.name} 일정에서 빼기`}
                       onClick={() => onRemove(day, it)}>삭제</button>
                   </div>
+                  {farText && i === 0 && (
+                    <p className="tc-tl__far">
+                      <b>{farText.title}</b>
+                      <span>{farText.sub}</span>
+                    </p>
+                  )}
                   {sub.length > 0 && (
                     <p className="tc-tl__meta"><Icon name="route" sprite={sprite} /> {sub.join(' · ')}</p>
                   )}

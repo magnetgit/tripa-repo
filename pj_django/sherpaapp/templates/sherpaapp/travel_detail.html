@@ -12,7 +12,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261084">
     <link rel="stylesheet" href="{% static 'sherpaapp/css/access.css' %}?v=20261111b">
 
     <style>
@@ -908,6 +908,56 @@
             line-height: 1.45;
             white-space: normal;
         }
+
+        /* 일정 고칠 때 운영시간 검사 (🟩 #138): 되돌렸다는 안내 창 + '그래도 바꾸기' */
+        .hours-block {
+            position: fixed;
+            inset: 0;
+            z-index: 4000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .hours-block__card {
+            width: min(420px, 100%);
+            padding: 20px 20px 16px;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+            color: #1f2d4a;
+        }
+
+        .hours-block__title { margin: 0 0 4px; font-size: 16px; font-weight: 800; color: #b45309; }
+        .hours-block__sub { margin: 0 0 12px; font-size: 13px; color: #64748b; }
+        .hours-block__list { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
+
+        .hours-block__list li {
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: #fff7ed;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .hours-block__list b { display: block; font-size: 13.5px; }
+        .hours-block__tag { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 999px; background: #fed7aa; color: #9a3412; font-size: 11px; font-weight: 800; }
+        .hours-block__note { margin: 0 0 14px; font-size: 12px; color: #64748b; }
+        .hours-block__actions { display: flex; gap: 8px; }
+
+        .hours-block__actions button {
+            flex: 1;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .hours-block__keep { border: 1px solid #cbd5e1; background: #ffffff; color: #334155; }
+        .hours-block__force { border: 0; background: #e8710a; color: #ffffff; }
 
         /* 체크인하고 다시 나가기 (travel_checkin) */
         .checkin-bar {
@@ -2736,14 +2786,91 @@ function showSpMapPopup(key, position) {
         return;
     }
 
+    const content = spMapPopupEl(card);
     spMapPopup = new kakao.maps.CustomOverlay({
         position: position,
-        content: spMapPopupEl(card),
+        content: content,
         xAnchor: 0.5,
         yAnchor: 1,
         zIndex: 200
     });
     spMapPopup.setMap(map);
+
+    fillSpPopupInfo(spMapPopup, content, key);
+}
+
+/* 지도 팝업에 별점·그날 운영시간·사진 더하기 (🟩 /api/place_info/, 11/12)
+   일정 장소의 카카오 번호(place_kakao_id)로 한 번에 받음. 같은 장소·날짜는 화면에 기억해 다시 안 부름 */
+const spPlaceInfoCache = {};
+
+function spPlaceInfo(sp, day) {
+    const key = `${sp.place_kakao_id}|${day}`;
+    if (!spPlaceInfoCache[key]) {
+        const query = new URLSearchParams({
+            kakao_id: sp.place_kakao_id,
+            name: sp.place_name || "",
+            addr: sp.place_addr || "",
+            kind: sp.place_kind || "",
+            date: day
+        });
+        if (sp.place_lat != null && sp.place_lon != null) {
+            query.append("lat", sp.place_lat);
+            query.append("lon", sp.place_lon);
+        }
+        spPlaceInfoCache[key] = fetch(`{% url 'api_place_info' %}?${query}`, { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) { return data && data.success ? data : null; })
+            .catch(function () { return null; });
+    }
+    return spPlaceInfoCache[key];
+}
+
+function fillSpPopupInfo(overlay, content, key) {
+    const places = (currentDayData && Array.isArray(currentDayData.places)) ? currentDayData.places : [];
+    const sp = places.find(function (p) { return String(p.place_id) === String(key); });
+    if (!sp || !sp.place_kakao_id) {
+        return;   // 카카오 번호가 없는 장소는 지금 모양 그대로
+    }
+    const day = String(currentDayData.s_day || "").replace(/\./g, "-");
+
+    spPlaceInfo(sp, day).then(function (info) {
+        if (!info || spMapPopup !== overlay) {
+            return;   // 못 받았거나 그사이 다른 팝업으로 바뀜
+        }
+        const body = content.querySelector(".tc-mappop__body");
+        const cardEl = content.querySelector(".tc-mappop__card");
+
+        // 사진: 카드에 사진이 없을 때만
+        if (!content.querySelector(".tc-mappop__photo") && info.photo && info.photo.url) {
+            const img = document.createElement("img");
+            img.className = "tc-mappop__photo";
+            img.src = info.photo.url;
+            img.alt = "";
+            img.onerror = function () { img.remove(); };
+            cardEl.insertBefore(img, body);
+        }
+
+        // 그날 운영시간 (휴무면 휴무, 정보 없으면 안 보임)
+        const h = info.hours;
+        if (h && (h.closed || h.text || h.open)) {
+            const line = document.createElement("span");
+            line.className = "tc-mappop__line" + (h.closed ? " is-closed" : "");
+            // 관광공사 원문은 길고 지저분해서 '열고~닫는' 시각만, 원문은 마우스를 올리면
+            line.textContent = h.closed
+                ? "🕒 이날 휴무" + (h.rest ? ` (${h.rest})` : "")
+                : `🕒 이날 ${h.open && h.close ? `${h.open}~${h.close}` : h.text}${h.estimated ? " (예상)" : ""}`;
+            line.title = [h.text, h.rest ? `쉬는 날: ${h.rest}` : ""].filter(Boolean).join("\n");
+            body.appendChild(line);
+        }
+
+        // 우리 리뷰 게시판 별점
+        if (info.review && info.review.count) {
+            const star = document.createElement("span");
+            star.className = "tc-mappop__rating";
+            star.textContent = `★ ${Number(info.review.rating).toFixed(1)} · 리뷰 ${info.review.count}개`;
+            body.appendChild(star);
+        }
+    });
 }
 
 /* =========================================================
@@ -6548,9 +6675,71 @@ function finishSpDrag() {
 }
 
 
-function saveSpOrder(container) {
+/* =========================================================
+   일정 고칠 때 운영시간 검사 (🟩 #138, TEAM_UPDATES 11/11)
+   장소 추가·순서 바꾸기·시간 바꾸기에서 새로 운영시간 문제가 생기면 서버가 되돌리고 400 +
+   {message, hours_problems: [{name, status, message}]} → 안내 창
+   [그대로 둘게요] / [그래도 바꾸기] → 같은 요청을 ignore_hours=1 로 다시 보냄
+========================================================= */
+const HOURS_STATUS_LABEL = { closed: "휴무", early: "문 열기 전", late: "마감 직전", festival: "행사 기간 밖" };
+
+function hoursBlocked(data) {
+    return !!(data && Array.isArray(data.hours_problems) && data.hours_problems.length);
+}
+
+// 안내 창 → '그래도 바꾸기'면 true, 아니면 false (Promise)
+function askIgnoreHours(data) {
+    return new Promise(function (resolve) {
+        const box = document.createElement("div");
+        box.className = "hours-block";
+        box.setAttribute("role", "dialog");
+        box.setAttribute("aria-modal", "true");
+
+        const rows = data.hours_problems.map(function (p) {
+            const tag = HOURS_STATUS_LABEL[p.status] || "운영시간";
+            return `<li><b><span class="hours-block__tag">${escapeHtml(tag)}</span>${escapeHtml(p.name || "")}</b>`
+                + `${escapeHtml(p.message || "")}</li>`;
+        }).join("");
+
+        box.innerHTML = `
+            <div class="hours-block__card">
+                <p class="hours-block__title">⚠ 운영시간에 안 맞아서 되돌렸어요</p>
+                <p class="hours-block__sub">이렇게 바꾸면 아래 장소에 갈 때 문이 닫혀 있을 수 있어요.</p>
+                <ul class="hours-block__list">${rows}</ul>
+                <p class="hours-block__note">그래도 바꾸면 그대로 저장하고, 화면에 운영시간 경고가 표시돼요.</p>
+                <div class="hours-block__actions">
+                    <button type="button" class="hours-block__keep">그대로 둘게요</button>
+                    <button type="button" class="hours-block__force">그래도 바꾸기</button>
+                </div>
+            </div>`;
+
+        function close(answer) {
+            document.removeEventListener("keydown", onKey);
+            box.remove();
+            resolve(answer);
+        }
+
+        function onKey(e) {
+            if (e.key === "Escape") close(false);
+        }
+
+        box.querySelector(".hours-block__keep").addEventListener("click", function () { close(false); });
+        box.querySelector(".hours-block__force").addEventListener("click", function () { close(true); });
+        box.addEventListener("click", function (e) { if (e.target === box) close(false); });
+        document.addEventListener("keydown", onKey);
+        document.body.appendChild(box);
+        box.querySelector(".hours-block__force").focus();
+    });
+}
+
+// ignore: '그래도 바꾸기'로 다시 보낼 때 true, order: 그때 보낼 순서 (첫 시도 때 저장해 둔 것)
+function saveSpOrder(container, ignore, order) {
+    const sendOrder = order || spOrder(container);
     const body = new URLSearchParams();
-    body.append("sp_ids", spOrder(container));
+    body.append("sp_ids", sendOrder);
+    if (ignore) {
+        body.append("ignore_hours", "1");
+    }
 
     container.classList.add("timeline-saving");
 
@@ -6568,7 +6757,13 @@ function saveSpOrder(container) {
             });
         })
         .then(function (data) {
-            if (!data.success) {
+            if (!data.success && hoursBlocked(data) && !ignore) {
+                askIgnoreHours(data).then(function (force) {
+                    if (force) {
+                        saveSpOrder(container, true, sendOrder);
+                    }
+                });
+            } else if (!data.success) {
                 alert(data.message || "순서를 저장하지 못했습니다.");
             }
         })
@@ -7100,7 +7295,7 @@ function searchPlaces() {
    장소 선택
 ========================================================= */
 
-function selectPlace(place) {
+function selectPlace(place, ignore) {
 
     if (!selectedTravelId) {
 
@@ -7176,6 +7371,10 @@ function selectPlace(place) {
         place.kakao_id || ""
     );
 
+    if (ignore) {
+        formData.append("ignore_hours", "1");   // '그래도 바꾸기'
+    }
+
     fetch(
         "{% url 'schedule_place_add' %}",
         {
@@ -7193,15 +7392,28 @@ function selectPlace(place) {
         .then(function (response) {
 
             if (!response.ok) {
-                throw new Error(
-                    "장소 추가에 실패했습니다."
-                );
+                // 운영시간 때문에 막힌 400 은 내용을 읽어 안내 창으로
+                return response.json().catch(function () { return {}; }).then(function (data) {
+                    if (hoursBlocked(data) && !ignore) {
+                        return { hoursBlock: data };
+                    }
+                    throw new Error(data.message || "장소 추가에 실패했습니다.");
+                });
             }
 
             return response.json();
         })
 
         .then(function (data) {
+
+            if (data.hoursBlock) {
+                askIgnoreHours(data.hoursBlock).then(function (force) {
+                    if (force) {
+                        selectPlace(place, true);
+                    }
+                });
+                return;
+            }
 
             if (data.success) {
 
@@ -7228,7 +7440,7 @@ function selectPlace(place) {
             );
 
             alert(
-                "장소 추가 중 오류가 발생했습니다."
+                error.message || "장소 추가 중 오류가 발생했습니다."
             );
         });
 }
@@ -7525,8 +7737,12 @@ function openReturnTimePicker(trigger, currentValue) {
 }
 
 
-function updateReturnTime(value) {
+function updateReturnTime(value, ignore) {
     const body = new URLSearchParams();
+
+    if (ignore) {
+        body.append("ignore_hours", "1");   // '그래도 바꾸기'
+    }
 
     body.append(
         "travel_id",
@@ -7553,6 +7769,9 @@ function updateReturnTime(value) {
     )
         .then(function (response) {
             return response.json().then(function (data) {
+                if (!response.ok && hoursBlocked(data) && !ignore) {
+                    return { hoursBlock: data };
+                }
                 if (!response.ok) {
                     throw new Error(
                         data.message
@@ -7564,6 +7783,16 @@ function updateReturnTime(value) {
             });
         })
         .then(function (data) {
+            if (data.hoursBlock) {
+                loadDay(currentDay);
+                askIgnoreHours(data.hoursBlock).then(function (force) {
+                    if (force) {
+                        updateReturnTime(value, true);
+                    }
+                });
+                return;
+            }
+
             if (!data.success) {
                 throw new Error(
                     data.message
@@ -7678,13 +7907,17 @@ function openStayTimePicker(trigger, spId, currentMinutes) {
 }
 
 
-function updateSchedulePlace(spId, values) {
+function updateSchedulePlace(spId, values, ignore) {
     const body = new URLSearchParams();
     body.append("sp_id", spId);
 
     Object.keys(values).forEach(function (key) {
         body.append(key, values[key]);
     });
+
+    if (ignore) {
+        body.append("ignore_hours", "1");   // '그래도 바꾸기'
+    }
 
     fetch(
         "/schedule_place_time_update/",
@@ -7701,6 +7934,9 @@ function updateSchedulePlace(spId, values) {
     )
         .then(function (response) {
             return response.json().then(function (data) {
+                if (!response.ok && hoursBlocked(data) && !ignore) {
+                    return { hoursBlock: data };   // 운영시간 때문에 되돌림 → 아래에서 안내 창
+                }
                 if (!response.ok) {
                     throw new Error(
                         data.message || "일정 수정 요청에 실패했습니다."
@@ -7710,6 +7946,16 @@ function updateSchedulePlace(spId, values) {
             });
         })
         .then(function (data) {
+            if (data.hoursBlock) {
+                loadDay(currentDay);   // 되돌린 시간으로 다시 그림
+                askIgnoreHours(data.hoursBlock).then(function (force) {
+                    if (force) {
+                        updateSchedulePlace(spId, values, true);
+                    }
+                });
+                return;
+            }
+
             if (!data.success) {
                 throw new Error(
                     data.message || "일정 수정에 실패했습니다."
@@ -8188,7 +8434,7 @@ function goToTravelDetail(travelId) {
     }).observe(timeline, { childList: true });
 
     // ---------- 저장 ----------
-    function addFestival(f, index) {
+    function addFestival(f, index, ignore) {
         var dayNo = typeof currentDay !== "undefined" ? +currentDay : 1;
         if (f.days && f.days.length && f.days.indexOf(dayNo) === -1) {
             var ok = confirm("'" + f.title + "'은(는) " + f.period + "에 열려요.\nDAY " + dayNo + "(" + dayIso() + ")에 넣을까요?");
@@ -8205,6 +8451,7 @@ function goToTravelDetail(travelId) {
         body.append("place_lat", f.lat == null ? "" : f.lat);
         body.append("place_lon", f.lon == null ? "" : f.lon);
         body.append("place_image", f.image || "");
+        if (ignore) body.append("ignore_hours", "1");   // '그래도 바꾸기'
 
         var before = Array.from(timeline.querySelectorAll(".sp-item")).map(function (el) { return el.dataset.spId; });
 
@@ -8214,6 +8461,14 @@ function goToTravelDetail(travelId) {
         })
             .then(function (r) { return r.json().catch(function () { return { success: false }; }); })
             .then(function (data) {
+                if (!data.success && hoursBlocked(data) && !ignore) {
+                    // 행사 기간 밖·휴무 등으로 막힘 → 안내 창, '그래도 바꾸기'면 같은 축제를 다시 넣기
+                    return askIgnoreHours(data).then(function (force) {
+                        if (force) return addFestival(f, index, true);
+                        loadDay(currentDay);
+                        return false;
+                    }).then(function (ok) { throw { handled: true, ok: ok }; });
+                }
                 if (!data.success) throw new Error(data.message || "일정에 넣지 못했어요.");
                 newSpId = String(data.sp_id);
 
@@ -8232,7 +8487,12 @@ function goToTravelDetail(travelId) {
                 return true;
             })
             .then(function () { loadDay(currentDay); return true; })
-            .catch(function (err) { alert(err.message || "일정에 넣지 못했어요."); loadDay(currentDay); return false; });
+            .catch(function (err) {
+                if (err && err.handled) return err.ok;   // 운영시간 안내 창에서 이미 처리
+                alert(err.message || "일정에 넣지 못했어요.");
+                loadDay(currentDay);
+                return false;
+            });
     }
 
     // ---------- 끌기 ----------

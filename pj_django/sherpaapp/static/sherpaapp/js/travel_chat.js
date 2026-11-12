@@ -1043,6 +1043,54 @@
     return null;
   }
 
+  // ---------- 먼 길(비행기·배·KTX로 가는 구간) — React lib/plan.js farLeg 와 같음 ----------
+  // 첫날 출발지 → 첫 장소가 바다를 건너 섬(제주·울릉)으로 가거나 직선 80km를 넘으면 차 길 시간 대신 안내
+  var FAR_KM = 80;
+  var ISLANDS = [
+    { name: '제주', lat: [33.1, 33.6], lon: [126.1, 127.0] },
+    { name: '울릉', lat: [37.43, 37.56], lon: [130.78, 130.95] }
+  ];
+
+  function kmBetween(a, b) {
+    var r = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * r;
+    var dLon = (b.lon - a.lon) * r;
+    var h = Math.pow(Math.sin(dLat / 2), 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.pow(Math.sin(dLon / 2), 2);
+    return 2 * 6371 * Math.asin(Math.sqrt(h));
+  }
+
+  function islandOf(p) {
+    var lat = Number(p.lat), lon = Number(p.lon);
+    for (var i = 0; i < ISLANDS.length; i++) {
+      var s = ISLANDS[i];
+      if (lat >= s.lat[0] && lat <= s.lat[1] && lon >= s.lon[0] && lon <= s.lon[1]) return s.name;
+    }
+    return '';
+  }
+
+  function farLeg(day) {
+    if (!day || day.day !== 1) return null;
+    var a = dayStartPoint(day);
+    var b = null;
+    dayItems(day).some(function (it) { if (it.lat != null && it.lon != null) { b = it; return true; } return false; });
+    if (!a || !b) return null;
+    var from = { lat: Number(a.lat), lon: Number(a.lon) };
+    var to = { lat: Number(b.lat), lon: Number(b.lon) };
+    var island = islandOf(to) && islandOf(to) !== islandOf(from) ? islandOf(to) : '';
+    var km = Math.round(kmBetween(from, to));
+    if (!island && km < FAR_KM) return null;
+    return { km: km, island: island, to: b.name };
+  }
+
+  function farLegText(far) {
+    return {
+      title: far.island
+        ? '✈ 🚢 ' + far.island + '까지는 바다를 건너요 · 비행기나 배로 가요'
+        : '🚄 ✈ 먼 길이에요 (약 ' + far.km + 'km) · KTX·고속버스·비행기로 가요',
+      sub: "일정을 적용하면 여행 상세 '🧭 여행지까지 가는 길'에서 가격·시간을 비교하고 고를 수 있어요"
+    };
+  }
+
   // 지운 장소를 목록에서 바로 빼고, 서버에서 시간을 다시 계산해 온다
   function removeItem(day, it) {
     if (it.pin) {
@@ -1164,6 +1212,9 @@
     // 2) 그다음 장소들을 순서대로
     var items = dayItems(day);
     var moveSum = 0;
+    // 첫날 첫 구간이 바다 건너·아주 먼 길이면 차 길 시간 대신 안내 (합계에서도 빼기)
+    var far = farLeg(day);
+    var farText = far ? farLegText(far) : null;
     var reordered = !!state.order[day.day];
     var pending = state.plan.rkey !== removedKey();
     var dragFrom = -1;
@@ -1259,7 +1310,12 @@
       body.appendChild(head);
 
       var sub = [];
-      if (it.move != null) {
+      if (farText && i === 0) {
+        var farRow = make('p', 'tc-tl__far');
+        farRow.appendChild(make('b', null, farText.title));
+        farRow.appendChild(make('span', null, farText.sub));
+        body.appendChild(farRow);
+      } else if (it.move != null) {
         moveSum += it.move;
         sub.push(it.move + '분 이동' + (state.plan.transport ? ' · ' + state.plan.transport + ' 기준' : ''));
       }
@@ -1658,6 +1714,13 @@
         path.push(new kakao.maps.LatLng(it.lat, it.lon));
         stops.push({ lat: Number(it.lat), lon: Number(it.lon) });
       });
+      // 첫날 첫 구간이 바다 건너·아주 먼 길이면 주황 점선 하나로 (비행기·배·KTX는 적용 뒤 '가는 길'에서)
+      if (first && farLeg(day) && stops.length > 1) {
+        drawLine([[stops[0].lat, stops[0].lon], [stops[1].lat, stops[1].lon]], '#e8710a', true);
+        stops.shift();
+        path.shift();
+      }
+
       if (stops.length > 1 && isTransitPlan()) {
         // 대중교통: 카카오 대중교통 실제 노선 (서버 /transit_route/)
         drawTransitDay(stops);

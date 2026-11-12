@@ -5,7 +5,7 @@
 // 지도 객체는 useRef 에 보관하고 그리기는 useEffect 안에서 한다.
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
-import { currentDay, dayItems, dayStartPoint } from '../lib/plan.js';
+import { currentDay, dayItems, dayStartPoint, farLeg } from '../lib/plan.js';
 import { ROUTE_COLOR, fetchTransit } from '../lib/transit.js';
 import { shortDate } from '../lib/util.js';
 import { focusPinEl, popupEl, recPopupInfo } from '../lib/mapPopup.js';
@@ -97,6 +97,13 @@ export default function MapPanel({ state, sprite, transitUrl, focus }) {
         add(it.is_stay ? 'stay' : 'stop', `${i + 1}. ${it.name}`, it.lat, it.lon);
         stops.push({ lat: Number(it.lat), lon: Number(it.lon) });
       });
+
+      // 첫날 첫 구간이 바다 건너·아주 먼 길이면 주황 점선 하나로 (비행기·배·KTX는 적용 뒤 '가는 길'에서)
+      const far = first && farLeg(state, day);
+      if (far && stops.length > 1) {
+        line([[stops[0].lat, stops[0].lon], [stops[1].lat, stops[1].lon]], '#e8710a', true);
+        stops.shift();
+      }
 
       if (stops.length > 1 && isTransit(state)) {
         // 대중교통: 연한 직선 자리표시를 먼저 깔고, 경로를 받는 대로 실제 경로로 바꿈
