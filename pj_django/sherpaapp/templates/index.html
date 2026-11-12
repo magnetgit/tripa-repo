@@ -826,7 +826,7 @@
 <div class="phone-preview" id="phonePreview" hidden>
     <div class="phone-preview__frame">
         <span class="phone-preview__notch" aria-hidden="true"></span>
-        <iframe id="phoneFrame" title="폰 화면 미리보기" loading="lazy"></iframe>
+        <iframe id="phoneFrame" title="폰 화면 미리보기"></iframe>
     </div>
     <p class="phone-preview__hint"><span id="phoneHintSize">폰 화면(390×844)이에요</span> · 안에서 눌러 볼 수 있어요 · Esc 또는 바깥을 누르면 닫혀요</p>
 </div>
@@ -923,7 +923,7 @@
         select.hidden = !phone;
         if (phone) fit();
         if (phone && !frame.getAttribute("src")) {
-            frame.src = "{% url 'index' %}";   // 처음 열 때만 불러옴
+            frame.src = "{% url 'index' %}";   // 처음 열 때만 불러옴 (🟧 11/12 iframe 의 loading="lazy" 는 뺌: 틀을 줄여 보여 줄 때 화면이 하얗게 남는 일이 있었음)
         }
         document.body.classList.toggle("is-phone-preview", phone);
         toggle.querySelectorAll("button").forEach(function (btn) {
