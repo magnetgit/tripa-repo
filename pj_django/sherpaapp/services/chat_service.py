@@ -2356,6 +2356,14 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         # 사용자가 이번에 말하지 않은 기준 장소는 쓰지 않는다 (앞 턴의 '해운대 근처'가 따라오던 문제)
         rec['near'] = None
 
+    # 사용자가 이번 말에 종류를 직접 말했는데('박물관') AI가 다른 종류('카페')를 보내면 사용자 말을 따른다
+    # (🟩 11/12, GPT가 가끔 앞 턴의 추천 종류를 다시 보내서 '셋째 날 박물관 추천'에 카페 카드가 나오던 것)
+    if rec and not guessed:
+        said = next((k for k in _RECO_KEYWORDS if k in messages[-1]['content']), None)
+        if said and said not in rec['query'] and rec['query'] not in messages[-1]['content']:
+            logger.info('추천 종류 바로잡기: AI %s → 사용자 %s', rec['query'], said)
+            rec['query'] = said
+
     # 숙소 추천은 서버가 조건을 정한다 (빈 밤·담아 둔 장소 근처·가격대)
     ai_query = rec['query'] if rec and not guessed else ''
     stay_rec = stay_recommend(messages, rec, dict(new_draft, stays=prev.get('stays') or []), ai_query)
