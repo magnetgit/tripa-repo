@@ -5303,7 +5303,8 @@ def travel_chat(request):
             body.get('draft'),
             category_names,
             today=date.today(),
-            profile={'gender':member.gender, 'age_group':member.age_group},
+            profile={'gender':member.gender, 'age_group':member.age_group,
+                     'lang': body.get('lang')},   # 🟩 화면 언어(ko·en·ja·zh), 없으면 사용자가 쓴 글자로
         )
     except chat_service.ChatError as error:
         return _chat_error(str(error), 502)
@@ -5392,6 +5393,15 @@ def travel_chat_apply(request):
     except Exception:
         chat_logger.exception('AI 대화 분류별 예산 저장 실패 (t_id=%s)', travel.t_id)
 
+    # 여행지까지 가는 방법 (🟧 access_service): 대화에서 말한 방법, 없으면 추천 → 상세 '가는 길' 패널에 바로 보임
+    access = None
+    if warning is None:
+        try:
+            access = _chat_choose_access(travel, draft, draft.get('people') or _budget_people(request, travel.t_id),
+                                         add_to_total=not draft.get('budget_total'))
+        except Exception:
+            chat_logger.exception('AI 대화 가는 방법 고르기 실패 (t_id=%s)', travel.t_id)
+
     return JsonResponse({
         'ok': True,
         'url': detail_url,
@@ -5399,7 +5409,36 @@ def travel_chat_apply(request):
         'travel_id': travel.t_id,
         'start': draft['start'],
         'pins': [],  # 담은 장소는 이제 서버가 직접 일정에 넣는다
+        'access': access,
     })
+
+
+# 대화에서 말한 방법이 이 구간에 없으면 비슷한 것으로 (예: KTX 직통이 없으면 KTX 환승)
+_ACCESS_SIMILAR = {
+    'ktx': ('ktx', 'train_transfer', 'ktx_rent'), 'ktx_rent': ('ktx_rent', 'ktx', 'train_transfer'),
+    'train_transfer': ('train_transfer', 'ktx'), 'flight': ('flight', 'flight_rent'),
+    'flight_rent': ('flight_rent', 'flight'), 'ferry': ('ferry', 'ferry_car'), 'ferry_car': ('ferry_car', 'ferry'),
+    'bus': ('bus',), 'car': ('car',),
+}
+
+
+def _chat_choose_access(travel, draft, people, add_to_total=False):
+    """채팅으로 만든 여행의 가는 방법을 골라 저장 → {mode, title, said, total, minutes} 또는 None (가까운 여행)"""
+    result = access_service.compare(travel, people)
+    options = {o['mode']: o for o in result.get('options') or []}
+    if not result.get('applicable') or not options:
+        return None
+    said = draft.get('access')
+    mode = next((m for m in _ACCESS_SIMILAR.get(said, ()) if m in options), None) or result.get('recommended')
+    option = access_service.choose(travel, mode, people)
+    if not option:
+        return None
+    # 총예산을 AI 예상 합계로 넣었으면 왕복 교통비도 더함 (비용 관리 화면 합계와 맞게)
+    if add_to_total:
+        travel.t_budget = (travel.t_budget or 0) + int(option['total'])
+        travel.save(update_fields=['t_budget'])
+    return {'mode': mode, 'title': option.get('title') or access_service.TITLES.get(mode),
+            'said': said, 'total': option['total'], 'minutes': option['minutes']}
 
 
 # ==============================================

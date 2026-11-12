@@ -150,6 +150,34 @@ def _clean_coord(lat, lon):
     return round(lat, 7), round(lon, 7)
 
 
+# 여행지까지 가는 방법 (🟧 access_service.TITLES 와 같은 이름)
+ACCESS_MODES = ('car', 'ktx', 'ktx_rent', 'train_transfer', 'bus', 'flight', 'flight_rent', 'ferry', 'ferry_car')
+ACCESS_LABEL = {'car': '자차', 'ktx': 'KTX', 'ktx_rent': 'KTX + 렌터카', 'train_transfer': 'KTX 환승',
+                'bus': '고속버스', 'flight': '비행기', 'flight_rent': '비행기 + 렌터카',
+                'ferry': '배', 'ferry_car': '배에 내 차 싣기'}
+_RENT_RE = re.compile(r'렌터카|렌트카|렌트|차\s*빌려')
+_ACCESS_RULES = (   # 위에서부터 먼저 맞는 것
+    ('ferry', re.compile(r'여객선|페리|카페리|배\s*(로|를\s*타|타고|편)|배에\s*(내\s*)?차')),
+    ('flight', re.compile(r'비행기|항공|비행편|날아')),
+    ('ktx', re.compile(r'(KTX|SRT|ITX|케이티엑스|기차|열차)(?!\s*역(?!방))', re.I)),   # '기차역 근처'는 장소 이야기
+    ('bus', re.compile(r'고속\s*버스|시외\s*버스|우등\s*버스')),
+    ('car', re.compile(r'자차|자가용|운전해서|내\s*차|차\s*(로|를?\s*(가지고|끌고|몰고))')),
+)
+
+
+def guess_access(text):
+    """사용자 말에서 여행지까지 가는 방법 → 'ktx'·'flight_rent' … 또는 None"""
+    text = text or ''
+    for mode, pattern in _ACCESS_RULES:
+        if pattern.search(text):
+            if mode in ('ktx', 'flight') and _RENT_RE.search(text):
+                return mode + '_rent'
+            if mode == 'ferry' and re.search(r'차\s*(싣|실어|가지고|끌고)', text):
+                return 'ferry_car'
+            return mode
+    return None
+
+
 def empty_draft():
     return {
         'place': None,
@@ -166,6 +194,7 @@ def empty_draft():
         'stays': [],
         'center': None,
         'pins': [],
+        'access': None,   # 🟩 여행지까지 가는 방법 (access_service 모드: ktx·flight·bus·car·ferry …)
     }
 
 
@@ -361,6 +390,9 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
     draft['transport'] = transport if transport in VALID_TRANSPORT else None
 
     draft['start_time'] = _clean_time(data.get('start_time'))
+
+    access = data.get('access')
+    draft['access'] = access if access in ACCESS_MODES else None
 
     # ---- 컨셉 (DB에 있는 이름만) ----
     draft['categories'] = match_categories(data.get('categories'), category_names)
@@ -1208,6 +1240,7 @@ _CHANGE_LABELS = (
     ('이동수단', ('transport',)),
     ('컨셉', ('categories',)),
     ('출발지', ('start_place', 'start_time')),
+    ('가는 방법', ('access',)),
     ('숙소', ('stays',)),
     ('추가한 장소', ('pins',)),
 )
@@ -1254,6 +1287,7 @@ def _llm_view(draft):
         'budget_style': draft.get('budget_style'),
         'budget_total': draft.get('budget_total'),
         'transport': draft.get('transport'),
+        'access': draft.get('access'),
         'categories': draft.get('categories') or [],
         'start_time': draft.get('start_time'),
         'start_place_query': start_place.get('query'),
@@ -2212,6 +2246,88 @@ def _with_tour_context(ai_messages, text, tool_log):
     return ai_messages[:-1] + [{'role': 'system', 'content': note}] + ai_messages[-1:]
 
 
+# =========================================================
+# 답 언어 (🟩 11/12): 화면이 보낸 lang(profile['lang']), 없으면 사용자가 쓴 글자로
+# =========================================================
+
+LANG_NAMES = {'ko': '한국어', 'en': 'English', 'ja': '日本語', 'zh': '简体中文'}
+
+
+def detect_lang(text):
+    """글자 종류로 언어 짐작 → 'ko'·'ja'·'zh'·'en' (모르면 'ko')"""
+    text = text or ''
+    if re.search(r'[가-힣]', text):     # 한글
+        return 'ko'
+    if re.search(r'[぀-ヿ]', text):     # 히라가나·가타카나
+        return 'ja'
+    if re.search(r'[一-鿿]', text):     # 한자만
+        return 'zh'
+    if len(re.findall(r'[A-Za-z]', text)) >= 3:
+        return 'en'
+    return 'ko'
+
+
+def chat_lang(messages, profile=None):
+    lang = (profile or {}).get('lang')
+    if lang in LANG_NAMES:
+        return lang
+    for m in reversed(messages):                  # 'ok'처럼 짧은 말이면 그 앞 말로
+        if m['role'] == 'user' and (re.search(r'[가-힣぀-ヿ一-鿿]', m['content'])
+                                    or len(re.findall(r'[A-Za-z]', m['content'])) >= 3):
+            return detect_lang(m['content'])
+    return 'ko'
+
+
+def translate_texts(texts, lang, llm=None):
+    """코드가 쓴 한국어 문장들(답·안내)을 lang으로. 실패하면 원래 문장 그대로"""
+    if lang == 'ko' or not texts:
+        return texts
+    llm = llm or call_llm
+    name = LANG_NAMES[lang]
+    try:
+        raw = llm([
+            {'role': 'system', 'content': (
+                'Translate every string in "texts" into %s for a travel app user. '
+                'Keep numbers, dates, times, prices, emoji and line breaks. Write Korean place names in %s, '
+                'adding the Korean name in parentheses the first time. A string may mix languages: translate every Korean '
+                'sentence in it, and keep parts already in %s. '
+                'Answer only JSON: {"texts": [...]} with exactly the same number of strings.') % (name, name, name)},
+            {'role': 'user', 'content': json.dumps({'texts': texts}, ensure_ascii=False)},
+        ])
+        out = (_parse_json(raw) or {}).get('texts')
+    except ChatError:
+        out = None
+    if isinstance(out, list) and len(out) == len(texts) and all(isinstance(t, str) and t.strip() for t in out):
+        return out
+    logger.warning('답 번역 실패 (%s) → 한국어 그대로', lang)
+    return texts
+
+
+def korean_place(name, llm=None):
+    """'釜山'·'Busan' 같은 지역 이름 → '부산' (카카오·날씨 검색은 한국어 이름이어야 함). 실패하면 그대로"""
+    if not name or re.search(r'[가-힣]', name):
+        return name
+    try:
+        raw = (llm or call_llm)([
+            {'role': 'system', 'content': 'Give the Korean name (Hangul) of this place in Korea. '
+                                          'Answer only JSON: {"name": "..."}'},
+            {'role': 'user', 'content': name},
+        ])
+        ko = _clean_text((_parse_json(raw) or {}).get('name'), 50)
+    except ChatError:
+        ko = None
+    return ko if ko and re.search(r'[가-힣]', ko) else name
+
+
+def _localize(result, lang, llm):
+    """응답의 reply·notes를 lang으로 바꾸고 lang 키를 붙인다 (가짜 AI 시험에서는 번역 안 함)"""
+    result['lang'] = lang
+    if lang != 'ko' and llm is call_llm:
+        texts = translate_texts([result['reply']] + list(result.get('notes') or []), lang)
+        result['reply'], result['notes'] = texts[0], texts[1:]
+    return result
+
+
 def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile=None):
     today = today or date.today()
     llm = llm or call_llm
@@ -2226,6 +2342,11 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     prev = normalize_draft(draft, None, category_names, today, resolve=False)
 
     prompt = build_system_prompt(prev, category_names, today)
+    lang = chat_lang(messages, profile)
+    if lang != 'ko':
+        prompt += ('\n\n[답 언어] 사용자는 %s(으)로 말해요. JSON의 reply는 반드시 %s(으)로 쓰세요. '
+                   'draft·recommend 값(지역·장소·컨셉 이름, 검색어)은 지금처럼 한국어로 두세요.'
+                   % (LANG_NAMES[lang], LANG_NAMES[lang]))
     tool_log = []
     ai_messages = [{'role': 'system', 'content': prompt}] + messages
 
@@ -2243,7 +2364,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     result = _parse_json(raw_text)
 
     if not result:
-        return {
+        return _localize({
             'ok': True,
             'reply': '죄송해요, 방금 내용을 제대로 이해하지 못했어요. 한 번만 다시 말씀해 주시겠어요?',
             'draft': prev,
@@ -2256,7 +2377,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
             'recommendation': None,
             'weather': None,
             'intent': intent,
-        }
+        }, lang, llm)
 
     ai_draft = _keep_previous(result.get('draft'), prev)
 
@@ -2300,9 +2421,18 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     ai_draft = _apply_guessed_dates(ai_draft, prev, messages, today)
     dates_fixed = ai_dates != (ai_draft.get('start'), ai_draft.get('end'))
 
+    # 다른 언어로 말하면 AI가 지역을 '釜山'처럼 적을 때가 있어 한국어 이름으로 (🟩 11/12)
+    if lang != 'ko' and llm is call_llm and ai_draft.get('place') != prev.get('place'):
+        ai_draft['place'] = korean_place(ai_draft.get('place'))
+
     new_draft = normalize_draft(
         ai_draft, prev, category_names, today, resolve=True, notes=notes
     )
+    # 여행지까지 가는 방법은 사용자 말에서 코드로 찾고, 말이 없으면 앞에서 정한 것 그대로
+    new_draft['access'] = guess_access(messages[-1]['content']) or prev.get('access')
+    if new_draft['access'] and new_draft['access'] != prev.get('access'):
+        notes.append("여행지까지는 %s(으)로 가는 길을 넣어 둘게요. 여행 상세의 '가는 길'에서 바꿀 수 있어요."
+                     % ACCESS_LABEL[new_draft['access']])
 
     reply = _clean_text(result.get('reply'), 800) or '일정 초안을 업데이트했어요.'
 
@@ -2355,6 +2485,14 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     elif rec.get('near') and _squash(rec['near']) not in _squash(messages[-1]['content']):
         # 사용자가 이번에 말하지 않은 기준 장소는 쓰지 않는다 (앞 턴의 '해운대 근처'가 따라오던 문제)
         rec['near'] = None
+
+    # 사용자가 이번 말에 종류를 직접 말했는데('박물관') AI가 다른 종류('카페')를 보내면 사용자 말을 따른다
+    # (🟩 11/12, GPT가 가끔 앞 턴의 추천 종류를 다시 보내서 '셋째 날 박물관 추천'에 카페 카드가 나오던 것)
+    if rec and not guessed:
+        said = next((k for k in _RECO_KEYWORDS if k in messages[-1]['content']), None)
+        if said and said not in rec['query'] and rec['query'] not in messages[-1]['content']:
+            logger.info('추천 종류 바로잡기: AI %s → 사용자 %s', rec['query'], said)
+            rec['query'] = said
 
     # 숙소 추천은 서버가 조건을 정한다 (빈 밤·담아 둔 장소 근처·가격대)
     ai_query = rec['query'] if rec and not guessed else ''
@@ -2490,7 +2628,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
 
     missing = missing_fields(new_draft)
 
-    return {
+    return _localize({
         'ok': True,
         'reply': reply,
         'draft': new_draft,
@@ -2503,7 +2641,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         'recommendation': recommendation,
         'weather': weather,
         'intent': intent,              # 🟩 11/11 질문 의도 schedule|weather|info (시험·화면 참고용, 추가 키)
-    }
+    }, lang, llm)                      # 🟩 11/12 답 언어 → 'lang' 키 추가
 
 
 # =========================================================
