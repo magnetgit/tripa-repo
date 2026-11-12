@@ -10,6 +10,11 @@
       <td>성별·나이대별로 많이 간 장소, 장소 종류 비율, 회원이 고친 예산 금액</td>
       <td><a href="{% url 'admin:member_stats' %}" class="viewlink">보기</a></td>
     </tr>
+    <tr>
+      <th scope="row"><a href="{% url 'manage_home' %}">회원 화면 보기</a></th>
+      <td>회원이 보는 화면을 읽기 전용으로 (저장·수정 막힘)</td>
+      <td><a href="{% url 'manage_home' %}" class="viewlink">보기</a></td>
+    </tr>
   </table>
 </div>
 {{ block.super }}

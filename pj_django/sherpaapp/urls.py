@@ -1,8 +1,13 @@
 from django.urls import path
-from . import views
+from . import manage_views, views
 
 
 urlpatterns = [
+
+    # 관리자 '회원 화면 보기' 읽기 전용 (🟩 11/12, 장고 관리자만)
+    path('manage/', manage_views.manage_home, name='manage_home'),
+    path('manage/view/<int:m_id>/', manage_views.manage_start, name='manage_start'),
+    path('manage/stop/', manage_views.manage_stop, name='manage_stop'),
 
     # ==========================================
     # 메인
