@@ -1,5 +1,5 @@
 from django.urls import path
-from . import manage_views, views
+from . import i18n_views, manage_views, views
 
 
 urlpatterns = [
@@ -141,6 +141,12 @@ urlpatterns = [
         'api/chat/',
         views.api_chat,
         name='api_chat'
+    ),
+    # 화면 자동 번역 (🟧 11/12, mock.json translate) — 사전에 없는 글(장소 이름·리뷰)을 AI로
+    path(
+        'api/translate/',
+        i18n_views.api_translate,
+        name='api_translate'
     ),
     # 장소 정보 한 번에 (🟩 11/11, mock.json place_info)
     path(

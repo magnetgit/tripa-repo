@@ -1209,3 +1209,50 @@ class RouteComment(models.Model):
     class Meta:
         db_table = 'route_comment'
         ordering = ['created_at']
+
+
+# ==============================================
+# 화면 자동 번역 저장 (🟧 11/12)
+# ==============================================
+# 장소 이름·리뷰 본문처럼 사전(static/sherpaapp/i18n)에 없는 글을 AI로 번역한 결과를 넣어 두는 표 (ui_translation)
+# 같은 글·같은 언어는 한 번만 번역하고 다음부터는 여기서 꺼낸다 (services/translate_service.py)
+class UiTranslation(models.Model):
+
+    ut_id = models.AutoField(
+        primary_key=True,
+        db_column='UT_ID'
+    )
+
+    # 화면 언어 (en·ja·zh)
+    lang = models.CharField(
+        max_length=5,
+        db_column='LANG'
+    )
+
+    # 원래 글의 sha256 (긴 글도 빨리 찾으려고)
+    src_hash = models.CharField(
+        max_length=64,
+        db_column='SRC_HASH'
+    )
+
+    source = models.TextField(
+        db_column='SOURCE'
+    )
+
+    text = models.TextField(
+        db_column='TEXT'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_column='CREATED_AT'
+    )
+
+    class Meta:
+        db_table = 'ui_translation'
+        constraints = [
+            models.UniqueConstraint(fields=['lang', 'src_hash'], name='uniq_ui_translation'),
+        ]
+
+    def __str__(self):
+        return f'[{self.lang}] {self.source[:20]} → {self.text[:20]}'
