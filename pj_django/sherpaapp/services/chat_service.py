@@ -813,6 +813,42 @@ def open_nights(draft):
             if (start + timedelta(days=i)).isoformat() not in booked]
 
 
+_SAME_STAY_WORDS = ('같은 곳', '같은곳', '같은 숙소', '같은숙소', '거기서', '똑같이', '그대로', '연박')
+
+
+def fill_open_nights(draft, prev, user_text):
+    """숙소를 날짜 없이 한 곳만 말하면 비어 있는 밤에도 같은 숙소를 넣는다. (🟦 11/12)
+
+    2박 3일에 '동대구역'이라고만 답하면 AI는 첫날 밤에만 넣어서, 숙소 질문이 계속 반복됐음.
+    - 이번에 새 숙소 하나를 말했고 '2일차'처럼 날짜를 안 말했으면 → 빈 밤 모두 그 숙소
+    - '같은 곳', '거기서 연박'이라고 답하면 → 앞서 정한 숙소를 빈 밤에 이어 씀
+    """
+    stays = list(draft.get('stays') or [])
+    start = _parse_date(draft.get('start'))
+    if not start or guess_trip_day(user_text):
+        return
+
+    prev_keys = {(s.get('date'), s.get('query')) for s in prev.get('stays') or [] if isinstance(s, dict)}
+    same = any(w in (user_text or '') for w in _SAME_STAY_WORDS)
+    # AI가 '같은 곳'을 숙소 이름으로 넣은 경우는 버린다
+    stays = [s for s in stays if not any(w in (s.get('query') or '') for w in _SAME_STAY_WORDS)]
+    new = [s for s in stays if (s.get('date'), s.get('query')) not in prev_keys]
+
+    if len(new) == 1:
+        base = new[0]
+    elif not new and same and stays:
+        base = stays[-1]
+    else:
+        draft['stays'] = stays
+        return
+
+    draft['stays'] = stays
+    for day in open_nights(draft):
+        night = (start + timedelta(days=day - 1)).isoformat()
+        stays.append(dict(base, date=night, arrival_time=None, departure_time=None, checkin_time=None))
+    draft['stays'] = sorted(stays, key=lambda s: s['date'])
+
+
 def _stay_pin(draft, day):
     """그날 밤 숙소를 찾을 기준 장소: 그날 담아 둔 마지막 장소, 없으면 다음 날 첫 장소."""
     pins = draft.get('pins') or []
@@ -2004,6 +2040,12 @@ def next_question(draft, category_names):
     nights = (end - start).days if start and end else 0
 
     if nights > 0 and len(draft.get('stays') or []) < nights:
+        empty = open_nights(draft)
+        if draft.get('stays') and empty:
+            # 일부 밤만 정해졌으면 몇째 날 밤인지 짚어서 묻는다 (🟦 11/12, 같은 질문이 반복돼 보이던 것)
+            night = start + timedelta(days=empty[0] - 1)
+            return "%d일차(%d/%d) 밤 숙소는 어디로 할까요? 앞날과 같은 곳이면 '같은 곳'이라고 말해 주세요." % (
+                empty[0], night.month, night.day)
         return '숙소는 어디 쪽으로 잡으실 건가요? 아직 안 정하셨다면 추천해 드릴게요.'
 
     if not draft.get('start_place') and not draft.get('start_time'):
@@ -2508,6 +2550,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         # 카드를 보기도 전에 AI가 숙소를 골라 넣는 경우가 있었음 → 숙소는 사용자가 카드에서 넣는다
         new_draft['stays'] = prev.get('stays') or []
 
+    # 숙소를 한 곳만 말했으면 빈 밤에도 같은 숙소 (🟦 11/12)
+    if not stay_rec:
+        fill_open_nights(new_draft, prev, messages[-1]['content'])
+
     if rec and not rec.get('day'):
         # AI가 며칠째인지 빠뜨리면 사용자 말에서 읽는다 ('셋째 날 박물관 추천')
         rec['day'] = guess_trip_day(messages[-1]['content'])
@@ -2591,6 +2637,19 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
 
     # 다음에 채울 칸 질문은 일정 대화에서만 (정보·날씨 질문 답 뒤에 '어디로 가세요?'가 붙지 않게)
     question = next_question(new_draft, category_names)
+    if not recommendation and intent == 'schedule':
+        # AI는 이번 답을 반영하기 전 초안을 보고 쓰므로, 지난 숙소 질문이나
+        # 아직 빈 칸이 있는데 '[이 일정 적용하기]를 눌러 주세요'를 쓰는 경우가 있음 → 빼고 코드 질문을 붙인다 (🟦 11/12)
+        sentences = re.split(r'(?<=[.?!])\s+', reply)
+        # 물을 칸이 남아 있으면 질문은 코드가 정한 것 하나만 (AI가 순서를 무시하고 교통수단부터 물으면
+        # 사용자가 숙소로 답한 '동대구역'이 출발지로 들어가는 등 답이 엉뚱한 칸에 들어갔음)
+        kept = [s for s in sentences
+                if not ('숙소' in s and '?' in s)
+                and not (question and '?' in s)
+                and '아직 안 정하셨다면' not in s   # 숙소 질문 뒤에 붙는 말 (질문을 빼면 혼자 남음)
+                and '다음에 물어볼' not in s        # AI가 지침 제목을 그대로 옮겨 쓴 말 ('다음에 물어볼 것은 출발 장소입니다')
+                and not (question and '적용하기' in s)]
+        reply = ' '.join(kept).strip() or '일정 초안을 업데이트했어요.'
     if question and not recommendation and '?' not in reply and intent == 'schedule':
         reply = '%s %s' % (reply, question)
 
