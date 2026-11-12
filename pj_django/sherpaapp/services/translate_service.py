@@ -21,9 +21,13 @@ logger = logging.getLogger(__name__)
 
 LANG_NAMES = {'en': 'English', 'ja': 'Japanese', 'zh': 'Simplified Chinese'}
 NAME_RULES = {
-    'en': 'romanize it (Revised Romanization) and translate the generic part (e.g. 부산역 → Busan Station, 해운대해수욕장 → Haeundae Beach)',
-    'ja': 'use the usual Japanese name, kanji for Sino-Korean place names and katakana otherwise (e.g. 부산역 → 釜山駅, 해운대해수욕장 → 海雲台海水浴場)',
-    'zh': 'use the usual Chinese name, Chinese characters for Sino-Korean names and transliteration otherwise (e.g. 부산역 → 釜山站, 해운대해수욕장 → 海云台海水浴场)',
+    'en': ('romanize it by pronunciation (Revised Romanization) and translate the generic part '
+           '(e.g. 부산역 → Busan Station, 해운대해수욕장 → Haeundae Beach, 황리단길 → Hwangnidan-gil)'),
+    'ja': ('use the established Japanese name when you are sure of it (e.g. 부산역 → 釜山駅, 해운대해수욕장 → 海雲台海水浴場); '
+           'otherwise write the name by sound in katakana and translate only the generic part '
+           '(e.g. 황리단길 → ファンニダンギル, 유성본점 → ユソン本店). Never guess kanji from the sound'),
+    'zh': ('use the established Chinese name when you are sure of it (e.g. 부산역 → 釜山站, 해운대해수욕장 → 海云台海水浴场, '
+           '황리단길 → 皇理团路, 유성 → 儒城); otherwise transliterate by sound and translate only the generic part'),
 }
 KOREAN = re.compile(r'[가-힣]')
 MAX_TEXT = 600       # 한 글의 최대 길이

@@ -6678,6 +6678,7 @@ a.review-pick:focus-visible {
    - 템플릿 공통 조각 templates/_mobile_nav.html
    - 컴퓨터에서는 숨기고 기존 왼쪽 메뉴(.sidebar)를 그대로 씀
    - 노치·홈 막대: env(safe-area-inset-*) (meta viewport 에 viewport-fit=cover 필요)
+     🟧 11/12 위·아래는 변수 --tp-safe-top/bottom 으로 (css/safe_area.css). 홈 폰 미리보기가 기기별 값을 넣음
 ========================================================= */
 :root {
     --m-top-h: 52px;    /* 위 막대 높이 (노치 빼고) */
@@ -6699,9 +6700,9 @@ a.review-pick:focus-visible {
     .detail-container > .detail-content {
         width: 100%;
         margin-left: 0;
-        padding-top: calc(var(--m-top-h) + env(safe-area-inset-top) + 14px);
+        padding-top: calc(var(--m-top-h) + var(--tp-safe-top, env(safe-area-inset-top, 0px)) + 14px);
         padding-right: max(14px, env(safe-area-inset-right));
-        padding-bottom: calc(var(--m-tab-h) + env(safe-area-inset-bottom) + 20px);
+        padding-bottom: calc(var(--m-tab-h) + var(--tp-safe-bottom, env(safe-area-inset-bottom, 0px)) + 20px);
         padding-left: max(14px, env(safe-area-inset-left));
     }
 
@@ -6714,8 +6715,8 @@ a.review-pick:focus-visible {
         display: flex;
         align-items: center;
         gap: 6px;
-        height: calc(var(--m-top-h) + env(safe-area-inset-top));
-        padding: env(safe-area-inset-top) max(10px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+        height: calc(var(--m-top-h) + var(--tp-safe-top, env(safe-area-inset-top, 0px)));
+        padding: var(--tp-safe-top, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
         border-bottom: 1px solid #e6ebf3;
         background: rgba(255, 255, 255, 0.92);
         -webkit-backdrop-filter: blur(10px);
@@ -6767,8 +6768,8 @@ a.review-pick:focus-visible {
         z-index: 1100;
         display: grid;
         grid-template-columns: repeat(5, 1fr);
-        min-height: calc(var(--m-tab-h) + env(safe-area-inset-bottom));
-        padding: 4px max(4px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(4px, env(safe-area-inset-left));
+        min-height: calc(var(--m-tab-h) + var(--tp-safe-bottom, env(safe-area-inset-bottom, 0px)));
+        padding: 4px max(4px, env(safe-area-inset-right)) var(--tp-safe-bottom, env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left));
         border-top: 1px solid #e6ebf3;
         background: rgba(255, 255, 255, 0.96);
         -webkit-backdrop-filter: blur(10px);
@@ -6860,9 +6861,9 @@ a.review-pick:focus-visible {
 /* 폰 모양 틀: 둥근 검은 테두리 + 위 노치 */
 .phone-preview__frame {
     position: relative;
-    width: 390px;
-    height: min(844px, calc(100vh - 90px));
-    padding: 38px 12px 14px;    /* 위: 노치·상태 표시줄 자리 (틀 안은 safe-area 가 0 이라 화면을 노치 아래부터) */
+    flex: none;                 /* 🟧 11/12 크기는 index.html 스크립트가 고른 기기에 맞춰 iframe 에 넣음 (창보다 크면 scale 로 줄임) */
+    transform-origin: center;
+    padding: 12px;              /* 🟧 화면이 카메라 아래까지 꽉 차고, 틀 안 화면이 --tp-safe-top 만큼 스스로 비켜 줌 */    /* 위: 노치·상태 표시줄 자리 (틀 안은 safe-area 가 0 이라 화면을 노치 아래부터) */
     border-radius: 48px;
     background: #111827;
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45), inset 0 0 0 2px #374151;
@@ -6870,16 +6871,17 @@ a.review-pick:focus-visible {
 
 .phone-preview__frame iframe {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: 390px;               /* 처음 값 (아이폰 크기). 기기를 고르면 스크립트가 바꿈 */
+    height: 844px;
     border: 0;
-    border-radius: 6px 6px 34px 34px;
+    border-radius: 36px;
     background: #fff;
 }
 
 .phone-preview__notch {
     position: absolute;
-    top: 10px;
+    top: 23px;                  /* 화면 위에 겹쳐 그림 (틀 12px + 화면 안 11px) */
+    pointer-events: none;
     left: 50%;
     z-index: 1;
     width: 96px;
@@ -6889,7 +6891,32 @@ a.review-pick:focus-visible {
     transform: translateX(-50%);
 }
 
+/* 🟧 11/12 기기 종류별 틀 모양 */
+.phone-preview__frame[data-cam="punch"] .phone-preview__notch { top: 21px; width: 13px; height: 13px; }
+.phone-preview__frame[data-cam="none"] .phone-preview__notch { display: none; }
+.phone-preview__frame.is-tablet { border-radius: 30px; }
+.phone-preview__frame.is-tablet iframe { border-radius: 18px; }
+
+/* 기기 고르기 (폰 모드일 때만 보임) */
+.view-toggle select {
+    margin-left: 4px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: #eef3fb;
+    color: #1e293b;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.view-toggle select[hidden] { display: none; }
+
 .phone-preview__hint {
+    position: absolute;         /* 틀을 줄여도(scale) 자리가 밀리지 않게 화면 아래에 고정 */
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    text-align: center;
     margin: 0;
     color: #e2e8f0;
     font-size: 12.5px;

@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261080">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261112b">
 
 </head>
 
@@ -816,17 +816,19 @@
 </script>
 
 <!-- PC에서 폰 화면 미리보기 (🟦 11/11): [📱 폰] → 폰 크기 틀 안에 우리 사이트, [💻 PC] → 닫기 -->
+<!-- 🟧 11/12 기기 종류 고르기 추가: 폰 모드일 때만 보이는 선택 상자 (휴대폰·폴더블·태블릿, 목록은 아래 DEVICES) -->
 <div class="view-toggle" id="viewToggle" role="group" aria-label="화면 모드">
     <button type="button" data-view="pc" class="is-on" aria-pressed="true">💻 PC</button>
     <button type="button" data-view="phone" aria-pressed="false">📱 폰</button>
+    <select id="phoneDevice" aria-label="기기 크기" hidden></select>
 </div>
 
 <div class="phone-preview" id="phonePreview" hidden>
     <div class="phone-preview__frame">
         <span class="phone-preview__notch" aria-hidden="true"></span>
-        <iframe id="phoneFrame" title="폰 화면 미리보기" loading="lazy"></iframe>
+        <iframe id="phoneFrame" title="폰 화면 미리보기"></iframe>
     </div>
-    <p class="phone-preview__hint">폰 화면(390×844)이에요 · 안에서 눌러 볼 수 있어요 · Esc 또는 바깥을 누르면 닫혀요</p>
+    <p class="phone-preview__hint"><span id="phoneHintSize">폰 화면(390×844)이에요</span> · 안에서 눌러 볼 수 있어요 · Esc 또는 바깥을 누르면 닫혀요</p>
 </div>
 
 <script>
@@ -834,7 +836,29 @@
     var toggle = document.getElementById("viewToggle");
     var preview = document.getElementById("phonePreview");
     var frame = document.getElementById("phoneFrame");
+    var box = preview.querySelector(".phone-preview__frame");
+    var select = document.getElementById("phoneDevice");
+    var hintSize = document.getElementById("phoneHintSize");
 
+    // 🟧 11/12 기기 목록. w·h 는 그 기기 화면의 CSS 픽셀 크기(실제 해상도 ÷ 화면 배율, 대략값)
+    // cam: 카메라 모양 (island 알약 모양 / punch 작은 점 / none 없음) · tablet: 태블릿 틀(모서리 덜 둥글게)
+    // top·bottom: 그 기기에서 카메라·상태 표시줄, 홈 막대가 차지하는 높이 → 틀 안 화면의 --tp-safe-top/bottom
+    //             (css/safe_area.css 와 style.css '휴대폰 화면'이 이 값만큼 위 막대·아래 탭·본문을 비켜 줌. 태블릿은 카메라가 테두리에 있어 0)
+    // 폭이 900px 보다 넓은 기기(아이패드 프로)는 틀 안이 PC 화면 규칙으로 보임 → 실제 기기와 같음
+    var DEVICES = [
+        { id: "s24",    group: "휴대폰", name: "갤럭시 S24",            w: 360,  h: 780,  cam: "punch", top: 30, bottom: 16 },
+        { id: "ultra",  group: "휴대폰", name: "갤럭시 S24 울트라",     w: 384,  h: 824,  cam: "punch", top: 30, bottom: 16 },
+        { id: "se",     group: "휴대폰", name: "아이폰 SE",             w: 375,  h: 667,  cam: "none", top: 20, bottom: 0 },
+        { id: "iphone", group: "휴대폰", name: "아이폰 15",             w: 393,  h: 852,  cam: "island", top: 47, bottom: 34 },
+        { id: "max",    group: "휴대폰", name: "아이폰 15 Pro Max",     w: 430,  h: 932,  cam: "island", top: 47, bottom: 34 },
+        { id: "flip",   group: "폴더블", name: "갤럭시 Z 플립",         w: 412,  h: 1006, cam: "punch", top: 30, bottom: 16 },
+        { id: "foldc",  group: "폴더블", name: "갤럭시 Z 폴드 (접음)",  w: 344,  h: 882,  cam: "punch", top: 30, bottom: 16 },
+        { id: "foldo",  group: "폴더블", name: "갤럭시 Z 폴드 (펼침)",  w: 690,  h: 830,  cam: "punch", tablet: true, top: 30, bottom: 16 },
+        { id: "mini",   group: "태블릿", name: "아이패드 미니",         w: 744,  h: 1133, cam: "none",  tablet: true, top: 0, bottom: 0 },
+        { id: "air",    group: "태블릿", name: "아이패드 에어",         w: 820,  h: 1180, cam: "none",  tablet: true, top: 0, bottom: 0 },
+        { id: "pro",    group: "태블릿", name: "아이패드 프로 12.9",    w: 1024, h: 1366, cam: "none",  tablet: true, top: 0, bottom: 0 },
+        { id: "tabs9",  group: "태블릿", name: "갤럭시 탭 S9",          w: 800,  h: 1280, cam: "none" , tablet: true, top: 0, bottom: 0 }
+    ];
     // 폰 틀 안에 뜬 홈에서는 버튼을 없앰 (틀 안에 또 틀이 생기지 않게)
     if (window.self !== window.top) {
         toggle.remove();
@@ -842,11 +866,64 @@
         return;
     }
 
+    // 선택 상자 채우기 (종류별 묶음)
+    ["휴대폰", "폴더블", "태블릿"].forEach(function (groupName) {
+        var group = document.createElement("optgroup");
+        group.label = groupName;
+        DEVICES.forEach(function (d) {
+            if (d.group !== groupName) return;
+            var option = document.createElement("option");
+            option.value = d.id;
+            option.textContent = d.name + " (" + d.w + "×" + d.h + ")";
+            group.appendChild(option);
+        });
+        select.appendChild(group);
+    });
+    try { select.value = localStorage.getItem("tripa_device") || "iphone"; } catch (e) { select.value = "iphone"; }
+    if (!select.value) select.value = "iphone";
+
+    function device() {
+        for (var i = 0; i < DEVICES.length; i++) if (DEVICES[i].id === select.value) return DEVICES[i];
+        return DEVICES[3];
+    }
+
+    // 고른 기기 크기로 틀을 맞추고, 창보다 크면 통째로 줄여서 보여 줌 (안의 화면 폭은 기기 그대로)
+    function fit() {
+        var d = device();
+        frame.style.width = d.w + "px";
+        frame.style.height = d.h + "px";
+        box.setAttribute("data-cam", d.cam);
+        box.classList.toggle("is-tablet", !!d.tablet);
+        var scale = Math.min(1, (window.innerHeight - 110) / (d.h + 24), (window.innerWidth - 60) / (d.w + 24));
+        box.style.transform = "scale(" + scale + ")";
+        hintSize.textContent = d.name + " 화면(" + d.w + "×" + d.h + ")이에요";
+        markSafe();
+    }
+
+    // 틀 안 화면에 이 기기의 카메라·홈 막대 높이를 알려 줌 → 위 막대·아래 탭·버튼이 그만큼 비켜남
+    function markSafe() {
+        try {
+            var root = frame.contentDocument && frame.contentDocument.documentElement;
+            if (!root) return;
+            var d = device();
+            root.style.setProperty("--tp-safe-top", d.top + "px");
+            root.style.setProperty("--tp-safe-bottom", d.bottom + "px");
+        } catch (e) { /* 다른 사이트(카카오맵 등)로 나가면 못 넣음 */ }
+    }
+
+    select.addEventListener("change", function () {
+        try { localStorage.setItem("tripa_device", select.value); } catch (e) { /* 저장 못 해도 동작 */ }
+        fit();
+    });
+    window.addEventListener("resize", function () { if (!preview.hidden) fit(); });
+
     function setView(view) {
         var phone = view === "phone";
         preview.hidden = !phone;
+        select.hidden = !phone;
+        if (phone) fit();
         if (phone && !frame.getAttribute("src")) {
-            frame.src = "{% url 'index' %}";   // 처음 열 때만 불러옴
+            frame.src = "{% url 'index' %}";   // 처음 열 때만 불러옴 (🟧 11/12 iframe 의 loading="lazy" 는 뺌: 틀을 줄여 보여 줄 때 화면이 하얗게 남는 일이 있었음)
         }
         document.body.classList.toggle("is-phone-preview", phone);
         toggle.querySelectorAll("button").forEach(function (btn) {
@@ -862,6 +939,7 @@
     var HIDE_BARS = "html{scrollbar-width:none;-ms-overflow-style:none}"
         + "html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}";
     frame.addEventListener("load", function () {
+        markSafe();
         try {
             var doc = frame.contentDocument;
             if (!doc || doc.getElementById("tripaPhoneBars")) return;
