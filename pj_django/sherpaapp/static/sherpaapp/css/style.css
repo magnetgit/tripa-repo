@@ -6860,8 +6860,8 @@ a.review-pick:focus-visible {
 /* 폰 모양 틀: 둥근 검은 테두리 + 위 노치 */
 .phone-preview__frame {
     position: relative;
-    width: 390px;
-    height: min(844px, calc(100vh - 90px));
+    flex: none;                 /* 🟧 11/12 크기는 index.html 스크립트가 고른 기기에 맞춰 iframe 에 넣음 (창보다 크면 scale 로 줄임) */
+    transform-origin: center;
     padding: 38px 12px 14px;    /* 위: 노치·상태 표시줄 자리 (틀 안은 safe-area 가 0 이라 화면을 노치 아래부터) */
     border-radius: 48px;
     background: #111827;
@@ -6870,8 +6870,8 @@ a.review-pick:focus-visible {
 
 .phone-preview__frame iframe {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: 390px;               /* 처음 값 (아이폰 크기). 기기를 고르면 스크립트가 바꿈 */
+    height: 844px;
     border: 0;
     border-radius: 6px 6px 34px 34px;
     background: #fff;
@@ -6889,7 +6889,32 @@ a.review-pick:focus-visible {
     transform: translateX(-50%);
 }
 
+/* 🟧 11/12 기기 종류별 틀 모양 */
+.phone-preview__frame[data-cam="punch"] .phone-preview__notch { top: 9px; width: 12px; height: 12px; background: #374151; }
+.phone-preview__frame[data-cam="none"] .phone-preview__notch { display: none; }
+.phone-preview__frame.is-tablet { border-radius: 30px; }
+.phone-preview__frame.is-tablet iframe { border-radius: 4px 4px 18px 18px; }
+
+/* 기기 고르기 (폰 모드일 때만 보임) */
+.view-toggle select {
+    margin-left: 4px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: #eef3fb;
+    color: #1e293b;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.view-toggle select[hidden] { display: none; }
+
 .phone-preview__hint {
+    position: absolute;         /* 틀을 줄여도(scale) 자리가 밀리지 않게 화면 아래에 고정 */
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    text-align: center;
     margin: 0;
     color: #e2e8f0;
     font-size: 12.5px;
