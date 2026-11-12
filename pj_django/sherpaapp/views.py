@@ -1118,6 +1118,10 @@ def travel_detail_day(
 
             'place_lon':
                 _float_or_none(sp.place.p_lon),
+
+            # 카카오 장소 번호 (🟦 11/12, 지도 팝업이 /api/place_info/ 로 별점·그날 운영시간을 받을 때. 없으면 '')
+            'place_kakao_id':
+                sp.place.p_kakao_id or '',
         })
 
 

@@ -4201,6 +4201,7 @@ button.preview-day {
 .tc-mappop__kind { color: #e8710a; font-weight: 700; }
 .tc-mappop__line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tc-mappop__rating { color: #b45309; font-weight: 700; }
+.tc-mappop__line.is-closed { color: #dc2626; font-weight: 700; }   /* 그날 휴무 (place_info) */
 
 .tc-mappop__close {
     position: absolute;
@@ -4885,6 +4886,14 @@ button.preview-day {
 
 .tc-tl__meta { margin: 3px 0 0; font-size: 12px; color: #7b88a1; line-height: 1.5; }
 .tc-tl__meta .tp-icon { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; }
+/* 첫날 첫 구간이 바다 건너·아주 먼 길일 때 (차 길 시간 대신, 지도는 주황 점선) */
+.tc-tl__far {
+    display: flex; flex-direction: column; gap: 2px;
+    margin: 4px 0 0; padding: 7px 10px;
+    border: 1px dashed #f3c48f; border-radius: 10px; background: #fff7ed;
+    font-size: 12px; line-height: 1.5; color: #7c4a12;
+}
+.tc-tl__far b { font-size: 12.5px; color: #c25e00; }
 /* 숙소 체크인 시각 안내 (🟩 checkin.message): 회색 한 줄, 경고 색 아님 */
 .tc-tl__checkin { margin: 3px 0 0; font-size: 12px; color: #8a94a6; line-height: 1.5; }
 .tc-tl__checkin .tp-icon { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; }
@@ -6078,12 +6087,46 @@ button.preview-day {
     filter: drop-shadow(0 10px 8px rgba(50, 60, 80, 0.25));
 }
 
-/* 이륙하는 비행기: 오른쪽으로 달리다가 위로 떠오름 */
+/* 관제탑: 활주로 너머 지평선 위, 꼭대기 빨간 불이 깜박임 */
+.tl-tower {
+    position: absolute;
+    right: 9%;
+    bottom: calc(var(--runway-h) - 12px);
+    width: 104px;
+    height: 225px;
+    filter: drop-shadow(0 8px 10px rgba(60, 80, 110, 0.18));
+}
+
+.tl-tower__light {
+    animation: tl-tower-light 2.4s ease-in-out infinite;
+}
+
+@keyframes tl-tower-light {
+    0%, 60%, 100% { opacity: 1; }
+    30%           { opacity: 0.15; }
+}
+
+/* 이륙하는 비행기 (22초마다): 세 겹으로 나눠 움직임이 끊기지 않게
+   - 바깥(.tl-takeoff): 옆으로, 처음부터 끝까지 한 번에 계속 빨라짐
+   - 가운데(__climb): 60%까지 바닥 → 그 뒤 점점 가파르게 상승
+   - 안(__pitch): 떠오를 때 기수를 천천히 듦
+   (예전엔 키프레임 구간마다 ease-in 이 다시 시작돼 이륙 순간 속도가 0 가까이 떨어졌음) */
 .tl-takeoff {
     position: absolute;
     left: 0;
     bottom: calc(var(--runway-h) * 0.42);
-    animation: tl-takeoff 22s ease-in infinite;
+    animation: tl-takeoff-x 22s cubic-bezier(0.42, 0, 1, 1) infinite;
+    animation-delay: -4s;
+}
+
+.tl-takeoff__climb {
+    animation: tl-takeoff-climb 22s linear infinite;
+    animation-delay: -4s;
+}
+
+.tl-takeoff__pitch {
+    transform-origin: 70% 60%;
+    animation: tl-takeoff-pitch 22s linear infinite;
     animation-delay: -4s;
 }
 
@@ -6095,12 +6138,20 @@ button.preview-day {
     filter: drop-shadow(0 6px 6px rgba(50, 60, 80, 0.25));
 }
 
-@keyframes tl-takeoff {
-    0%   { transform: translate(-200px, 0) rotate(0deg); opacity: 0; }
-    5%   { opacity: 1; }
-    45%  { transform: translate(45vw, 0) rotate(0deg); }
-    60%  { transform: translate(62vw, -60px) rotate(-10deg); }
-    100% { transform: translate(110vw, -420px) rotate(-14deg); opacity: 1; }
+@keyframes tl-takeoff-x {
+    from { transform: translateX(-200px); }
+    to   { transform: translateX(110vw); }
+}
+
+@keyframes tl-takeoff-climb {
+    0%, 60% { transform: translateY(0); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.9); }
+    100%    { transform: translateY(-440px); }
+}
+
+@keyframes tl-takeoff-pitch {
+    0%, 57% { transform: rotate(0deg); animation-timing-function: ease-in-out; }
+    72%     { transform: rotate(-12deg); }
+    100%    { transform: rotate(-14deg); }
 }
 
 /* 대합실 창틀: 은은한 세로 기둥과 위 테두리 */
@@ -6124,7 +6175,10 @@ button.preview-day {
 
 @media (prefers-reduced-motion: reduce) {
     .tl-cloud,
-    .tl-takeoff {
+    .tl-takeoff,
+    .tl-takeoff__climb,
+    .tl-takeoff__pitch,
+    .tl-tower__light {
         animation: none;
     }
 
@@ -6895,5 +6949,14 @@ body.is-phone-preview { overflow: hidden; }   /* 뒤 페이지는 스크롤 안 
     .header-inner .logo-link .tp-icon {
         width: 24px;
         height: 24px;
+    }
+}
+
+/* 휴대폰: 관제탑 작게 */
+@media (max-width: 640px) {
+    .tl-tower {
+        right: 4%;
+        width: 68px;
+        height: 147px;
     }
 }
