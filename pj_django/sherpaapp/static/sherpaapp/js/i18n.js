@@ -312,7 +312,9 @@
       '#tripaLang:before{content:"\\1F310";position:absolute;left:8px;top:7px;font-size:13px;pointer-events:none}' +
       '#tripaLang:after{content:"";position:absolute;right:11px;top:11px;border:4px solid transparent;' +
       'border-top-color:#5d6a83;pointer-events:none}' +
-      '@media (max-width:900px){#tripaLang{top:auto;bottom:74px;right:10px}}' +
+      // 위쪽에 가로 메뉴(로그인·회원가입 버튼)가 있는 화면에서는 버튼을 가리지 않게 왼쪽 아래로
+      '#tripaLang.is-low{top:auto;right:auto;left:14px;bottom:14px}' +
+      '@media (max-width:900px){#tripaLang,#tripaLang.is-low{top:auto;left:auto;bottom:74px;right:10px}}' +
       '@media print{#tripaLang{display:none}}' +
       // 번역하면 글자가 길어져서 겹치는 곳 (한국어일 때는 안 건드림)
       (lang === 'ko' ? '' : '.tc-row{grid-template-columns:minmax(76px,max-content) 1fr !important;column-gap:8px}');
@@ -320,6 +322,7 @@
     var box = document.createElement('div');
     box.id = 'tripaLang';
     box.setAttribute('data-no-i18n', '');
+    if (document.querySelector('body > header:not(.m-topbar)')) box.className = 'is-low';
     var sel = document.createElement('select');
     sel.setAttribute('aria-label', 'Language');
     LANGS.forEach(function (l) {
