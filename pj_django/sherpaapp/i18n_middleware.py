@@ -2,6 +2,7 @@
 
 모든 HTML 화면의 </head> 앞에 언어 스크립트를 붙인다. 템플릿은 고치지 않는다.
   - 같이 붙이는 것: static/sherpaapp/css/safe_area.css (폰 카메라·홈 막대 자리 피하기, 모든 화면 공통)
+                    static/sherpaapp/js/fit_buttons.js (폰 화면 버튼 글자 한 줄로 맞추기, 모든 화면 공통)
   - 쿠키 tripa_lang (ko·en·ja·zh, 없으면 ko) 를 읽어 window.TRIPA_LANG 으로 알려 주고
   - 한국어가 아니면 그 언어 사전 static/sherpaapp/i18n/<언어>.js 를 먼저,
   - 그다음 static/sherpaapp/js/i18n.js (언어 버튼 + 화면 글자 바꾸기) 를 붙인다
@@ -42,6 +43,8 @@ def head_snippet(lang):
                      '<script>document.documentElement.classList.add("i18n-wait");</script>')
         parts.append('<script src="%s"></script>' % _versioned('sherpaapp/i18n/%s.js' % lang))
     parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/i18n.js'))
+    # 폰 화면에서 버튼 글자가 넘치거나 두 줄이 되면 한 줄로 맞춤 (🟧 11/12)
+    parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/fit_buttons.js'))
     return ''.join(parts)
 
 

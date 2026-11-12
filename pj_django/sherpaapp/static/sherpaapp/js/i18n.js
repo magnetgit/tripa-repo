@@ -314,7 +314,11 @@
       'border-top-color:#5d6a83;pointer-events:none}' +
       // 위쪽에 가로 메뉴(로그인·회원가입 버튼)가 있는 화면에서는 버튼을 가리지 않게 왼쪽 아래로
       '#tripaLang.is-low{top:auto;right:auto;left:14px;bottom:14px}' +
-      '@media (max-width:900px){#tripaLang,#tripaLang.is-low{top:auto;left:auto;bottom:74px;right:10px}}' +
+      // 폰 화면: 버튼을 가리지 않게 지구본만 보이는 작은 동그라미로 (누르면 언어 목록은 그대로 나옴)
+      '@media (max-width:900px){#tripaLang,#tripaLang.is-low{top:auto;left:auto;bottom:74px;right:10px}' +
+      '#tripaLang select{width:38px;height:38px;padding:0;color:transparent;text-indent:-999px}' +
+      '#tripaLang select option{color:#1b2740}' +
+      '#tripaLang:before{left:11px;top:11px;font-size:16px}#tripaLang:after{display:none}}' +
       '@media print{#tripaLang{display:none}}' +
       // 번역하면 글자가 길어져서 겹치는 곳 (한국어일 때는 안 건드림)
       (lang === 'ko' ? '' : '.tc-row{grid-template-columns:minmax(76px,max-content) 1fr !important;column-gap:8px}');
