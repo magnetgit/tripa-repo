@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-11-12 · 관리자 '회원 화면 보기' `/manage/` (읽기 전용, 저장·수정 403) — 🟩 서지윤
+DB·마이그레이션 변경 없음 (회원 `is_admin` 칸 대신 **장고 관리자 계정** `is_staff` 사용) · ⚠️ **`settings.py` `MIDDLEWARE`에 한 줄 추가** · 새 파일 `sherpaapp/manage_views.py`·`sherpaapp/middleware.py`·`templates/admin/sherpa_manage.html`
+
+- `/manage/`: 회원 목록(아이디·이름·성별·나이대·여행 수·가입일, 검색) → **[이 회원 화면 보기]** → 그 회원으로 로그인한 것처럼 내 여행·일정·비용·리뷰 화면을 그대로 봐요
+  - 관리자 첫 화면 `/admin/` 맨 위 "통계"에 **회원 화면 보기** 바로가기
+  - 장고 관리자 로그인(`createsuperuser`로 만든 계정)만. 아니면 관리자 로그인 화면으로
+- 보는 동안 (`ManageReadOnlyMiddleware`)
+  - GET 말고 다른 요청(저장·삭제·순서 바꾸기·채팅 …)은 전부 **403** — fetch·JSON 요청이면 `{success: false, message, read_only: true}`, 폼이면 안내 화면
+  - 회원 화면 맨 위에 보라색 띠 "관리자 보기 · ○○ 님 화면 · 읽기 전용 [끝내기]" (JSON·관리자 페이지에는 안 붙음)
+  - [끝내기] → 원래 로그인 상태로 되돌리고 `/manage/`로. 관리자 로그아웃되면 보기도 자동으로 끝
+- 시험 23/23: 일반 회원·로그인 안 함은 못 들어감, 시간 수정·삭제·채팅 403이고 DB 그대로, 띠·끝내기·관리자 로그아웃 뒤 정리, 브라우저에서 실제로 눌러 확인
+- 한계: GET 요청인데 안에서 저장하는 화면(예: 사진·운영시간을 찾아 캐시에 저장)은 막지 않아요 — 회원 데이터를 바꾸는 요청은 모두 POST라 괜찮아요. 회원 화면의 '로그아웃'(GET)을 누르면 관리자 로그인도 같이 풀려요
+
+### 🟦 영준 · 🟧 수한
+- 🟦 할 일 없음 (화면 코드 안 건드림). 저장 버튼을 누르면 403 + `message`가 떠요
+- 🟧 `settings.py` `MIDDLEWARE` 맨 끝 한 줄 확인 (배포 서버도 같은 settings)
+
+---
+
 ## 2026-11-11 · 3주차 🟩 마무리: 일정 고칠 때 운영시간 검사 · 장소 정보 API · 질문 의도 나누기 · 여행지 정보 RAG · 로컬 LLM 시험 — 🟩 서지윤
 DB·마이그레이션·`.env` 변경 없음 · 기존 응답 키·함수 이름 그대로, **추가만** · 새 파일 `services/tour_rag.py`, `management/commands/index_tour.py` · `mock.json`에 `place_info`·`hours_blocked`·`chat_intent`
 

@@ -1,0 +1,74 @@
+{% extends "admin/base_site.html" %}
+{# 관리자 '회원 화면 보기' (🟩 11/12) — 읽기 전용은 sherpaapp/middleware.py #}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .manage-note { color: var(--body-quiet-color); margin: 0 0 12px; }
+  .manage-search { display: flex; gap: 8px; margin-bottom: 12px; }
+  .manage-search input[type=text] { min-width: 240px; }
+  .manage-table { width: 100%; }
+  .manage-table td.num, .manage-table th.num { text-align: right; }
+  .manage-table form { margin: 0; }
+  .manage-viewing { padding: 8px 12px; border-radius: 6px; background: #ede9fe; color: #5b21b6; margin-bottom: 12px; }
+  .manage-pages { margin-top: 12px; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">홈</a> › 회원 화면 보기
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p class="manage-note">회원이 보는 화면(내 여행·일정·비용·리뷰)을 그대로 봐요. 보는 동안 저장·수정·삭제·채팅 요청은 모두 막혀요(403). 화면 맨 위 보라색 띠의 [끝내기]로 돌아와요.</p>
+
+  {% if viewing %}
+  <div class="manage-viewing">
+    지금 {{ viewing.name }} ({{ viewing.user_id }}) 님 화면을 보는 중이에요 ·
+    <a href="{% url 'travel_list' %}">회원 화면으로</a>
+    <form method="post" action="{% url 'manage_stop' %}" style="display:inline">{% csrf_token %}<input type="submit" value="끝내기"></form>
+  </div>
+  {% endif %}
+
+  <form method="get" class="manage-search">
+    <input type="text" name="q" value="{{ q }}" placeholder="아이디·이름·닉네임·이메일">
+    <input type="submit" value="찾기">
+  </form>
+
+  <div class="module">
+    <table class="manage-table">
+      <thead><tr><th>아이디</th><th>이름</th><th>성별</th><th>나이대</th><th class="num">여행</th><th>가입</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.user_id }}</td>
+          <td>{{ r.name|default:"-" }}</td>
+          <td>{{ r.gender }}</td>
+          <td>{{ r.age }}</td>
+          <td class="num">{{ r.travels }}</td>
+          <td>{{ r.joined|date:"Y-m-d" }}</td>
+          <td>
+            <form method="post" action="{% url 'manage_start' r.m_id %}">{% csrf_token %}
+              <input type="submit" value="이 회원 화면 보기">
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">찾는 회원이 없어요.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page.has_other_pages %}
+  <div class="manage-pages">
+    {% if page.has_previous %}<a href="?q={{ q|urlencode }}&page={{ page.previous_page_number }}">‹ 앞</a>{% endif %}
+    {{ page.number }} / {{ page.paginator.num_pages }}
+    {% if page.has_next %}<a href="?q={{ q|urlencode }}&page={{ page.next_page_number }}">뒤 ›</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -162,6 +162,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # 관리자 '회원 화면 보기' 중에는 저장·수정 403 + 화면 위 안내 띠 (🟩 11/12, /manage/)
+    "sherpaapp.middleware.ManageReadOnlyMiddleware",
 ]
 
 ROOT_URLCONF = "pj_django.urls"
