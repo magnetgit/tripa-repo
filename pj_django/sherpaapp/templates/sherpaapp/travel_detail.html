@@ -6476,6 +6476,9 @@ function reorderSpAt(pointerY) {
         last.after(item);
     }
 
+    // 끄는 동안 한 번이라도 자리를 바꿨는지 (제자리에 다시 놓아도 이동 구간·시각 칸은 섞여 있음 → 놓을 때 다시 그림)
+    spDrag.moved = true;
+
     // 끄는 줄은 화면에서 그 자리에 그대로 있게 (부드럽게 따라가는 중이라 튀지 않도록)
     spDrag.offsetY += itemTopBefore - item.offsetTop;
     spDragHoursCheck();
@@ -6511,6 +6514,8 @@ function finishSpDrag() {
     item.style.transform = "";
 
     const changed = spOrder(container) !== spDrag.beforeOrder;
+    const moved = !!spDrag.moved;      // 옮겼다가 제자리에 놓은 경우도 포함
+    spDrag.moved = false;
 
     setTimeout(function () {
         item.classList.remove("sp-dragging", "sp-drag-off");
@@ -6528,6 +6533,9 @@ function finishSpDrag() {
             saveSpOrder(container);
         } else if (pending) {
             renderSchedule(pending[0], pending[1]);
+        } else if (moved && currentDayData) {
+            // 순서는 그대로지만 끄는 동안 장소 줄만 오갔으므로, 이동 구간·시각 칸을 원래 자리로 다시 그림 (🟧 11/12)
+            renderSchedule(currentDayData, currentRouteData);
         } else {
             container.classList.remove("timeline-sorting");
         }
