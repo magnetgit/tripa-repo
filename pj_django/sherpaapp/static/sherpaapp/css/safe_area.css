@@ -1,0 +1,42 @@
+/* 카메라(노치·펀치홀)·홈 막대 자리 피하기 (🟧 11/12)
+ *
+ * 모든 화면에 붙는다 (sherpaapp/i18n_middleware.py 가 <head> 에 넣음).
+ *   --tp-safe-top    : 화면 위쪽에서 카메라·상태 표시줄이 차지하는 높이
+ *   --tp-safe-bottom : 화면 아래쪽 홈 막대 높이
+ * 진짜 폰에서는 브라우저가 알려 주는 값(env)을 쓰고, 일반 브라우저 세로 화면에서는 0 이라 아무것도 안 바뀐다.
+ * 홈의 폰 미리보기는 고른 기기에 맞는 값을 틀 안 화면의 <html> 에 직접 넣는다 (index.html 의 DEVICES).
+ *
+ * 쓰는 법: 화면 위·아래에 고정(position: fixed)하는 것을 새로 만들면
+ *   top: var(--tp-safe-top);   또는   bottom: calc(12px + var(--tp-safe-bottom));
+ */
+:root {
+    --tp-safe-top: env(safe-area-inset-top, 0px);
+    --tp-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 900px) {
+    /* 위 막대(.m-topbar)가 없는 화면(홈·로그인·회원가입·ID/PW 찾기·내 정보):
+       본문 전체를 카메라 아래·홈 막대 위로. padding 은 화면마다 이미 쓰고 있어서 투명한 테두리로 밀어 낸다 */
+    body:not(:has(.m-topbar)) {
+        border-top: var(--tp-safe-top) solid transparent;
+        border-bottom: var(--tp-safe-bottom) solid transparent;
+    }
+
+    /* 언어 버튼: 아래 탭·홈 막대 위로 */
+    #tripaLang,
+    #tripaLang.is-low {
+        bottom: calc(74px + var(--tp-safe-bottom)) !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* 화면을 덮는 창(장소 추가·운영시간 안내·예산·탈퇴 확인): 닫기 버튼이 카메라에 가려지지 않게 */
+    .place-search-modal,
+    .place-modal,
+    .hours-block,
+    .budget-modal,
+    .delete-modal {
+        padding-top: calc(16px + var(--tp-safe-top)) !important;
+        padding-bottom: calc(16px + var(--tp-safe-bottom)) !important;
+    }
+}

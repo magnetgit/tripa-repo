@@ -1,6 +1,7 @@
 """화면 언어 바꾸기 (🟧 11/12)
 
 모든 HTML 화면의 </head> 앞에 언어 스크립트를 붙인다. 템플릿은 고치지 않는다.
+  - 같이 붙이는 것: static/sherpaapp/css/safe_area.css (폰 카메라·홈 막대 자리 피하기, 모든 화면 공통)
   - 쿠키 tripa_lang (ko·en·ja·zh, 없으면 ko) 를 읽어 window.TRIPA_LANG 으로 알려 주고
   - 한국어가 아니면 그 언어 사전 static/sherpaapp/i18n/<언어>.js 를 먼저,
   - 그다음 static/sherpaapp/js/i18n.js (언어 버튼 + 화면 글자 바꾸기) 를 붙인다
@@ -32,7 +33,9 @@ def _versioned(path):
 
 
 def head_snippet(lang):
-    parts = ['<script>window.TRIPA_LANG="%s";</script>' % lang]
+    # 카메라·홈 막대 자리 변수(--tp-safe-top/bottom): 언어와 상관없이 모든 화면에 (🟧 11/12)
+    parts = ['<link rel="stylesheet" href="%s">' % _versioned('sherpaapp/css/safe_area.css'),
+             '<script>window.TRIPA_LANG="%s";</script>' % lang]
     if lang != 'ko':
         # 번역이 끝날 때까지 본문을 잠깐 숨겨서 한국어가 번쩍 보였다 바뀌는 것을 막는다
         parts.append('<style>html.i18n-wait body{visibility:hidden}</style>'
