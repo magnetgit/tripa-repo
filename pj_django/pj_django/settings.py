@@ -164,6 +164,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # 관리자 '회원 화면 보기' 중에는 저장·수정 403 + 화면 위 안내 띠 (🟩 11/12, /manage/)
     "sherpaapp.middleware.ManageReadOnlyMiddleware",
+    # 화면 언어 바꾸기: 모든 화면 <head> 에 언어 버튼·사전 스크립트를 붙임 (🟧 11/12, 쿠키 tripa_lang)
+    "sherpaapp.i18n_middleware.LangScriptMiddleware",
 ]
 
 ROOT_URLCONF = "pj_django.urls"
