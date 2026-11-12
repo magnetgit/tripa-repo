@@ -12,9 +12,11 @@
  *   ② 값 자리 {} 가 있는 문장: "{}박 {}일" ↔ "3박 4일"
  *   ③ 앞·뒤에 붙은 조각: "총 " + 3 + "곳" 처럼 스크립트가 이어 붙인 글자 (남는 글자에 한글이 없을 때만)
  *   ④ " · " 로 이어진 줄은 칸마다 따로
- *   못 찾으면 한국어 그대로 둔다 (장소 이름·리뷰 본문처럼 사용자가 쓴 글)
+ *   ⑤ 그래도 한글이 남으면(장소 이름·주소·리뷰 본문처럼 DB·외부에서 온 글) 서버 /api/translate/ 에 모아 보내
+ *      AI 번역을 받아 바꾼다. 한 번 번역한 글은 서버 표(ui_translation)와 브라우저(localStorage)에 남아서 다시 안 부른다
+ *      서버가 못 하면(사용량 넘음·AI 오류) 한국어 그대로 둔다
  *
- * 번역하지 않을 곳: 태그에 data-no-i18n 을 붙인다
+ * 번역하지 않을 곳: 태그에 data-no-i18n 을 붙인다 (채팅의 내 말풍선 .tc-msg--me, 회원 닉네임·이름은 자동으로 빠짐)
  * 이 파일과 사전은 서버(sherpaapp/i18n_middleware.py)가 모든 화면 <head> 에 자동으로 붙인다. 템플릿은 안 고쳐도 된다.
  */
 (function () {
@@ -147,8 +149,18 @@
   function skipped(el) {
     for (; el && el.nodeType === 1; el = el.parentNode) {
       if (SKIP[el.tagName] || el.hasAttribute('data-no-i18n') || el.isContentEditable) return true;
+      if (el.classList.contains('tc-msg--me')) return true;      // 채팅에서 내가 쓴 말풍선은 쓴 그대로
     }
     return false;
+  }
+
+  // 영어는 낱말 사이를 띄운다: 한글로는 "429,000" + "원이고" 처럼 붙어 있던 옆 글자와 붙지 않게 한 칸 넣는다
+  function spaced(node, raw, out) {
+    if (lang !== 'en') return out;
+    var prev = node.previousSibling, next = node.nextSibling;
+    if (prev && /^[A-Za-z]/.test(out) && !/^\s/.test(raw) && /[A-Za-z0-9]$/.test(prev.textContent || '')) out = ' ' + out;
+    if (next && /[A-Za-z]$/.test(out) && !/\s$/.test(raw) && /^[A-Za-z0-9]/.test(next.textContent || '')) out += ' ';
+    return out;
   }
 
   function textNode(node) {
@@ -156,7 +168,67 @@
     if (!value || done.get(node) === value || !KO.test(value)) return;
     if (skipped(node.parentNode)) return;
     var out = translate(value);
-    if (out !== null) { done.set(node, out); node.nodeValue = out; }
+    if (out !== null) { out = spaced(node, value, out); done.set(node, out); node.nodeValue = out; }
+    // ⑤ 사전으로 다 못 바꾼 글은 서버 번역을 기다린다 (원래 한글 문장 통째로 보냄)
+    if (out === null || KO.test(out)) remote(node, value, out === null ? value : out);
+  }
+
+  // ---------- ⑤ 서버 자동 번역 ----------
+  var STORE = 'tripa_tr_' + lang;
+  var saved = {};               // 원래 글 → 번역 (브라우저에 남겨 둠)
+  var waiting = {};             // 원래 글 → 기다리는 글자 마디들
+  var failed = {};              // 서버가 못 한 글 (이 화면에서는 다시 안 물음)
+  var timer = null;
+  try { saved = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { saved = {}; }
+
+  function keep() {
+    try {
+      var keys = Object.keys(saved);
+      if (keys.length > 3000) keys.slice(0, keys.length - 2000).forEach(function (k) { delete saved[k]; });
+      localStorage.setItem(STORE, JSON.stringify(saved));
+    } catch (e) { /* 저장 공간이 없으면 서버 표에서 다시 받음 */ }
+  }
+
+  function put(node, shown, text, raw) {
+    if (node.nodeValue !== shown) return;      // 그사이 화면이 다른 글로 바뀜
+    var m = /^(\s*)[\s\S]*?(\s*)$/.exec(raw);
+    var out = m[1] + text + m[2];
+    done.set(node, out);
+    node.nodeValue = out;
+  }
+
+  function remote(node, raw, shown) {
+    var key = raw.replace(/\s+/g, ' ').trim();
+    if (key.length < 2 || key.length > 600 || failed[key]) return;
+    if (Object.prototype.hasOwnProperty.call(saved, key)) { put(node, shown, saved[key], raw); return; }
+    (waiting[key] = waiting[key] || []).push({ node: node, raw: raw, shown: shown });
+    if (!timer) timer = setTimeout(send, 200);
+  }
+
+  function send() {
+    timer = null;
+    var keys = Object.keys(waiting).slice(0, 40);
+    if (!keys.length) return;
+    var batch = {};
+    keys.forEach(function (k) { batch[k] = waiting[k]; delete waiting[k]; });
+    fetch('/api/translate/', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang: lang, texts: keys })
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      var texts = (data && data.success && data.texts) || [];
+      keys.forEach(function (k, i) {
+        var text = texts[i];
+        if (typeof text !== 'string' || !text) { failed[k] = true; return; }
+        saved[k] = text;
+        batch[k].forEach(function (w) { put(w.node, w.shown, text, w.raw); });
+      });
+      keep();
+    }).catch(function () {
+      keys.forEach(function (k) { failed[k] = true; });
+    }).then(function () {
+      if (Object.keys(waiting).length && !timer) timer = setTimeout(send, 50);
+    });
   }
 
   function attrs(el) {
@@ -180,6 +252,7 @@
     if (root.nodeType === 3) { textNode(root); return; }
     if (root.nodeType !== 1 && root.nodeType !== 9) return;
     if (root.nodeType === 1) {
+      if (root.tagName === 'TEXTAREA') { attrs(root); return; }
       if (skipped(root)) return;
       attrs(root);
     }
@@ -187,7 +260,7 @@
     var node;
     while ((node = it.nextNode())) {
       if (node.nodeType === 3) textNode(node);
-      else if (!SKIP[node.tagName]) attrs(node);
+      else if (!SKIP[node.tagName] || node.tagName === 'TEXTAREA') attrs(node);     // 글 상자는 placeholder 만
     }
   }
 
@@ -199,7 +272,7 @@
       for (var i = 0; i < list.length; i++) {
         var m = list[i];
         if (m.type === 'characterData') textNode(m.target);
-        else if (m.type === 'attributes') { if (!skipped(m.target)) attrs(m.target); }
+        else if (m.type === 'attributes') { if (m.target.tagName === 'TEXTAREA' || !skipped(m.target)) attrs(m.target); }
         else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
       }
     }).observe(document.body, {
@@ -240,7 +313,9 @@
       '#tripaLang:after{content:"";position:absolute;right:11px;top:11px;border:4px solid transparent;' +
       'border-top-color:#5d6a83;pointer-events:none}' +
       '@media (max-width:900px){#tripaLang{top:auto;bottom:74px;right:10px}}' +
-      '@media print{#tripaLang{display:none}}';
+      '@media print{#tripaLang{display:none}}' +
+      // 번역하면 글자가 길어져서 겹치는 곳 (한국어일 때는 안 건드림)
+      (lang === 'ko' ? '' : '.tc-row{grid-template-columns:minmax(76px,max-content) 1fr !important;column-gap:8px}');
     document.head.appendChild(css);
     var box = document.createElement('div');
     box.id = 'tripaLang';
