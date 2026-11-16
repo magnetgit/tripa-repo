@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-11-16 · 채팅 지도: 추천 숙소를 보라색 점 + 이름·가격 카드로 (점과 카드를 선으로 이음) — 🟧 이수한
+DB·마이그레이션·`.env` 변경 없음 · 응답 키 그대로 (추천 카드 `recommendation.items` 의 `name`·`lat`·`lon`·`kind`·`cost.per` 만 읽음)
+
+### 무엇이 생겼나
+- 채팅에서 숙소를 추천받으면(가장 최근 추천의 `kind` 가 '숙박') 지도에 같이 표시 — cloud-tripa 방식
+  - 숙소 자리에 **번호가 든 보라색 점**, 옆에 **[번호] 숙소 이름 / 1박 약 9만원** 카드
+  - 카드는 점·다른 카드와 안 겹치는 자리(8방향 × 거리 6단계)를 골라 놓고 **점과 카드를 선으로 이음** → 가까운 숙소끼리 카드가 남의 점을 가리지 않음
+  - 일정에 담은 숙소는 카드가 꽉 찬 보라색. 지도를 확대·축소·옮기면 자리를 다시 잡음. 지도 범위는 추천 숙소에 맞춤
+- 새 파일 `static/sherpaapp/js/stay_pins.js` (공통, CSS 도 이 안에 있음): `TripaStayPins.draw(map, items, {chosen})` · `TripaStayPins.fromMessages(messages)`
+- 연결한 곳: 여행 만들기 `travel_chat.js` 의 `updateMap`, React 채팅 `frontend/src/components/MapPanel.jsx` (→ `static/chat/chat.js` 다시 빌드)
+- `travel_create.html`·`chat.html` 에 `stay_pins.js` 스크립트 한 줄씩 (각 화면 스크립트보다 먼저)
+
+### 🟦 영준
+- [ ] `travel_chat.js` `updateMap` 과 `MapPanel.jsx` 에 들어간 블록 확인 (기존 핀·경로 그리기는 그대로, 추천 숙소가 있을 때만 지도 범위를 숙소에 맞춤)
+- [ ] 카드 모양·색을 바꾸려면 `stay_pins.js` 맨 위 CSS (`.sp-dot`·`.sp-card`·`.sp-line`)
+- [ ] React 쪽을 고친 뒤에는 `frontend` 에서 `npm run build` (지금 `chat.js` 는 이 변경까지 빌드된 것)
+
+### 🟩 지윤
+- [ ] 숙소 추천 카드에 `lat`·`lon`·`cost.per` 가 계속 들어오는지만 봐 주세요 (없으면 그 숙소는 지도에 안 나오거나 가격 줄이 빠짐)
 ## 2026-11-16 · 이동 구간 접기 · 언어 버튼 맨 위로 · 폰 [맨 위로] 버튼 · 홈 중복 버튼 정리 — 🟦 임영준
 DB·마이그레이션·`.env` 변경 없음 · 응답 키 그대로 · ⚠️ 🟧 파일 3개 고침: `static/sherpaapp/js/i18n.js` `toggle()`, `css/safe_area.css`, `i18n_middleware.py` (한 줄 추가) · 새 파일 `static/sherpaapp/js/to_top.js`
 

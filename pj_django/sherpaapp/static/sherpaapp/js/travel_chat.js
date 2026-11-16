@@ -1450,6 +1450,7 @@
 
   var map = null;
   var overlays = [];
+  var stayPins = null;     // 추천 숙소 점·카드 (🟧 11/16, js/stay_pins.js)
   var routeDrawToken = 0;   // 지도를 다시 그리면 이전 경로 불러오기 결과는 버림
 
   /* ---------- 대중교통 실제 경로 (카카오 대중교통 길찾기, 서버 /transit_route/ 호출) ----------
@@ -1684,6 +1685,7 @@
     routeDrawToken++;
     overlays.forEach(function (o) { o.setMap(null); });
     overlays = [];
+    if (stayPins) { stayPins.clear(); stayPins = null; }
 
     var d = state.draft;
     var points = [];
@@ -1737,6 +1739,17 @@
       (d.stays || []).forEach(function (s, i) {
         add('stay', shortDate(s.date) + ' ' + (s.name || s.query), s.lat, s.lon);
       });
+    }
+
+    // 추천받은 숙소: 보라색 점 + 이름·1박 가격 카드 (🟧 11/16, js/stay_pins.js). 지도 범위도 추천 숙소에 맞춘다
+    var recStays = window.TripaStayPins ? window.TripaStayPins.fromMessages(state.messages) : [];
+    if (recStays.length) {
+      stayPins = window.TripaStayPins.draw(map, recStays, {
+        chosen: function (item) {
+          return (d.stays || []).some(function (s) { return (s.name || s.query) === item.name; });
+        }
+      });
+      if (stayPins.points.length) points = stayPins.points.slice();
     }
 
     el.mapHint.hidden = points.length > 0;
