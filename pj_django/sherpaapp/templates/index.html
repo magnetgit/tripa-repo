@@ -13,7 +13,7 @@
     {% load static %}
 
     <link rel="stylesheet"
-          href="{% static 'sherpaapp/css/style.css' %}?v=20261112b">
+          href="{% static 'sherpaapp/css/style.css' %}?v=20261116">
 
 </head>
 
@@ -36,11 +36,11 @@
 
         <div class="header-actions">
 
-            <a href="{% url 'travel_list' %}">{% include "_icon.html" with name="suitcase" %}내 여행</a>
+            <a href="{% url 'travel_list' %}" aria-label="내 여행">{% include "_icon.html" with name="suitcase" %}<span class="hdr-label">내 여행</span></a>
 
             {% if member %}
                 {# 닉네임을 누르면 마이페이지 (따로 있던 '마이페이지' 링크는 뺌: 폰에서 세로로 꺾여서) #}
-                <a href="{% url 'mypage' %}" class="header-user" title="마이페이지">{% include "_icon.html" with name="user" %}{{ member.nickname }}님</a>
+                <a href="{% url 'mypage' %}" class="header-user" title="마이페이지">{% include "_icon.html" with name="user" %}<span class="hdr-label hdr-label--name">{{ member.nickname }}님</span></a>
                 <a href="{% url 'logout' %}">로그아웃</a>
             {% else %}
                 <a href="{% url 'login' %}">로그인</a>
@@ -250,20 +250,6 @@
 
             </form>
 
-
-            <div class="hero-buttons">
-
-                <a href="{% url 'travel_create' %}"
-                   class="btn btn-primary btn-large">
-                    {% include "_icon.html" with name="plane" %} 여행 계획 시작하기
-                </a>
-
-                <a href="{% url 'travel_list' %}"
-                   class="btn btn-secondary btn-large">
-                    {% include "_icon.html" with name="suitcase" %} 내 여행 보기
-                </a>
-
-            </div>
 
         </div>
 

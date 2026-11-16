@@ -22,11 +22,8 @@
         border-bottom: var(--tp-safe-bottom) solid transparent;
     }
 
-    /* 언어 버튼: 아래 탭·홈 막대 위로 */
-    #tripaLang,
-    #tripaLang.is-low {
-        bottom: calc(74px + var(--tp-safe-bottom)) !important;
-    }
+    /* 언어 버튼은 맨 위 머리 줄 안으로 옮김 (🟦 11/16) → 위치는 i18n.js 의 toggle() CSS.
+       맨 위에 떠 있을 때만 카메라 아래로 (그 값도 i18n.js 에서 var(--tp-safe-top) 로 줌) */
 }
 
 @media (max-width: 900px) {

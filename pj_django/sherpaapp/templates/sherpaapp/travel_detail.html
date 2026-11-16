@@ -909,6 +909,59 @@
             white-space: normal;
         }
 
+        /* 이동 구간 접기 (🟦 11/12): 기본은 제목 + 한 줄 요약, [자세히]로 펼침 */
+        .transport-fold-btn {
+            margin-left: 4px;
+            padding: 2px 8px;
+            border: 1px solid #dbe3ee;
+            border-radius: 999px;
+            background: #f8fafc;
+            color: #2563eb;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .transport-fold-btn:hover {
+            background: #eff6ff;
+        }
+
+        .transport-brief {
+            display: block;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 1.45;
+            white-space: normal;
+        }
+
+        .transport-brief:empty {
+            display: none;
+        }
+
+        .transport-brief .move-fare-mini:not(:empty) {
+            margin-left: 6px;
+            padding: 1px 7px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            color: #047857;
+            font-weight: 700;
+        }
+
+        .transport-chip.is-open .transport-brief {
+            display: none;   /* 펼치면 아래 상세에 같은 내용이 있으니 요약은 숨김 */
+        }
+
+        .transport-more[hidden] {
+            display: none;
+        }
+
+        .transport-more {
+            display: grid;
+            gap: 3px;
+        }
+
         /* 일정 고칠 때 운영시간 검사 (🟩 #138): 되돌렸다는 안내 창 + '그래도 바꾸기' */
         .hours-block {
             position: fixed;
@@ -1229,12 +1282,16 @@
                 flex: none;
             }
 
-            .transport-chip-main > span:last-child {
+            .transport-chip-main > span:nth-child(2) {
                 flex: 1 1 0;
                 min-width: 0;
             }
 
-            .transport-chip-main > span:last-child,
+            .transport-fold-btn {
+                flex: none;
+            }
+
+            .transport-chip-main > span:nth-child(2),
             .transport-detail-text,
             .transit-step {
                 overflow-wrap: anywhere;
@@ -4354,6 +4411,19 @@ function moveFareHtml(fares) {
     }).join("");
 }
 
+// 접힌 요약 줄용: '가장 쌈 🚗 자가용 350원' / '🚶 걸어서 0원'
+function moveFareMiniText(fares) {
+    if (fares.walk) {
+        return "🚶 걸어서 0원";
+    }
+    const o = (fares.options || []).find(function (x) { return x.mode === fares.cheapest; })
+        || (fares.options || [])[0];
+    if (!o) {
+        return "";
+    }
+    return `가장 쌈 ${MOVE_FARE_ICON[o.mode] || ""} ${o.label} ${Number(o.total).toLocaleString("ko-KR")}원`;
+}
+
 // 그날 구간 금액을 다 받으면 맨 아래에 이동수단별 합계
 function moveFareTotalHtml(list) {
     const modes = ["car", "transit", "taxi"];
@@ -4433,6 +4503,12 @@ function loadMoveFares() {
                 return fares;
             }
             const html = fares ? moveFareHtml(fares) : "";
+            // 접힌 요약 줄에도 가장 싼 방법 하나만 (🟦 11/12)
+            const mini = slot.closest(".transport-chip");
+            const miniEl = mini && mini.querySelector(".move-fare-mini");
+            if (miniEl && fares) {
+                miniEl.textContent = moveFareMiniText(fares);
+            }
             if (html) {
                 slot.innerHTML = html;
             } else {
@@ -4532,9 +4608,11 @@ function buildTransitStepsHtml(route) {
 
             const title =
                 escapeHtml(
-                    step.display_name
-                    || step.vehicle_label
-                    || "대중교통"
+                    uniqueSlashNames(
+                        step.display_name
+                        || step.vehicle_label
+                        || "대중교통"
+                    )
                 );
 
             const details = [];
@@ -4687,7 +4765,7 @@ function buildTransportSegmentHtml(
 
         if (matchedRoute.line_name) {
             detailParts.push(
-                escapeHtml(matchedRoute.line_name)
+                escapeHtml(uniqueSlashNames(matchedRoute.line_name))
             );
         }
 
@@ -4744,19 +4822,75 @@ function buildTransportSegmentHtml(
 
     }
 
+    // 접힌 상태에서 보일 한 줄 요약: 'A 탑승 → B 하차 · 1인 요금' + (불러오면) 가장 싼 이동비
+    const briefParts = [];
+    if (matchedRoute && (matchedRoute.boarding_stop || matchedRoute.alighting_stop)) {
+        briefParts.push(
+            [matchedRoute.boarding_stop, matchedRoute.alighting_stop]
+                .filter(Boolean).map(escapeHtml).join(" → ")
+        );
+    }
+    if (matchedRoute && Number(matchedRoute.fare) > 0) {
+        briefParts.push(`1인 ${Number(matchedRoute.fare).toLocaleString("ko-KR")}원`);
+    }
+
+    const foldKey = `${currentDay}-${sp.visit_order}`;
+    const isOpen = openTransportKeys.has(foldKey);
+    const hasMore = transitDetailHtml.trim() !== "";
+
     return `
         <div class="transport-segment ${matchedRoute && matchedRoute.estimated ? "estimated-transport" : ""}">
             <div class="transport-segment-content">
-                <span class="transport-chip">
+                <span class="transport-chip${isOpen ? " is-open" : ""}">
                     <span class="transport-chip-main">
                         <span>${baseTransport.icon}</span>
-                        <span>${transportLabel} · ${minuteText}</span>
+                        <span>${escapeHtml(uniqueSlashNames(transportLabel))} · ${minuteText}</span>
+                        ${hasMore ? `<button type="button" class="transport-fold-btn" data-fold-key="${foldKey}"
+                            aria-expanded="${isOpen}" onclick="toggleTransportMore(this, event)">${isOpen ? "접기 ▴" : "자세히 ▾"}</button>` : ""}
                     </span>
-                    ${transitDetailHtml}
+                    ${hasMore ? `<span class="transport-brief">${briefParts.join(" · ")}<span class="move-fare-mini"></span></span>` : ""}
+                    ${hasMore ? `<div class="transport-more"${isOpen ? "" : " hidden"}>${transitDetailHtml}</div>` : ""}
                 </span>
             </div>
         </div>
     `;
+}
+
+/* 이동 구간 접기·펼치기 (🟦 11/12): 기본은 한 줄 요약, [자세히]를 누르면 노선·이동비·길찾기.
+   펼친 구간은 기억해 두어 일정을 고쳐 다시 그려도 펼친 채로 */
+const openTransportKeys = new Set();
+
+function toggleTransportMore(button, event) {
+    event.stopPropagation();
+    const chip = button.closest(".transport-chip");
+    const more = chip && chip.querySelector(".transport-more");
+    if (!more) {
+        return;
+    }
+    const open = more.hidden;
+    more.hidden = !open;
+    chip.classList.toggle("is-open", open);
+    button.setAttribute("aria-expanded", String(open));
+    button.textContent = open ? "접기 ▴" : "자세히 ▾";
+    if (open) {
+        openTransportKeys.add(button.dataset.foldKey);
+    } else {
+        openTransportKeys.delete(button.dataset.foldKey);
+    }
+}
+
+// '지하철 1호선 / 1호선 / 1호선' → '지하철 1호선' (같은 노선 이름이 여러 번 오던 것)
+function uniqueSlashNames(text) {
+    const parts = String(text || "").split(" / ");
+    const seen = new Set();
+    return parts.filter(function (part) {
+        const key = part.replace(/^(지하철|간선버스|지선버스|광역버스|버스)\s*/, "").trim();
+        if (seen.has(key)) {
+            return false;
+        }
+        seen.add(key);
+        return true;
+    }).join(" / ");
 }
 
 function buildStartPointHtml(
