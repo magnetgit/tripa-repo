@@ -22,8 +22,15 @@ function pinOverlay(kakao, kind, label, lat, lon) {
   return new kakao.maps.CustomOverlay({ position: new kakao.maps.LatLng(lat, lon), content: wrap, xAnchor: 0.5, yAnchor: 1 });
 }
 
+// 가장 최근 추천 중 숙소(좌표 있는 것)만 → 지도에 보라색 점 + 이름·1박 가격 카드로 (🟧 11/16)
+// 그리는 코드는 React 밖 공통 스크립트 static/sherpaapp/js/stay_pins.js (여행 만들기 화면과 같이 씀, chat.html 이 먼저 불러옴)
+function recStays(state) {
+  return window.TripaStayPins ? window.TripaStayPins.fromMessages(state.messages) : [];
+}
+
 // 지도에 찍을 점이 하나라도 있는지 (안내 문구용)
 function hasPoints(state) {
+  if (recStays(state).length) return true;
   const day = currentDay(state);
   if (day) return !!dayStartPoint(state, day) || dayItems(state, day).some((it) => it.lat != null);
   const d = state.draft;
@@ -41,6 +48,7 @@ export default function MapPanel({ state, sprite, transitUrl, focus }) {
   const mapRef = useRef(null);
   const focusRef = useRef(null);   // 추천 카드를 눌러 띄운 장소 표시 (일정 표시와 따로)
   const overlaysRef = useRef([]);
+  const stayPinsRef = useRef(null); // 추천 숙소 점·카드 (stay_pins.js 가 돌려준 것, 다시 그릴 때 clear())
   const tokenRef = useRef(0); // 다시 그리면 이전 경로 결과는 버림
   const [ready, setReady] = useState(false);
   // 카카오 지도 스크립트가 있는지 (처음 한 번만 확인)
@@ -66,6 +74,7 @@ export default function MapPanel({ state, sprite, transitUrl, focus }) {
     const token = ++tokenRef.current;
     overlaysRef.current.forEach((o) => o.setMap(null));
     overlaysRef.current = [];
+    if (stayPinsRef.current) { stayPinsRef.current.clear(); stayPinsRef.current = null; }
     const keep = (o) => { o.setMap(map); overlaysRef.current.push(o); return o; };
 
     const line = (points, color, dashed) =>
@@ -123,6 +132,18 @@ export default function MapPanel({ state, sprite, transitUrl, focus }) {
       if (d.center) add('place', d.place || '여행지', d.center.lat, d.center.lon);
       if (d.start_place) add('start', `출발 · ${d.start_place.name || d.start_place.query}`, d.start_place.lat, d.start_place.lon);
       (d.stays || []).forEach((s) => add('stay', `${shortDate(s.date)} ${s.name || s.query}`, s.lat, s.lon));
+    }
+
+    // 추천받은 숙소는 어느 화면이든 같이 보여 주고, 지도 범위도 추천 숙소에 맞춘다
+    const recs = recStays(state);
+    if (recs.length) {
+      stayPinsRef.current = window.TripaStayPins.draw(map, recs, {
+        chosen: (item) => (d.stays || []).some((s) => (s.name || s.query) === item.name),
+      });
+      if (stayPinsRef.current.points.length) {
+        points.length = 0;
+        points.push(...stayPinsRef.current.points);
+      }
     }
 
     map.relayout();
