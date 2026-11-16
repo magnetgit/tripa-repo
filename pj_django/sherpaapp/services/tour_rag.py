@@ -31,6 +31,7 @@ MIN_SCORE = 0.25         # 이보다 덜 비슷한 조각은 근거로 안 씀 (
 # 이름만 보면 '전주 신중앙시장'에 '목포 신중앙시장', '전주 서부시장'에 '강릉 서부시장'이 붙었음 (끝 글자가 같아서).
 # 넓은 공원·산은 대표 좌표가 몇 km 떨어질 수 있어서 넉넉히 20km (같은 도시 안), 다른 도시는 그보다 훨씬 멂
 NAME_MATCH_MAX_M = 20000
+EXACT_BONUS_M = 2000     # 이름이 똑같은 후보는 이만큼 가깝게 쳐 준다
 
 
 class TourQuotaError(Exception):
@@ -143,10 +144,28 @@ def find_item(name, lat=None, lon=None):
             logger.warning('관광공사 검색 실패: %s', keyword)
             return None
         key = _squash(keyword)
-        for exact, same in ((True, lambda t: t == key), (False, lambda t: t.endswith(key))):
-            for item in items:
-                if same(_squash(item.get('title'))) and _near_enough(item, lat, lon, exact):
-                    return item
+        if lat is None or lon is None:
+            # 좌표 없이 물은 경우(채팅): 예전처럼 이름이 똑같은 것 먼저, 그다음 끝이 같은 것
+            for same in (lambda t: t == key, lambda t: t.endswith(key)):
+                for item in items:
+                    if same(_squash(item.get('title'))):
+                        return item
+            continue
+        # 좌표를 알면: 이름이 맞는 후보 가운데 **가장 가까운 곳** (🟧 11/16)
+        # '여수 장도'는 이름이 똑같은 보성 '장도'(19.8km)보다 바로 옆 '예술의 섬 장도'(0km)가 맞음
+        # 이름이 똑같은 후보는 2km 만큼 가깝게 쳐 준다 (같은 동네에 비슷한 이름이 있으면 똑같은 이름 쪽)
+        best, best_score = None, None
+        for item in items:
+            title = _squash(item.get('title'))
+            exact = title == key
+            if not (exact or title.endswith(key)) or not _near_enough(item, lat, lon, exact):
+                continue
+            distance = _item_distance(item, lat, lon)
+            score = NAME_MATCH_MAX_M if distance is None else distance - (EXACT_BONUS_M if exact else 0)
+            if best is None or score < best_score:
+                best, best_score = item, score
+        if best is not None:
+            return best
 
     if lat is None or lon is None:
         return None
