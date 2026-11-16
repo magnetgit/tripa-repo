@@ -312,13 +312,16 @@
       '#tripaLang:before{content:"\\1F310";position:absolute;left:8px;top:7px;font-size:13px;pointer-events:none}' +
       '#tripaLang:after{content:"";position:absolute;right:11px;top:11px;border:4px solid transparent;' +
       'border-top-color:#5d6a83;pointer-events:none}' +
-      // 위쪽에 가로 메뉴(로그인·회원가입 버튼)가 있는 화면에서는 버튼을 가리지 않게 왼쪽 아래로
-      '#tripaLang.is-low{top:auto;right:auto;left:14px;bottom:14px}' +
-      // 폰 화면: 버튼을 가리지 않게 지구본만 보이는 작은 동그라미로 (누르면 언어 목록은 그대로 나옴)
-      '@media (max-width:900px){#tripaLang,#tripaLang.is-low{top:auto;left:auto;bottom:74px;right:10px}' +
-      '#tripaLang select{width:38px;height:38px;padding:0;color:transparent;text-indent:-999px}' +
+      // 맨 위 머리 줄 안에 넣을 때 (홈·로그인 머리 메뉴, 폰 위 막대) — 떠 있지 않고 메뉴 옆에 놓임 (🟦 11/16)
+      '#tripaLang.is-inline{position:relative;top:auto;right:auto;left:auto;bottom:auto;flex:none;' +
+      'display:inline-flex;align-items:center}' +
+      // 폰 화면: 지구본만 보이는 작은 동그라미 (누르면 언어 목록은 그대로 나옴)
+      '@media (max-width:900px){#tripaLang{top:calc(10px + var(--tp-safe-top,0px));right:10px}' +
+      '#tripaLang select{width:34px;height:34px;padding:0;color:transparent;text-indent:-999px}' +
       '#tripaLang select option{color:#1b2740}' +
-      '#tripaLang:before{left:11px;top:11px;font-size:16px}#tripaLang:after{display:none}}' +
+      // 지구본을 동그라미 정가운데로 (예전엔 left·top 숫자로 놓아서 한쪽으로 쏠려 보였음)
+      '#tripaLang:before{left:0;top:0;width:34px;height:34px;display:flex;align-items:center;' +
+      'justify-content:center;font-size:16px;line-height:1}#tripaLang:after{display:none}}' +
       '@media print{#tripaLang{display:none}}' +
       // 번역하면 글자가 길어져서 겹치는 곳 (한국어일 때는 안 건드림)
       (lang === 'ko' ? '' : '.tc-row{grid-template-columns:minmax(76px,max-content) 1fr !important;column-gap:8px}');
@@ -326,7 +329,7 @@
     var box = document.createElement('div');
     box.id = 'tripaLang';
     box.setAttribute('data-no-i18n', '');
-    if (document.querySelector('body > header:not(.m-topbar)')) box.className = 'is-low';
+    box.setAttribute('data-no-fit', '');
     var sel = document.createElement('select');
     sel.setAttribute('aria-label', 'Language');
     LANGS.forEach(function (l) {
@@ -337,7 +340,31 @@
     });
     sel.addEventListener('change', function () { setLang(sel.value); });
     box.appendChild(sel);
-    document.body.appendChild(box);
+    placeToggle(box);
+  }
+
+  // 언어 버튼 자리: 맨 위 (🟦 11/16)
+  //  - 홈·로그인처럼 머리 메뉴(.header-actions)가 있으면 그 메뉴 맨 앞에
+  //  - 폰 화면이고 위 막대(.m-topbar)가 있으면 막대 오른쪽 아이콘들 앞에
+  //  - 그 밖(PC 일반 화면)은 지금처럼 오른쪽 위에 떠 있게
+  function placeToggle(box) {
+    var actions = document.querySelector('body > header:not(.m-topbar) .header-actions');
+    var topbar = document.querySelector('.m-topbar');
+    var phone = window.matchMedia('(max-width: 900px)');
+
+    function place() {
+      var spot = actions || (phone.matches && topbar);
+      if (spot) {
+        box.className = 'is-inline';
+        var first = actions ? actions.firstElementChild : topbar.querySelector('.m-topbar__btn');
+        if (box.parentNode !== spot || box.nextElementSibling !== first) spot.insertBefore(box, first);
+      } else {
+        box.className = '';
+        if (box.parentNode !== document.body) document.body.appendChild(box);
+      }
+    }
+    place();
+    if (phone.addEventListener) phone.addEventListener('change', place);
   }
 
   // 다른 스크립트에서 쓸 수 있게: TRIPA_I18N.t('한글') · TRIPA_I18N.lang · TRIPA_I18N.set('en')

@@ -1321,5 +1321,7 @@ window.TRIPA_DICT = {
 "🚶 걸어서 0원": "🚶 On foot 0 KRW",
 "🛏 체크인 · 짐 두고 다시 나가기": "🛏 Check in · Drop bags and head back out",
 "🧭 가는 길 ·": "🧭 Getting there ·",
-"🧭 여행지까지 가는 길": "🧭 Getting to the destination"
+"🧭 여행지까지 가는 길": "🧭 Getting to the destination",
+"맨 위로": "Back to top",
+"자세히 ▾": "More ▾"
 };

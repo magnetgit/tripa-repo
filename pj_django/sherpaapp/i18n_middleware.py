@@ -45,6 +45,8 @@ def head_snippet(lang):
     parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/i18n.js'))
     # 폰 화면에서 버튼 글자가 넘치거나 두 줄이 되면 한 줄로 맞춤 (🟧 11/12)
     parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/fit_buttons.js'))
+    # 폰 화면 [맨 위로] 버튼 (🟦 11/16)
+    parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/to_top.js'))
     return ''.join(parts)
 
 
