@@ -18,7 +18,7 @@ import requests
 
 from ..models import EmbedChunk
 from . import embed_service
-from .photo_service import _same_name
+from .photo_service import _distance_m, _same_name, _to_float
 from .tour_service import _tour_get, find_tour_item
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,10 @@ KIND = 'tour'
 CHUNK_MIN = 300          # 조각 길이 (글자)
 CHUNK_MAX = 500
 MIN_SCORE = 0.25         # 이보다 덜 비슷한 조각은 근거로 안 씀 (지어내지 않게)
+# 이름으로 찾은 관광공사 장소가 우리 장소 좌표에서 이 거리 안이어야 같은 곳으로 봄 (🟧 11/16)
+# 이름만 보면 '전주 신중앙시장'에 '목포 신중앙시장', '전주 서부시장'에 '강릉 서부시장'이 붙었음 (끝 글자가 같아서).
+# 넓은 공원·산은 대표 좌표가 몇 km 떨어질 수 있어서 넉넉히 20km (같은 도시 안), 다른 도시는 그보다 훨씬 멂
+NAME_MATCH_MAX_M = 20000
 
 
 class TourQuotaError(Exception):
@@ -108,8 +112,27 @@ def _keywords(name):
     return list(dict.fromkeys(w for w in words if w))
 
 
+def _item_distance(item, lat, lon):
+    """관광공사 장소와 (lat, lon) 사이 거리(m). 관광공사 쪽 좌표가 없으면 None"""
+    ty, tx = _to_float(item.get('mapy')), _to_float(item.get('mapx'))
+    if ty is None or tx is None:
+        return None
+    return _distance_m(lat, lon, ty, tx)
+
+
+def _near_enough(item, lat, lon, exact):
+    """좌표를 알 때: 같은 도시 안(NAME_MATCH_MAX_M)이어야 함. 관광공사에 좌표가 없으면 이름이 똑같을 때만 인정"""
+    if lat is None or lon is None:
+        return True                      # 좌표 없이 물은 경우(채팅)는 예전처럼 이름만
+    distance = _item_distance(item, lat, lon)
+    if distance is None:
+        return exact
+    return distance <= NAME_MATCH_MAX_M
+
+
 def find_item(name, lat=None, lon=None):
     """관광공사 장소 하나 (이름이 다른 곳이 끼어들지 않게 이름이 똑같거나 '부산 감천문화마을'처럼 끝이 같은 것만)
+    좌표(lat, lon)를 주면 그 근처(같은 도시 안) 것만 — 다른 도시의 같은 이름 장소가 붙지 않게 (🟧 11/16)
     다 없으면 tour_service.find_tour_item (좌표 1km 안일 때만)"""
     for keyword in _keywords(name):
         try:
@@ -120,9 +143,9 @@ def find_item(name, lat=None, lon=None):
             logger.warning('관광공사 검색 실패: %s', keyword)
             return None
         key = _squash(keyword)
-        for same in (lambda t: t == key, lambda t: t.endswith(key)):
+        for exact, same in ((True, lambda t: t == key), (False, lambda t: t.endswith(key))):
             for item in items:
-                if same(_squash(item.get('title'))):
+                if same(_squash(item.get('title'))) and _near_enough(item, lat, lon, exact):
                     return item
 
     if lat is None or lon is None:
@@ -172,19 +195,52 @@ def index_place(name, lat=None, lon=None):
         'name': _plain(item.get('title')),
         'addr': _plain(item.get('addr1')),
         'source': '한국관광공사',
+        # 🟧 11/16 관광공사 좌표도 남김 (추가만) → indexed_id 가 같은 이름의 다른 도시 장소를 걸러 냄
+        'lat': _to_float(item.get('mapy')),
+        'lon': _to_float(item.get('mapx')),
     }
     saved = embed_service.save_chunks(KIND, item.get('contentid'), texts, meta=meta)
     return {'content_id': str(item.get('contentid')), 'name': meta['name'], 'chunks': saved}
 
 
-def indexed_id(name):
-    """이미 넣은 장소면 contentid (지금 임베딩 모델 기준), 없으면 None"""
+def _row_far(meta, lat, lon):
+    """저장해 둔 장소(meta)가 (lat, lon)에서 너무 먼지. 어느 한쪽 좌표를 모르면 False (판단 못 함 → 예전처럼 이름만)"""
+    if lat is None or lon is None:
+        return False
+    my, mx = _to_float((meta or {}).get('lat')), _to_float((meta or {}).get('lon'))
+    if my is None or mx is None:
+        return False
+    return _distance_m(lat, lon, my, mx) > NAME_MATCH_MAX_M
+
+
+def indexed_id(name, lat=None, lon=None):
+    """이미 넣은 장소면 contentid (지금 임베딩 모델 기준), 없으면 None
+    좌표를 주면 너무 먼 곳(다른 도시의 같은 이름)은 건너뜀 (🟧 11/16, 좌표를 저장해 둔 줄만)"""
     rows = list(EmbedChunk.objects.filter(kind=KIND, model=embed_service._model(), seq=0).only('ref_id', 'meta'))
     for same in (lambda a, b: _squash(a) == _squash(b), _same_name):   # 똑같은 이름 먼저
         for row in rows:
-            if same(name, (row.meta or {}).get('name')):
+            if same(name, (row.meta or {}).get('name')) and not _row_far(row.meta, lat, lon):
                 return row.ref_id
     return None
+
+
+def wrong_region(region, name, lat=None, lon=None):
+    """이미 넣은 줄이 다른 지역 장소인지 → 그 줄의 (contentid, 저장된 이름, 주소) 또는 None  (🟧 11/16, index_tour --fix-wrong)
+
+    11/16 전에 넣은 줄에는 좌표가 없어서 주소로 본다: 주소에 지역 이름 앞 두 글자('전주'·'울릉')가 없으면 의심.
+    좌표가 있는 줄은 거리로 본다.
+    """
+    content_id = indexed_id(name)                 # 좌표 없이: 예전 규칙으로 붙은 줄을 그대로 찾음
+    if not content_id:
+        return None
+    row = EmbedChunk.objects.filter(kind=KIND, ref_id=content_id, seq=0).only('meta').first()
+    meta = (row.meta if row else None) or {}
+    if _to_float(meta.get('lat')) is not None and lat is not None:
+        wrong = _row_far(meta, lat, lon)
+    else:
+        addr = meta.get('addr') or ''
+        wrong = bool(addr) and (region or '')[:2] not in addr
+    return (content_id, meta.get('name'), meta.get('addr')) if wrong else None
 
 
 def ask(question, place=None, top_k=3):
