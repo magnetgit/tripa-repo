@@ -4250,13 +4250,15 @@ button.preview-day {
         grid-template-rows: auto auto;
         height: auto;
     }
-    .tc-chat { grid-row: 1 / span 2; height: calc(100vh - 190px); min-height: 560px; }
+    .tc-chat { grid-row: 1 / span 2; height: calc(100vh - 190px); height: calc(100svh - 190px); min-height: 560px; }
     .tc-mapPanel { min-height: 320px; }
 }
 
+/* 폰: 스크롤할 때 주소창이 숨었다 나타나면 vh 가 바뀌어 대화창이 늘었다 줄었다 함 (🟦 11/16)
+   → svh(주소창이 다 보일 때의 높이, 안 변함). 모르는 옛 브라우저는 앞줄 vh 를 씀 */
 @media (max-width: 859px) {
     .tc-app { grid-template-columns: 1fr; }
-    .tc-chat { grid-row: auto; height: 70vh; min-height: 460px; }
+    .tc-chat { grid-row: auto; height: 70vh; height: 70svh; min-height: 460px; }
     .tc-draft .tc-draft__body { overflow: visible; }
     .tc-row { grid-template-columns: 1fr; gap: 4px; }
 }
