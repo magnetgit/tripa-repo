@@ -232,13 +232,23 @@ def _row_far(meta, lat, lon):
     return _distance_m(lat, lon, my, mx) > NAME_MATCH_MAX_M
 
 
-def indexed_id(name, lat=None, lon=None):
+def _row_other_region(meta, region):
+    """좌표 없이 넣은 예전 줄: 주소에 여행 지역 앞 두 글자('전주')가 없으면 다른 지역 (🟩 11/17, wrong_region 과 같은 규칙)"""
+    if not region or _to_float((meta or {}).get('lat')) is not None:
+        return False
+    addr = (meta or {}).get('addr') or ''
+    return bool(addr) and region[:2] not in addr
+
+
+def indexed_id(name, lat=None, lon=None, region=None):
     """이미 넣은 장소면 contentid (지금 임베딩 모델 기준), 없으면 None
-    좌표를 주면 너무 먼 곳(다른 도시의 같은 이름)은 건너뜀 (🟧 11/16, 좌표를 저장해 둔 줄만)"""
+    좌표를 주면 너무 먼 곳(다른 도시의 같은 이름)은 건너뜀 (🟧 11/16, 좌표를 저장해 둔 줄만)
+    region(여행 지역)을 주면 좌표가 없는 예전 줄도 주소로 거름 (🟩 11/17)"""
     rows = list(EmbedChunk.objects.filter(kind=KIND, model=embed_service._model(), seq=0).only('ref_id', 'meta'))
     for same in (lambda a, b: _squash(a) == _squash(b), _same_name):   # 똑같은 이름 먼저
         for row in rows:
-            if same(name, (row.meta or {}).get('name')) and not _row_far(row.meta, lat, lon):
+            if (same(name, (row.meta or {}).get('name')) and not _row_far(row.meta, lat, lon)
+                    and not _row_other_region(row.meta, region)):
                 return row.ref_id
     return None
 
@@ -262,15 +272,16 @@ def wrong_region(region, name, lat=None, lon=None):
     return (content_id, meta.get('name'), meta.get('addr')) if wrong else None
 
 
-def ask(question, place=None, top_k=3):
+def ask(question, place=None, top_k=3, lat=None, lon=None, region=None):
     """질문 → 근거 조각 (그 장소 조각을 먼저, 덜 비슷한 건 뺌)
-    → {'place', 'found', 'chunks': [{'name', 'text', 'score'}], 'indexed_now', 'error'}  (EmbedError 는 부른 쪽에서)"""
+    → {'place', 'found', 'chunks': [{'name', 'text', 'score'}], 'indexed_now', 'error'}  (EmbedError 는 부른 쪽에서)
+    lat·lon(그 장소 좌표)·region(여행 지역)을 주면 다른 도시의 같은 이름 장소를 안 씀 (🟩 11/17, 인자 추가만)"""
     content_id, indexed_now, error = None, False, None
     if place:
-        content_id = indexed_id(place)
+        content_id = indexed_id(place, lat, lon, region)
         if not content_id:
             try:
-                done = index_place(place)
+                done = index_place(place, lat, lon)
             except TourQuotaError as quota:
                 done, error = None, str(quota)
             if done:

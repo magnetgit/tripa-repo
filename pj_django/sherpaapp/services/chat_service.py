@@ -2263,14 +2263,29 @@ def guess_info_place(text):
     return place if 2 <= len(place) <= 30 else None
 
 
-def _with_tour_context(ai_messages, text, tool_log):
+def info_place_point(place, draft):
+    """정보 질문의 장소 좌표: 여행 지역을 붙여 카카오로 ('신중앙시장' + 전주 → 전주 신중앙시장) → (lat, lon) 또는 (None, None)
+    같은 이름이 여러 도시에 있을 때 여행 지역 것을 고르려고 씀 (🟩 11/17)"""
+    region = (draft or {}).get('place')
+    if not place or not region:
+        return None, None
+    center = (draft or {}).get('center') or {}
+    near = (center['lat'], center['lon']) if center.get('lat') is not None and center.get('lon') is not None else None
+    query = place if region[:2] in place else '%s %s' % (region, place)
+    found = kakao_first_place(query) or (kakao_first_place(place, near) if near else None)
+    return (found['lat'], found['lon']) if found else (None, None)
+
+
+def _with_tour_context(ai_messages, text, tool_log, draft=None):
     """정보 질문이면 서버가 먼저 관광공사 근거(tour_rag)를 찾아 AI에게 같이 준다.
-    (모델이 도구를 안 부르고 지어내는 경우가 있어서 · 로컬 모델에서도 같게)"""
+    (모델이 도구를 안 부르고 지어내는 경우가 있어서 · 로컬 모델에서도 같게)
+    draft(초안)의 여행 지역으로 장소 좌표를 찾아 다른 도시의 같은 이름 장소를 피함 (🟩 11/17)"""
     from .tour_rag import ask
 
     place = guess_info_place(text)
+    lat, lon = info_place_point(place, draft)
     try:
-        found = ask(text, place=place)
+        found = ask(text, place=place, lat=lat, lon=lon, region=(draft or {}).get('place'))
     except Exception:
         logger.warning('여행지 정보 근거 찾기 실패', exc_info=True)
         return ai_messages
@@ -2397,7 +2412,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     logger.info('질문 의도: %s (%s)', intent, intent_by)
 
     if intent == 'info' and llm is call_llm:
-        ai_messages = _with_tour_context(ai_messages, messages[-1]['content'], tool_log)
+        ai_messages = _with_tour_context(ai_messages, messages[-1]['content'], tool_log, prev)
 
     if llm is call_llm:
         raw_text = llm(ai_messages, tools=TOOLS_BY_INTENT.get(intent, CHAT_TOOLS), tool_log=tool_log)

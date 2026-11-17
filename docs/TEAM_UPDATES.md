@@ -10,6 +10,21 @@
 
 ---
 
+## 2026-11-17 · 여행지 정보(RAG): 채팅에서 물을 때도 **여행 지역**으로 같은 이름 장소 고르기 — 🟩 서지윤
+DB·마이그레이션·`.env`·응답 키 변경 없음 · `tour_rag.py`·`chat_service.py` (함수 이름·돌려주는 모양 그대로, 인자 **추가만**)
+
+- 11/16 🟧 항목의 남은 한계: 채팅에서 "신중앙시장 어떤 곳이야?"처럼 좌표 없이 물으면 이름만 봐서 전주 여행인데 목포 것이 붙을 수 있었음
+- 고침: 초안의 여행 지역(`draft.place`)을 붙여 카카오로 장소 좌표를 먼저 찾음 (`chat_service.info_place_point`: '전주 신중앙시장') → `tour_rag.ask(..., lat, lon, region)` → 🟧 `find_item`·`indexed_id` 의 "20km 안 가장 가까운 곳" 그대로 씀
+  - `tour_rag.ask(question, place=None, top_k=3, lat=None, lon=None, region=None)` · `indexed_id(name, lat=None, lon=None, region=None)` — 인자 없이 부르면 예전과 같음
+  - 좌표 없이 넣은 예전 줄은 주소에 여행 지역 앞 두 글자('전주')가 있는지로 거름 (`wrong_region` 과 같은 규칙)
+  - 여행 지역이 아직 없으면 예전처럼 이름만
+- 시험: 가짜 줄(목포·전주 같은 이름) 6개 + 카카오 좌표(신중앙시장 전주 0.4km·목포 1.4km 등) + 부산 감천문화마을 근거 14/14 · 기존 시험 그대로
+
+### 🟦 영준 · 🟧 수한
+- 할 일 없음 (🟧 `index_tour` 는 그대로)
+
+---
+
 ## 2026-11-16 · 🐛 여행지 정보(RAG): 다른 도시의 같은 이름 장소가 붙던 것 고침 — 🟧 이수한
 DB·마이그레이션·`.env` 변경 없음 · 🟩 파일 2개: `services/tour_rag.py`, `management/commands/index_tour.py` (함수 이름·돌려주는 모양 그대로, 인자·키 **추가만**)
 
