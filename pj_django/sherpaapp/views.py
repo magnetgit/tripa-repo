@@ -5426,7 +5426,8 @@ def travel_chat_apply(request):
 _ACCESS_SIMILAR = {
     'ktx': ('ktx', 'train_transfer', 'ktx_rent'), 'ktx_rent': ('ktx_rent', 'ktx', 'train_transfer'),
     'train_transfer': ('train_transfer', 'ktx'), 'flight': ('flight', 'flight_rent'),
-    'flight_rent': ('flight_rent', 'flight'), 'ferry': ('ferry', 'ferry_car'), 'ferry_car': ('ferry_car', 'ferry'),
+    'flight_rent': ('flight_rent', 'flight'), 'ferry': ('ferry', 'ferry_park', 'ferry_car'), 'ferry_car': ('ferry_car', 'ferry_park', 'ferry'),
+    'ferry_park': ('ferry_park', 'ferry_car', 'ferry'),   # 🟩 11/17
     'bus': ('bus',), 'car': ('car',),
 }
 # 🟧 11/17 배는 항구마다 방법이 여러 개(key 'ferry@묵호'·'ferry_park@강릉' …). 여기서는 종류(mode)만 고르고,

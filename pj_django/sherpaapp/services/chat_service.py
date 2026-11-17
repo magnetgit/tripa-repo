@@ -151,11 +151,13 @@ def _clean_coord(lat, lon):
 
 
 # 여행지까지 가는 방법 (🟧 access_service.TITLES 와 같은 이름)
-ACCESS_MODES = ('car', 'ktx', 'ktx_rent', 'train_transfer', 'bus', 'flight', 'flight_rent', 'ferry', 'ferry_car')
+ACCESS_MODES = ('car', 'ktx', 'ktx_rent', 'train_transfer', 'bus', 'flight', 'flight_rent', 'ferry', 'ferry_car',
+                'ferry_park')
 ACCESS_LABEL = {'car': '자차', 'ktx': 'KTX', 'ktx_rent': 'KTX + 렌터카', 'train_transfer': 'KTX 환승',
                 'bus': '고속버스', 'flight': '비행기', 'flight_rent': '비행기 + 렌터카',
-                'ferry': '배', 'ferry_car': '배에 내 차 싣기'}
+                'ferry': '배', 'ferry_car': '배에 내 차 싣기', 'ferry_park': '항구에 차 두고 배'}
 _RENT_RE = re.compile(r'렌터카|렌트카|렌트|차\s*빌려')
+_PARK_RE = re.compile(r'차\s*(는\s*|를\s*|을\s*)?(두고|세워|대\s*놓고|맡기)|주차(하고|해\s*두고|해\s*놓고)|세워\s*(두고|놓고)')   # 🟩 11/17 항구에 차 두고 배
 _ACCESS_RULES = (   # 위에서부터 먼저 맞는 것
     ('ferry', re.compile(r'여객선|페리|카페리|배\s*(로|를\s*타|타고|편)|배에\s*(내\s*)?차')),
     ('flight', re.compile(r'비행기|항공|비행편|날아')),
@@ -172,6 +174,8 @@ def guess_access(text):
         if pattern.search(text):
             if mode in ('ktx', 'flight') and _RENT_RE.search(text):
                 return mode + '_rent'
+            if mode == 'ferry' and _PARK_RE.search(text):    # '차 끌고 가서 세워 두고'도 있어서 먼저 봄
+                return 'ferry_park'
             if mode == 'ferry' and re.search(r'차\s*(싣|실어|가지고|끌고)', text):
                 return 'ferry_car'
             return mode

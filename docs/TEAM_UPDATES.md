@@ -75,7 +75,7 @@ DB·마이그레이션·`.env` 변경 없음 · 응답 키 **추가만** (`mock.
 - [ ] 섬 여행은 카드가 7장쯤 나와요. 폰에서 너무 길면 접는 방법을 같이 정해요
 
 ### 🟩 지윤
-- [ ] `chat_service.ACCESS_MODES` 에 `ferry_park` 는 아직 없어요 ("항구에 차 두고 배로"라고 말해도 `ferry` 로 잡힘). 넣을지는 지윤이 정해 주세요
+- [x] `chat_service.ACCESS_MODES` 에 `ferry_park` 넣음 (11/17 🟩): "항구에 차 두고/세워 두고/주차하고 배로" → `ferry_park`. `views._ACCESS_SIMILAR` 에 `ferry_park` 한 줄 (없으면 차 싣기 → 대중교통 배 순서)
 - [ ] 채팅 적용(`_chat_choose_access`)은 그대로 동작: 종류(`ferry`·`ferry_car`)만 고르면 항구는 가장 좋은 것으로
 
 ---
