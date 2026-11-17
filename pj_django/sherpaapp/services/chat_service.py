@@ -694,6 +694,9 @@ _RECO_STOP = {
     '추천', '추천해', '추천해줘', '추천해주세요', '추천해줄래', '해줘', '해주세요', '알려줘', '알려주세요',
     '좀', '근처', '주변', '부근', '인근', '일차', '오전', '오후', '점심', '저녁', '아침', '어디', '곳',
     '장소', '갈만한', '가볼만한', '어떤', '줄래', '주세요', '있어', '있을까',
+    # 🟧 11/17 '담아둔 장소 주변 추천해줘'에서 '담아둔'이 검색어가 되던 것
+    '담아둔', '담은', '담아', '넣은', '넣어둔', '추가한', '저장한', '식사', '먹는', '먹을', '에서', '만한', '같은',
+    '주변에', '근처에', '주변에서', '근처에서', '가까운', '있는',
 }
 
 
@@ -764,6 +767,9 @@ def _guess_recommend(text):
                  if w not in _RECO_STOP and w not in TIME_WORDS]
         query = _clean_text(' '.join(words[:2]), 30)
 
+    if not query and near:
+        query = '관광지'     # 🟧 11/17 '담아둔 장소 주변 추천해줘'처럼 종류를 안 말하면 가 볼 만한 곳
+
     if not query:
         return None
 
@@ -774,10 +780,16 @@ def _guess_recommend(text):
 # 숙소 추천
 # =========================================================
 
+# 🟧 11/17 '잘만한 곳', '하룻밤 머물 곳', '민박'처럼 숙소라는 낱말 없이 말해도 숙소로 알아듣게 넓힘
+# ('잘만한 곳 추천해줘'가 숙소가 아니라 '잘만한'이라는 이름의 장소 검색이 됐음)
 _STAY_ASK_WORDS = ('숙소', '숙박', '호텔', '게스트하우스', '게하', '펜션', '리조트', '모텔', '호스텔',
-                   '잘 곳', '잘곳', '잘 데', '묵을', '잠잘')
-_STAY_REQUEST_WORDS = ('추천', '찾아', '알려', '골라', '어디가 좋', '어디 좋')
-_STAY_TYPES = ('게스트하우스', '호스텔', '펜션', '리조트', '모텔', '호텔')   # 사용자가 종류를 말하면 그 종류만
+                   '잘 곳', '잘곳', '잘 데', '잘데', '묵을', '잠잘',
+                   '잘만한', '잘 만한', '잘 수 있는', '잘수있는', '자는 곳', '잠자는', '하룻밤', '머물', '묵는', '묵고',
+                   '민박', '에어비앤비', '에어비엔비', '풀빌라', '글램핑', '한옥스테이', '레지던스', '콘도', '여관')
+_STAY_REQUEST_WORDS = ('추천', '찾아', '알려', '골라', '어디가 좋', '어디 좋',
+                       '보여줘', '보여 줘', '정해줘', '정해 줘', '구해줘', '구해 줘', '잡아줘', '잡아 줘', '좋을까', '없을까')
+# 사용자가 종류를 말하면 그 종류만
+_STAY_TYPES = ('게스트하우스', '호스텔', '펜션', '리조트', '모텔', '호텔', '민박', '풀빌라', '글램핑', '한옥스테이')
 _CHEAP_WORDS = ('저렴', '싼', '싸게', '가성비', '저가', '알뜰')
 _PREMIUM_WORDS = ('고급', '럭셔리', '특급', '5성', '오성', '비싸도', '오션뷰')
 _STAY_NEAR_RE = re.compile(r'([가-힣A-Za-z0-9]+)\s*(?:근처|주변|부근|인근|쪽)')
@@ -860,6 +872,108 @@ def _stay_pin(draft, day):
     return tomorrow[0] if tomorrow else None
 
 
+# ---- '○○ 근처'의 ○○ 을 담아 둔 장소로 읽기 (🟧 11/17) ----
+# '저녁 식사 장소 근처 숙소'의 '장소', '공원 근처'의 '공원'을 카카오에서 가게 이름처럼 찾아서
+# '카페공공장소' 같은 엉뚱한 곳이 기준이 됐음 (카드에 '장소에서 1.7km'). 이런 말은 담아 둔 장소(pins)에서 찾는다.
+_NEAR_RE = re.compile(r'([가-힣A-Za-z0-9]+)\s*(?:근처|주변|부근|인근)')
+# 가게·동네 이름이 아닌 말 → 카카오에서 이름으로 찾지 않는다
+VAGUE_NEAR_WORDS = {
+    '장소', '곳', '데', '일정', '코스', '동선', '여기', '거기', '저기', '그곳', '이곳', '여행지', '목적지',
+    '숙소', '호텔', '그', '이', '저', '어느', '담은', '담아둔', '넣은', '추가한', '집',
+}
+# 장소 종류를 뜻하는 말 → 그 종류로 담아 둔 장소 (카드의 kind 에 들어 있는 글자)
+NEAR_KIND_WORDS = {
+    '식당': ('음식',), '맛집': ('음식',), '음식점': ('음식',), '밥집': ('음식',), '식사': ('음식',),
+    '카페': ('카페',), '커피': ('카페',), '관광지': ('관광',), '명소': ('관광',), '랜드마크': ('관광',),
+    '공원': ('공원',), '박물관': ('박물관',), '미술관': ('미술관',), '전시관': ('전시',), '시장': ('시장',),
+    '해변': ('해변', '해수욕장'), '해수욕장': ('해수욕장',), '쇼핑몰': ('쇼핑',), '백화점': ('백화점',),
+}
+_MEAL_TIMES = {'아침': 8 * 60, '점심': 12 * 60 + 30, '저녁': 18 * 60 + 30}
+_MEAL_PLACE_RE = re.compile(r'식사|밥|먹|식당|맛집|음식')
+
+
+def _pin_minutes(pin):
+    m = _TIME_RE.match(pin.get('time') or '')
+    return int(m.group(1)) * 60 + int(m.group(2)) if m else None
+
+
+def _is_food_pin(pin):
+    kind = pin.get('kind') or ''
+    return any(w in kind for w in ('음식', '식당', '맛집', '한식', '중식', '일식', '양식', '분식', '고기', '술집'))
+
+
+def _meal_pin(pins, meal):
+    """끼니('저녁')에 먹는 곳으로 담아 둔 장소: 음식점 중 그 시각에 가장 가까운 곳"""
+    foods = [p for p in pins if _is_food_pin(p)]
+    if not foods:
+        return None
+    timed = [p for p in foods if _pin_minutes(p) is not None]
+    if timed:
+        return min(timed, key=lambda p: abs(_pin_minutes(p) - _MEAL_TIMES[meal]))
+    return foods[0] if meal != '저녁' else foods[-1]
+
+
+def pin_for_near(text, word, draft, day=None):
+    """'○○ 근처'의 ○○(word) 을 담아 둔 장소에서 찾는다 → (pin 또는 None, 이름으로 찾으면 안 되는 말인지)
+
+    - '저녁 식사 장소', '점심 먹는 곳' → 그 끼니의 음식점
+    - 담아 둔 장소 이름(일부만 말해도: '쪽갈비' → '풍년상회쪽갈비')
+    - '공원', '박물관', '식당' 같은 종류 → 그 종류로 담아 둔 장소
+    - '장소', '곳', '일정' → 그날 마지막으로 담아 둔 장소
+    day: 며칠째를 먼저 볼지 (사용자가 '2일차'라고 말했으면 그날만 봄)
+    """
+    text, word = text or '', (word or '').strip()
+    pins = draft.get('pins') or []
+    said_day = guess_trip_day(text)
+    if said_day:
+        scopes = [[p for p in pins if p.get('day') == said_day]]
+    else:
+        # 날짜를 안 말했으면: 먼저 볼 날(day) → 앞날부터 하루씩
+        days = sorted({p.get('day') for p in pins})
+        scopes = [[p for p in pins if p.get('day') == d] for d in ([day] if day else []) + days]
+
+    at = text.find(word) if word else -1
+    before = text[max(0, at - 14):at + len(word)] if at >= 0 else text
+    meal = next((m for m in ('저녁', '점심', '아침') if m in before), None)
+    is_meal = bool(meal) and bool(_MEAL_PLACE_RE.search(before))
+    vague = word in VAGUE_NEAR_WORDS or word in NEAR_KIND_WORDS or word in _MEAL_TIMES or is_meal
+
+    for scope in scopes:
+        if not scope:
+            continue
+        if is_meal:
+            pin = _meal_pin(scope, meal)
+            if pin:
+                return pin, True
+        if word and not vague:
+            for pin in scope:           # 이름 (3글자 이상이면 일부만 맞아도)
+                name = _squash(pin['name'])
+                key = _squash(word)
+                if key == name or (len(key) >= 3 and (key in name or name in key)):
+                    return pin, False
+        if word in NEAR_KIND_WORDS:
+            kinds = NEAR_KIND_WORDS[word]
+            found = [p for p in scope if word in p['name'] or any(k in (p.get('kind') or '') or k in p['name'] for k in kinds)]
+            if found:
+                return found[-1], True
+        if word in VAGUE_NEAR_WORDS and not is_meal:
+            return scope[-1], True
+    return None, vague
+
+
+def settle_near(rec, draft, text):
+    """추천 조건의 기준 장소(near)를 담아 둔 장소로 바꾼다 (숙소가 아닌 추천: '저녁 식사 장소 근처 카페')"""
+    m = _NEAR_RE.search(text or '')
+    word = m.group(1) if m else rec.get('near')
+    if not word or rec.get('anchor'):
+        return
+    pin, vague = pin_for_near(text, word, draft, rec.get('day'))
+    if pin:
+        rec['near'], rec['anchor'] = pin['name'], (pin['lat'], pin['lon'])
+    elif vague:
+        rec['near'] = None       # '장소'·'공원'을 가게 이름으로 찾지 않는다 → 지역 중심 기준
+
+
 def stay_recommend(messages, rec, draft, ai_query=''):
     """숙소를 추천해 달라는 말이면 숙소 추천 조건을, 아니면 None.
 
@@ -895,6 +1009,16 @@ def stay_recommend(messages, rec, draft, ai_query=''):
     m = _STAY_NEAR_RE.search(text)
     near = _clean_text(m.group(1), 30) if m and m.group(1) not in ('그', '이', '저', '어느') else (rec or {}).get('near')
     anchor = None
+
+    # 🟧 11/17 '저녁 식사 장소 근처', '공원 근처', '쪽갈비 근처' → 담아 둔 장소 기준 (없으면 가게 이름처럼 찾지 않음)
+    if near:
+        pin, vague = pin_for_near(text, near, draft, day)
+        if pin:
+            near, anchor = pin['name'], (pin['lat'], pin['lon'])
+            if not guess_trip_day(text) and pin.get('day') in nights:
+                day = pin['day']         # 그 장소에 가는 날 밤 숙소
+        elif vague:
+            near = None
 
     if not near and day:
         pin = _stay_pin(draft, day)
@@ -2198,6 +2322,7 @@ _SCHEDULE_RE = re.compile(
     r'컨셉|명이서|혼자|둘이|인원|가고\s*싶|갈래|갈게'
 )
 _INTENT_RULES = (('schedule', _SCHEDULE_RE), ('weather', _WEATHER_RE), ('info', _INFO_RE))
+_IF_RAIN_RE = re.compile(r'(?:비|눈)(?:가|이)?\s*(?:오면|와도|올\s*때|올\s*경우|오는\s*날|온다면)')
 
 _INTENT_PROMPT = (
     '여행 앱 사용자의 말이 무엇을 원하는지 하나만 골라 영어 한 단어로만 답해.\n'
@@ -2224,6 +2349,9 @@ def classify_intent(text, llm=None):
     여러 개면 llm(call_llm)에 한 번 묻고, 못 물으면(시험용 가짜 AI 등) 일정
     """
     hits = intent_hits(text)
+    # 🟧 11/17 '비 오면 갈 실내 장소 추천해줘'는 날씨를 묻는 게 아니라 추천 (정보 질문으로 가서 카드가 안 나왔음)
+    if 'schedule' in hits and '추천' in (text or '') and _IF_RAIN_RE.search(text or ''):
+        return 'schedule', 'rule'
     if len(hits) == 1:
         return hits[0], 'rule'
     if not hits:
@@ -2572,6 +2700,10 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     if rec and not rec.get('day'):
         # AI가 며칠째인지 빠뜨리면 사용자 말에서 읽는다 ('셋째 날 박물관 추천')
         rec['day'] = guess_trip_day(messages[-1]['content'])
+
+    if rec and not rec.get('stay'):
+        # 🟧 11/17 '담아둔 장소 근처 카페', '공원 근처 맛집' → 담아 둔 장소 기준
+        settle_near(rec, new_draft, messages[-1]['content'])
 
     if rec:
         # 사용자가 앞에서 '빼 달라'고 한 단어는 AI가 잊어도 서버가 계속 적용한다
