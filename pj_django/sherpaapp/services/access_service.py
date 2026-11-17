@@ -2,17 +2,19 @@
 
 - compare(travel): 집(출발지) → 여행지로 갈 수 있는 방법을 모두 만들어 가격·시간을 비교한다.
   자차 · KTX(바로/환승) · KTX+렌터카 · 고속버스 · 비행기(+렌터카) · 배(+차 싣기)
+  섬은 배가 떠나는 항구마다 따로 비교한다 (🟧 11/17): 대중교통으로 항구까지 · 항구에 차 두고 · 내 차 싣고
   열차·항공·고속버스·여객선은 공공데이터 실제 시간표(transport_timetable), 없으면 어림값.
 - choose(travel, mode): 고른 방법을 Travel.access_way·access_route 에 저장하고
   첫날 출발점을 도착 공항·역·항구로, 출발 시각을 도착(렌터카 수령) 뒤로, 교통 예산을 고친 뒤 첫날 일정을 다시 계산한다.
 
 access_route 모양 (데모 데이터도 같은 모양):
-  {'mode', 'title', 'total', 'minutes', 'people', 'items': [{label, amount}], 'real': bool,
+  {'mode', 'key', 'title', 'total', 'minutes', 'people', 'items': [{label, amount}], 'real': bool,
    'origin': {name, addr, lat, lon}, 'arrive': {name, addr, lat, lon}, 'ready': 'HH:MM',
    'go': [leg], 'back': [leg]}
   leg = {'mode', 'label', 'from', 'to', 'minutes', 'depart', 'arrive', 'fare', 'detail', 'real',
          'from_pt': [lat, lon], 'to_pt': [lat, lon]}
   mode: car·rental·ktx·itx·bus·subway·local_bus·flight·ferry·taxi·wait
+  key: 고를 때 쓰는 이름. 보통은 mode 와 같고, 배는 항구까지 붙는다 ('ferry_park@묵호'). choose() 는 key·mode 둘 다 받는다
 """
 import math
 from concurrent.futures import ThreadPoolExecutor
@@ -45,18 +47,76 @@ CITIES = {
     '완도': {'pos': (34.3110, 126.7550), 'port': '완도항여객선터미널'},
     '제주': {'pos': (33.4996, 126.5312), 'airport': '제주국제공항', 'port': '제주항연안여객터미널', 'island': True},
     '울릉도': {'pos': (37.4844, 130.9057), 'port': '울릉 도동항여객선터미널', 'island': True},
+    # 배로만 가는 섬 (🟧 11/17). 열차·버스·비행기 칸이 없어서 배 방법만 비교됨. 섬을 더 넣으려면 여기 한 줄 + FERRY_ROUTES
+    '백령도': {'pos': (37.9590, 124.6650), 'port': '백령도 용기포신항', 'island': True},
+    '흑산도': {'pos': (34.6840, 125.4350), 'port': '흑산도항여객선터미널', 'island': True},
+    '홍도': {'pos': (34.6830, 125.1940), 'port': '홍도항여객선터미널', 'island': True},
+    '거문도': {'pos': (34.0280, 127.3080), 'port': '거문도여객선터미널', 'island': True},
+    '덕적도': {'pos': (37.2260, 126.1440), 'port': '덕적도 진리도우선착장', 'island': True},
+    '욕지도': {'pos': (34.6330, 128.2640), 'port': '욕지항여객선터미널', 'island': True},
+    '청산도': {'pos': (34.1800, 126.8580), 'port': '청산도항여객터미널', 'island': True},
 }
 STATION_LABEL = {'여수EXPO': '여수엑스포역', '경주': '신경주역'}
-# 섬 가는 배: 섬 → [(출발 도시, 1인 운임, 차 1대 운임 또는 None, 배 시간(분), 시간표 출발 글자, 도착 글자,
-#                    시간표가 없을 때 평소 출항 시각 (가는 배, 오는 배))]
-FERRIES = {
-    '제주': [('목포', 42000, 120000, 270, '목포', '제주', ('08:30', '16:45')),
-            ('완도', 36000, 100000, 170, '완도', '제주', ('09:00', '16:30')),
-            ('부산', 55000, 150000, 720, '부산', '제주', ('19:00', '19:00')),
-            ('인천', 70000, 180000, 780, '인천', '제주', ('19:00', '19:00'))],
-    '울릉도': [('포항', 68000, 210000, 200, '포항', '울릉', ('09:50', '14:20')),
-             ('강릉', 64000, None, 180, '강릉', '울릉', ('08:30', '17:00'))],
+# ---- 섬 가는 배 (🟧 11/17 항구별로 다시 짬) ----
+# 뭍 쪽 항구: 이름(카카오 검색용) · 좌표(검색 실패 때) · 화면에 쓰는 짧은 이름
+FERRY_PORTS = {
+    '강릉': {'name': '강릉항여객터미널', 'pos': (37.7722, 128.9512)},
+    '묵호': {'name': '묵호항여객선터미널', 'pos': (37.5490, 129.1160)},
+    '포항': {'name': '포항여객선터미널', 'pos': (36.0497, 129.3790)},
+    '영일만': {'name': '포항영일만항 국제여객터미널', 'pos': (36.1110, 129.4350), 'label': '포항 영일만'},
+    '후포': {'name': '후포항여객선터미널', 'pos': (36.6790, 129.4560), 'label': '울진 후포'},
+    '목포': {'name': '목포항국제여객터미널', 'pos': (34.7835, 126.3840)},
+    '목포연안': {'name': '목포연안여객선터미널', 'pos': (34.7810, 126.3810), 'label': '목포'},
+    '완도': {'name': '완도항여객선터미널', 'pos': (34.3170, 126.7560)},
+    '녹동': {'name': '녹동신항여객선터미널', 'pos': (34.5230, 127.1380), 'label': '고흥 녹동'},
+    '진도': {'name': '진도항 연안여객선터미널', 'pos': (34.3640, 126.1340)},
+    '삼천포': {'name': '삼천포신항여객터미널', 'pos': (34.9240, 128.0700), 'label': '사천 삼천포'},
+    '부산': {'name': '부산항연안여객터미널', 'pos': (35.0975, 129.0370)},
+    '인천': {'name': '인천항연안여객터미널', 'pos': (37.4530, 126.6010)},
+    '여수': {'name': '여수연안여객선터미널', 'pos': (34.7380, 127.7340)},
+    '통영': {'name': '통영항여객선터미널', 'pos': (34.8390, 128.4200)},
 }
+# 섬 → 노선들. 한 줄 = 뭍 항구 하나에서 그 섬으로 가는 배
+#   port : FERRY_PORTS 의 키          isle : 섬 쪽에서 내리는 곳 이름 (없으면 CITIES[섬]['port'])
+#   fare : 1인 편도 뱃삯(어림)        car  : 차 1대 편도 선적 운임(어림). None = 차를 못 싣는 배(쾌속선)
+#   sail : 배 타는 시간(분)           words: 운항 시간표에서 찾는 글자 (출발 항구, 도착 항구) — 해운조합 자료의 oport_nm·dest_nm
+#   usual: 시간표를 못 받았을 때 평소 출항 시각 (가는 배, 오는 배)
+# ⚠️ 뱃삯·선적 운임은 어림값이라 화면에도 '어림'이라고 알린다. 출항 시각·배 이름은 실제 시간표(transport_timetable.ferries)
+FERRY_ROUTES = {
+    '울릉도': [
+        {'port': '묵호', 'isle': '울릉 도동항여객선터미널', 'fare': 64000, 'car': None, 'sail': 170,
+         'words': ('묵호', '울릉(도동)'), 'usual': ('08:20', '17:20')},
+        {'port': '강릉', 'isle': '울릉 저동항여객선터미널', 'fare': 66000, 'car': None, 'sail': 180,
+         'words': ('강릉', '울릉(저동)'), 'usual': ('08:00', '17:20')},
+        {'port': '포항', 'isle': '울릉 도동항여객선터미널', 'fare': 68000, 'car': None, 'sail': 200,
+         'words': ('포항', '울릉'), 'usual': ('09:50', '14:20')},
+        # 차를 실을 수 있는 큰 배 (밤에 떠나 다음 날 아침 도착)
+        {'port': '영일만', 'isle': '울릉 사동항여객선터미널', 'fare': 80000, 'car': 210000, 'sail': 420,
+         'words': ('영일만', '울릉(사동)'), 'usual': ('23:00', '12:30')},
+        {'port': '후포', 'isle': '울릉 사동항여객선터미널', 'fare': 66000, 'car': 150000, 'sail': 270,
+         'words': ('후포', '울릉(사동)'), 'usual': ('08:15', '14:00')},
+    ],
+    '제주': [
+        {'port': '목포', 'fare': 42000, 'car': 120000, 'sail': 270, 'words': ('목포', '제주'), 'usual': ('08:30', '16:45')},
+        {'port': '완도', 'fare': 36000, 'car': 100000, 'sail': 170, 'words': ('완도', '제주'), 'usual': ('09:00', '16:30')},
+        {'port': '진도', 'fare': 42000, 'car': 110000, 'sail': 100, 'words': ('진도', '제주'), 'usual': ('08:00', '13:30')},
+        {'port': '녹동', 'fare': 36000, 'car': 100000, 'sail': 220, 'words': ('녹동', '제주'), 'usual': ('09:00', '16:30')},
+        {'port': '삼천포', 'fare': 40000, 'car': 110000, 'sail': 420, 'words': ('삼천포', '제주'), 'usual': ('23:30', '14:00')},
+        {'port': '부산', 'fare': 55000, 'car': 150000, 'sail': 720, 'words': ('부산', '제주'), 'usual': ('19:00', '19:00')},
+        {'port': '인천', 'fare': 70000, 'car': 180000, 'sail': 780, 'words': ('인천', '제주'), 'usual': ('19:00', '19:00')},
+    ],
+    '백령도': [{'port': '인천', 'fare': 70000, 'car': None, 'sail': 240, 'words': ('인천', '백령'), 'usual': ('08:30', '13:00')}],
+    '흑산도': [{'port': '목포연안', 'fare': 37000, 'car': None, 'sail': 120, 'words': ('목포', '흑산'), 'usual': ('07:50', '15:30')}],
+    '홍도': [{'port': '목포연안', 'fare': 45000, 'car': None, 'sail': 150, 'words': ('목포', '홍도'), 'usual': ('07:50', '15:30')}],
+    '거문도': [{'port': '여수', 'fare': 39000, 'car': None, 'sail': 140, 'words': ('여수', '거문'), 'usual': ('07:30', '16:00')},
+            {'port': '녹동', 'fare': 26000, 'car': None, 'sail': 180, 'words': ('녹동', '거문'), 'usual': ('07:00', '14:00')}],
+    '덕적도': [{'port': '인천', 'fare': 26000, 'car': None, 'sail': 80, 'words': ('인천', '덕적'), 'usual': ('08:30', '15:30')}],
+    '욕지도': [{'port': '통영', 'fare': 12000, 'car': 25000, 'sail': 60, 'words': ('통영', '욕지'), 'usual': ('09:30', '16:30')}],
+    '청산도': [{'port': '완도', 'fare': 8000, 'car': 25000, 'sail': 50, 'words': ('완도', '청산'), 'usual': ('08:30', '17:00')}],
+}
+# 한 섬에 방법 종류마다 몇 항구까지 보여 줄지 (좋은 순서로)
+FERRY_SHOW = {'ferry_car': 2, 'ferry_park': 3, 'ferry': 2}
+FERRY_SHOW_AIR = {'ferry_car': 2, 'ferry_park': 1, 'ferry': 1}     # 비행기로도 가는 섬(제주): 배 카드가 너무 많아지지 않게
 RENT_PER_DAY = {'제주': 55000, '울릉도': 90000}
 RENT_DEFAULT = 70000
 CAR_WON_PER_KM = 220        # 유류비 + 통행료 (차 1대)
@@ -72,10 +132,11 @@ CACHE_SECONDS = 600
 TITLES = {
     'car': '자차', 'ktx': 'KTX', 'ktx_rent': 'KTX + 렌터카', 'train_transfer': 'KTX 환승', 'bus': '고속버스',
     'flight': '비행기 + 대중교통', 'flight_rent': '비행기 + 렌터카', 'ferry': '배 + 대중교통', 'ferry_car': '배에 내 차 싣기',
+    'ferry_park': '항구에 차 두고 배',      # 🟧 11/17 항구까지 내 차로 가서 세워 두고 사람만 배를 탐
 }
 # 화면·대시보드에 쓰는 큰 분류 (Travel.access_way)
 ACCESS_WAY = {'car': 'car', 'ktx': 'ktx', 'ktx_rent': 'ktx', 'train_transfer': 'train_transfer', 'bus': 'bus',
-              'flight': 'flight', 'flight_rent': 'flight', 'ferry': 'ferry', 'ferry_car': 'ferry'}
+              'flight': 'flight', 'flight_rent': 'flight', 'ferry': 'ferry', 'ferry_car': 'ferry', 'ferry_park': 'ferry'}
 WAY_LABEL = {'car': '자차', 'ktx': 'KTX', 'train_transfer': '기차 환승', 'bus': '고속버스', 'flight': '비행기', 'ferry': '배'}
 
 
@@ -204,14 +265,36 @@ def _flight(a_city, b_city, day, earliest):
     return (ap1, ap2, earliest + 30, 65, FLIGHT_FARE, '비행기', False)
 
 
-def _ferry(port_city, island, day, earliest, back=False):
-    """→ (출발항, 도착항, 출발분, 분, 1인 요금, 차 요금, 이름, 실제)"""
-    row = next((f for f in FERRIES.get(island, []) if f[0] == port_city), None)
-    if not row:
-        return None
-    _, fare, car_fare, sail, w_from, w_to, usual = row
-    p_main, p_isle = CITIES[port_city]['port'], CITIES[island]['port']
-    rows, recent = tt.ferries(day, w_to if back else w_from, w_from if back else w_to)
+def _port_hub(route):
+    """뭍 쪽 항구 → {'name', 'lat', 'lon', 'addr'}"""
+    port = FERRY_PORTS[route['port']]
+    found = tt.hub_point(port['name'])
+    lat, lon = (found[0], found[1]) if found else port['pos']
+    return {'name': port['name'], 'lat': lat, 'lon': lon, 'addr': found[2] if found else ''}
+
+
+def _port_label(route):
+    return FERRY_PORTS[route['port']].get('label') or route['port']
+
+
+def _sailings(route, day, back=False):
+    """그날 그 노선의 출항 목록 → (rows, recent). 시간표에 없으면 ([], False)"""
+    w_from, w_to = route['words']
+    return tt.ferries(day, w_to if back else w_from, w_from if back else w_to)
+
+
+def _running_routes(island, day):
+    """그 섬 노선 가운데 지금 다니는 것만. 시간표를 아예 못 받았으면(먼 날짜·조회 실패) 전부 (평소 시각으로 어림)"""
+    routes = FERRY_ROUTES.get(island, [])
+    found = [r for r in routes if _sailings(r, day)[0]]
+    return found or routes
+
+
+def _ferry(route, island, day, earliest, back=False):
+    """→ (출발항, 도착항, 출발분, 분, 1인 요금, 차 요금, 이름, 실제, 새벽에 나서야 하는지)"""
+    fare, car_fare, sail, usual = route['fare'], route['car'], route['sail'], route['usual']
+    p_main, p_isle = FERRY_PORTS[route['port']]['name'], route.get('isle') or CITIES[island]['port']
+    rows, recent = _sailings(route, day, back)
     if not rows:                                   # 시간표에 없는 노선 → 평소 출항 시각
         rows, recent = [{'dep': usual[1] if back else usual[0], 'name': '여객선'}], True
     pick = _pick(rows, earliest)
@@ -420,53 +503,105 @@ def _plan_flight(ctx, rent=False):
     return _assemble(ctx, 'flight_rent' if rent else 'flight', go, back, items, t_way, ap2, 30 if rent else 15)
 
 
-def _plan_ferry(ctx, car=False):
+def _ferry_leg(ctx, f, route, island, back, car):
+    """배 구간 하나 (f = _ferry 가 돌려준 값)"""
+    a, b, dep, sail, fare, car_fare, name, real, _ = f
+    a_hub = _hub(a, island) if back else _port_hub(route)
+    b_hub = _port_hub(route) if back else _hub(b, island)
+    leg = _leg('ferry', '배 (차량 선적)' if car else '배', a_hub, b_hub, sail, (fare or 0) * ctx.people, name, real)
+    leg['_dep'] = dep
+    if car:
+        leg['fare'] += car_fare or 0
+        leg['detail'] = (name + ' · 차 1대 선적').strip(' ·')
+    return leg
+
+
+def _flip(leg):
+    return dict(leg, **{'from': leg['to'], 'to': leg['from'], 'from_pt': leg['to_pt'], 'to_pt': leg['from_pt']})
+
+
+def _plan_ferry_route(ctx, island, route, kind):
+    """항구 하나로 가는 방법 하나. kind: 'ferry'(대중교통으로 항구까지) · 'ferry_park'(항구에 차 두고) · 'ferry_car'(차 싣고)"""
+    car = kind == 'ferry_car'
+    drive = kind in ('ferry_car', 'ferry_park')            # 항구까지 내 차로
+    to_island = island == ctx.d_city
+    p_main = _port_hub(route)
+    home_side = ctx.origin if to_island else ctx.dest       # 뭍 쪽 끝 (집 또는 여행지)
+    d = _km((home_side['lat'], home_side['lon']), (p_main['lat'], p_main['lon']))
+    if d < 40:
+        reach = _local(home_side, p_main, ctx.people, car=drive)
+    elif drive:
+        reach = _leg('car', '자차', home_side, p_main, d * 1.3 / 75 * 60 + 15, _won(d * 1.3 * CAR_WON_PER_KM),
+                     '유류비·통행료 어림')
+    else:
+        reach = _leg('bus', '고속·시외버스', home_side, p_main, d * 1.3 / 70 * 60 + 15,
+                     _won(d * 1.3 * BUS_WON_PER_KM * ctx.people))
+    go_ferry = _ferry(route, island, ctx.start, LEAVE_HOME + reach['minutes'] + BUFFER['ferry'], back=not to_island)
+    back_ferry = _ferry(route, island, ctx.end, ctx.return_after - 3 * 60, back=to_island)
+
+    notes = []
+    if go_ferry[-1]:
+        notes.append('첫 배 시간에 맞추려면 새벽에 나서야 해요 (항구 근처 전날 1박도 생각해 보세요)')
+    if go_ferry[2] + go_ferry[3] >= 24 * 60:
+        notes.append('밤에 떠나 다음 날 아침에 도착하는 배예요')
+    if kind == 'ferry_park':
+        notes.append('섬 안에서는 대중교통·택시로 다녀요 (렌터카는 따로)')
+    notes.append('뱃삯%s은 어림값이에요. 예매 전에 선사에서 확인하세요' % ('·차량 선적 운임' if car else ''))
+
+    go_leg = _ferry_leg(ctx, go_ferry, route, island, not to_island, car)
+    back_leg = _ferry_leg(ctx, back_ferry, route, island, to_island, car)
+    if to_island:
+        go, back = [reach, go_leg], [back_leg, _flip(reach)]
+        arrive = _hub(go_leg['to'], island)
+    else:                                   # 섬에서 나올 때: 내린 항구를 출발점으로 (항구 → 여행지 구간은 뺌)
+        go = [_local(ctx.origin, _hub(go_leg['from'], island), ctx.people, car=drive), go_leg]
+        back = [back_leg]
+        arrive = p_main
+    items = []
+    if kind == 'ferry_park':                # 항구 주차: 여행 날 수만큼
+        items.append({'label': '항구 주차 %d일' % ctx.days, 'amount': PARKING_PER_DAY * ctx.days})
+    t_way = 'car' if car else 'public_transport'
+    option = _assemble(ctx, kind, go, back, items, t_way, arrive, 20 if car else 15, ' · '.join(notes))
+    option['key'] = '%s@%s' % (kind, route['port'])
+    option['title'] = '%s · %s' % (TITLES[kind], _port_label(route))
+    option['port'] = _port_label(route)
+    # 섬에서 나올 때는 '내린 항구 → 여행지' 구간을 화면에서 빼지만, 어느 항구가 좋은지 고를 때는 그 길도 쳐야 함
+    option['_rank'] = (0, 0) if to_island else (reach['fare'], reach['minutes'])
+    return option
+
+
+def _plan_ferries(ctx):
+    """섬 여행이면 항구마다·방법 종류마다 만들어서, 종류별로 좋은 것 몇 개씩 → [option]  (🟧 11/17)
+
+    종류: 대중교통으로 항구까지(ferry) · 항구에 차 두고(ferry_park) · 내 차 싣고(ferry_car, 차를 싣는 배만)
+    좋은 순서 = 합계 + 걸린 시간을 돈으로 친 값 (_tag 의 '추천'과 같은 기준)
+    """
     island = ctx.d_city if CITIES[ctx.d_city].get('island') else (ctx.o_city if CITIES[ctx.o_city].get('island') else None)
     if not island:
-        return None
-    main_city = ctx.o_city if island == ctx.d_city else ctx.d_city
-    rows = FERRIES.get(island, [])
-    # 집에서 가장 가까운 항구
-    port = min(rows, key=lambda r: _km(CITIES[main_city]['pos'], CITIES[r[0]]['pos']))
-    if car and not port[2]:
-        port = next((r for r in rows if r[2]), None)
-        if not port:
-            return None
-    to_island = island == ctx.d_city
-    p_main = _hub(CITIES[port[0]]['port'], port[0])
-    home_side = ctx.origin if to_island else ctx.dest
-    reach = _local(home_side, p_main, ctx.people, car=car) if _km((home_side['lat'], home_side['lon']), (p_main['lat'], p_main['lon'])) < 40 \
-        else _leg('car' if car else 'bus', '자차' if car else '고속·시외버스', home_side, p_main,
-                  _km((home_side['lat'], home_side['lon']), (p_main['lat'], p_main['lon'])) * 1.3 / 70 * 60 + 15,
-                  _won(_km((home_side['lat'], home_side['lon']), (p_main['lat'], p_main['lon'])) * 1.3 * (CAR_WON_PER_KM if car else BUS_WON_PER_KM * ctx.people)))
-    go_ferry = _ferry(port[0], island, ctx.start, LEAVE_HOME + reach['minutes'] + BUFFER['ferry'], back=not to_island)
-    back_ferry = _ferry(port[0], island, ctx.end, ctx.return_after - 3 * 60, back=to_island)
+        return []
+    day = ctx.start if island == ctx.d_city else ctx.end
+    routes = _running_routes(island, day)
+    made = {'ferry': [], 'ferry_park': [], 'ferry_car': []}
+    for route in routes:
+        for kind in made:
+            if kind == 'ferry_car' and not route['car']:
+                continue                               # 차를 못 싣는 배
+            if kind == 'ferry_park' and island != ctx.d_city:
+                continue                               # 섬에서 나오는 여행: 뭍에 세워 둘 내 차가 없음
+            option = _safe(_plan_ferry_route, ctx, island, route, kind)
+            if option:
+                made[kind].append(option)
+    def score(o):
+        fare, minutes = o['_rank']
+        return o['total'] + fare + (o['minutes'] + minutes) / 60 * TIME_VALUE_PER_HOUR * ctx.people
 
-    note = '첫 배 시간에 맞추려면 새벽에 나서야 해요 (항구 근처 전날 1박도 생각해 보세요)' if go_ferry[-1] else ''
-
-    def ferry_leg(f, a_city, b_city):
-        a, b, dep, sail, fare, car_fare, name, real, _ = f
-        leg = _main_leg('ferry', '배 (차량 선적)' if car else '배', a, b, a_city, b_city, dep, sail, fare, name, real,
-                        ctx.people)
-        if car:
-            leg['fare'] += car_fare or 0
-            leg['detail'] = (name + ' · 차 1대 선적').strip(' ·')
-        return leg
-
-    isle = island
-    if to_island:
-        go = [reach, ferry_leg(go_ferry, port[0], isle)]
-        back = [ferry_leg(back_ferry, isle, port[0]), dict(reach, **{'from': reach['to'], 'to': reach['from'],
-                                                                    'from_pt': reach['to_pt'], 'to_pt': reach['from_pt']})]
-    else:
-        go = [_local(ctx.origin, _hub(CITIES[isle]['port'], isle), ctx.people, car=car), ferry_leg(go_ferry, isle, port[0]), reach]
-        go[-1] = dict(reach, **{'from': reach['to'], 'to': reach['from'], 'from_pt': reach['to_pt'], 'to_pt': reach['from_pt']})
-        back = [ferry_leg(back_ferry, port[0], isle)]
-    arrive = _hub(go[1]['to'], isle if to_island else port[0])
-    items, t_way = [], 'car' if car else 'public_transport'
-    if not to_island:                       # 섬에서 나올 때는 내린 항구 → 여행지까지 구간을 빼고 항구를 출발점으로
-        go = go[:2]
-    return _assemble(ctx, 'ferry_car' if car else 'ferry', go, back, items, t_way, arrive, 20 if car else 15, note)
+    show = FERRY_SHOW_AIR if CITIES[island].get('airport') else FERRY_SHOW
+    out = []
+    for kind, options in made.items():
+        out += sorted(options, key=score)[:show[kind]]
+    for o in out:
+        o.pop('_rank', None)
+    return out
 
 
 def _tag(options, people):
@@ -477,7 +612,7 @@ def _tag(options, people):
     best = min(options, key=lambda o: o['total'] + o['minutes'] / 60 * TIME_VALUE_PER_HOUR * people)
     for o in options:
         o['tags'] = ([('추천')] if o is best else []) + (['최저가'] if o is cheapest else []) + (['가장 빠름'] if o is fastest else [])
-    return best['mode']
+    return best.get('key') or best['mode']
 
 
 # ------------------------------------------------------------------ 바깥에서 쓰는 함수
@@ -498,7 +633,7 @@ def compare(travel, people=None):
     if not origin:
         return {'applicable': False, 'note': '출발지가 없어요. 여행 수정에서 출발지를 넣어 주세요.'}
     people = people or 1
-    ck = 'access:%s:%s:%s:%.4f:%.4f' % (travel.t_id, travel.t_start, people, origin['lat'], origin['lon'])
+    ck = 'access2:%s:%s:%s:%.4f:%.4f' % (travel.t_id, travel.t_start, people, origin['lat'], origin['lon'])
     hit = cache.get(ck)
     if hit:
         return hit
@@ -508,14 +643,18 @@ def compare(travel, people=None):
     if ctx.o_city == ctx.d_city or _km((origin['lat'], origin['lon']), (ctx.dest['lat'], ctx.dest['lon'])) < 30:
         return {'applicable': False, 'note': '출발지가 여행지 가까이에 있어서 장소 사이 이동만 보여 드려요.'}
     jobs = [(_plan_car,), (_plan_train,), (_plan_train, True), (_plan_bus,), (_plan_flight,), (_plan_flight, True),
-            (_plan_ferry,), (_plan_ferry, True)]
+            (_plan_ferries,)]
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(lambda j: _safe(j[0], ctx, *j[1:]), jobs))
     options, seen = [], set()
-    for o in results:
-        if o and o['mode'] not in seen:
-            seen.add(o['mode'])
-            options.append(o)
+    for found in results:
+        for o in (found if isinstance(found, list) else [found]):     # 배는 항구마다 여러 개가 옴
+            if not o:
+                continue
+            o.setdefault('key', o['mode'])                            # 고를 때 쓰는 이름 (배는 'ferry_park@묵호')
+            if o['key'] not in seen:
+                seen.add(o['key'])
+                options.append(o)
     options.sort(key=lambda o: o['total'])
     result = {
         'applicable': bool(options), 'options': options, 'recommended': _tag(options, people), 'people': people,
@@ -539,9 +678,17 @@ def choose(travel, mode, people=None):
     """고른 방법을 저장하고 첫날 출발점·시각·교통 예산·일정을 바꾼다 → 저장한 access_route"""
     from ..models import Schedule, TravelBudget
     result = compare(travel, people)
-    option = next((o for o in result.get('options') or [] if o['mode'] == mode), None)
+    options = result.get('options') or []
+    # mode 자리에 key('ferry_park@묵호')가 와도 되고, 예전처럼 mode('ferry')만 와도 됨
+    # mode 만 오면 그 종류 가운데 가장 좋은 것(합계 + 시간 값) — 채팅에서 "배 타고 갈래"라고만 한 경우
+    option = next((o for o in options if o.get('key') == mode), None)
+    if not option:
+        same = [o for o in options if o['mode'] == mode]
+        n = result.get('people') or 1
+        option = min(same, key=lambda o: o['total'] + o['minutes'] / 60 * TIME_VALUE_PER_HOUR * n) if same else None
     if not option:
         return None
+    mode = option['mode']
     before = travel.access_route if isinstance(travel.access_route, dict) else {}
     arrive = option['arrive']
     travel.access_way = ACCESS_WAY[mode]
