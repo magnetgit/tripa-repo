@@ -83,7 +83,8 @@
     }
 
     function cardHtml(o) {
-        const picked = route && route.mode === o.mode;
+        // 🟧 11/17 배는 항구마다 카드가 따로라서 mode 가 같은 카드가 여럿 → key('ferry_park@묵호')로 구분 (없으면 mode)
+        const picked = route && (route.key || route.mode) === (o.key || o.mode);
         const tags = (o.tags || []).map(function (t) {
             return `<span class="ac-tag ac-tag--${t.replace(/\s/g, "")}">${esc(t)}</span>`;
         }).join("") + `<span class="ac-tag ac-tag--real">${o.real ? "실제 시간표" : "어림 시간"}</span>`;
@@ -100,7 +101,7 @@
             <div class="ac-chain">${chainHtml(o.go)}</div>
             ${items ? `<ul class="ac-items">${items}</ul>` : ""}
             ${o.note ? `<div class="ac-warn">${esc(o.note)}</div>` : ""}
-            <button type="button" class="ac-btn ac-pick" data-mode="${esc(o.mode)}">${picked ? "✓ 지금 이 방법" : "이걸로 갈게요"}</button>
+            <button type="button" class="ac-btn ac-pick" data-mode="${esc(o.key || o.mode)}">${picked ? "✓ 지금 이 방법" : "이걸로 갈게요"}</button>
         </article>`;
     }
 

@@ -5429,6 +5429,8 @@ _ACCESS_SIMILAR = {
     'flight_rent': ('flight_rent', 'flight'), 'ferry': ('ferry', 'ferry_car'), 'ferry_car': ('ferry_car', 'ferry'),
     'bus': ('bus',), 'car': ('car',),
 }
+# 🟧 11/17 배는 항구마다 방법이 여러 개(key 'ferry@묵호'·'ferry_park@강릉' …). 여기서는 종류(mode)만 고르고,
+#          그 종류 가운데 어느 항구인지는 access_service.choose 가 가장 좋은 것으로 정함
 
 
 def _chat_choose_access(travel, draft, people, add_to_total=False):
@@ -6718,17 +6720,20 @@ def travel_access(request, travel_id):
     chosen = travel.access_route if isinstance(travel.access_route, dict) else None
     return JsonResponse({'success': True, **result, 'people': people,
                          'chosen': chosen.get('mode') if chosen else None,
+                         # 🟧 11/17 배는 항구까지 붙은 이름 ('ferry_park@묵호'). 예전에 고른 것은 mode 와 같음
+                         'chosen_key': (chosen.get('key') or chosen.get('mode')) if chosen else None,
                          'route': chosen})
 
 
 # POST mode=flight_rent&people=2 → 저장 + 첫날 출발점·시각·교통 예산·일정 반영 → {success, route, start}
+# mode 자리에 options[].key ('ferry_park@묵호')를 보내도 됨 (🟧 11/17 배는 항구마다 따로)
 @require_POST
 def travel_access_choose(request, travel_id):
     _, travel, error = _my_travel_json(request, travel_id)
     if error:
         return error
     mode = request.POST.get('mode', '')
-    if mode not in access_service.TITLES:
+    if mode.split('@')[0] not in access_service.TITLES:
         return JsonResponse({'success': False, 'message': '고를 수 없는 이동 방법이에요.'}, status=400)
     try:
         people = max(1, min(20, int(request.POST.get('people') or 0))) or None
