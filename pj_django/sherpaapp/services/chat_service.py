@@ -206,14 +206,20 @@ def empty_draft():
 # 카카오 장소 검색 (출발지 / 숙소 / 지역 중심)
 # =========================================================
 
-def kakao_first_place(query, near=None):
-    """카카오 키워드 검색의 첫 번째 결과를 돌려준다. 실패하면 None."""
+def kakao_first_place(query, near=None, group=None):
+    """카카오 키워드 검색의 첫 번째 결과를 돌려준다. 실패하면 None.
+
+    group: 카카오 분류 코드 (예: 'AD5' 숙박). 주면 그 분류 안에서만 찾는다. (🟦 11/16 추가)
+    """
     key = getattr(settings, 'KAKAO_REST_API_KEY', '')
 
     if not key or not query:
         return None
 
     params = {'query': query, 'size': 1}
+
+    if group:
+        params['category_group_code'] = group
 
     if near:
         params.update({'y': near[0], 'x': near[1], 'radius': 20000})
@@ -250,6 +256,28 @@ def kakao_first_place(query, near=None):
         # 사진·리뷰를 붙이는 열쇠 (숙소가 일정에 들어갈 때 Place.p_kakao_id로 저장됨)
         'kakao_id': _clean_kakao_id(item.get('id')),
     }
+
+
+_STAY_NEAR_WORDS_RE = re.compile(r'\s*(근처|주변|부근|인근|쪽|일대|앞)\s*$')
+
+
+def _find_stay(query, region):
+    """숙소 위치를 찾는다 — 카카오 '숙박'(AD5) 분류 안에서만. (🟦 11/16)
+
+    이름만 같다고 아무 곳이나 가져오던 문제: '위치는 안정했고'(안 정했고)의 '안정' → '안정개발'(회사)이 숙소로 들어감.
+    - '대구 동대구역' → 동대구역 근처 모텔·호텔, '부산 해운대' → 해운대 호텔 (동네를 말해도 그 동네 숙소)
+    - 못 찾으면 None → 화면에 "'안정' 위치를 찾지 못했어요" 안내 (엉뚱한 곳을 넣지 않음)
+    - 여행 지역을 꼭 붙여 찾는다 (지역 없이 '안정'만 찾으면 군산 '안정모텔'이 나옴)
+    """
+    found = kakao_first_place(_with_region(query, region), group='AD5')
+    if found:
+        return found
+
+    # '경포대 근처', '해운대 쪽' → '경포대', '해운대' 로 한 번 더
+    short = _STAY_NEAR_WORDS_RE.sub('', query or '').strip()
+    if short and short != query:
+        return kakao_first_place(_with_region(short, region), group='AD5')
+    return None
 
 
 def _find_start_place(query, region):
@@ -462,13 +490,8 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
         if key in prev_stays:
             place = _from_client_place(query, prev_stays[key])
         elif resolve:
-            near = None
-
-            if draft['center']:
-                near = (draft['center']['lat'], draft['center']['lon'])
-
-            place = _resolved_or_empty(query, kakao_first_place(
-                _with_region(query, draft['place']), near))
+            # 숙소는 카카오 '숙박' 분류에서만 찾는다 (🟦 11/16, 이름만 같은 회사·가게가 들어가던 것)
+            place = _resolved_or_empty(query, _find_stay(query, draft['place']))
         else:
             place = _from_client_place(query, item)
 
@@ -940,7 +963,9 @@ def pin_for_near(text, word, draft, day=None):
     before = text[max(0, at - 14):at + len(word)] if at >= 0 else text
     meal = next((m for m in ('저녁', '점심', '아침') if m in before), None)
     is_meal = bool(meal) and bool(_MEAL_PLACE_RE.search(before))
-    vague = word in VAGUE_NEAR_WORDS or word in NEAR_KIND_WORDS or word in _MEAL_TIMES or is_meal
+    # 종류 낱말: 위 표 + 🟦 _PIN_KIND_WORDS('횟집'·'빵집' …) + 추천 낱말('야경' 등은 담아 둔 장소 이름·종류에 있을 때만)
+    kinds = NEAR_KIND_WORDS.get(word) or _PIN_KIND_WORDS.get(word) or ((word,) if word in _RECO_KEYWORDS else None)
+    vague = word in VAGUE_NEAR_WORDS or bool(kinds) or word in _MEAL_TIMES or is_meal
 
     for scope in scopes:
         if not scope:
@@ -955,8 +980,7 @@ def pin_for_near(text, word, draft, day=None):
                 key = _squash(word)
                 if key == name or (len(key) >= 3 and (key in name or name in key)):
                     return pin, False
-        if word in NEAR_KIND_WORDS:
-            kinds = NEAR_KIND_WORDS[word]
+        if kinds:
             found = [p for p in scope if word in p['name'] or any(k in (p.get('kind') or '') or k in p['name'] for k in kinds)]
             if found:
                 return found[-1], True
@@ -978,6 +1002,25 @@ def settle_near(rec, draft, text):
         rec['near'] = None       # '장소'·'공원'을 가게 이름으로 찾지 않는다 → 지역 중심 기준
 
 
+# 사용자가 말하는 종류 → 담아 둔 장소의 kind 에 들어 있을 말 (🟦 11/17)
+_PIN_KIND_WORDS = {
+    '식당': ('음식', '식당', '맛집'), '맛집': ('음식', '식당', '맛집'), '횟집': ('음식', '회'),
+    '카페': ('카페', '디저트', '베이커리'), '빵집': ('베이커리', '카페'), '디저트': ('디저트', '카페'),
+    '관광지': ('관광', '명소', '랜드마크'), '명소': ('관광', '명소', '랜드마크'),
+    '해수욕장': ('해수욕장', '해변', '바다'), '해변': ('해수욕장', '해변', '바다'),
+}
+
+
+def _pin_of_kind(draft, word, day=None):
+    """담아 둔 장소 중 그 종류인 것 (그날 것 먼저, 없으면 아무 날). 없으면 None."""
+    keys = _PIN_KIND_WORDS.get(word, (word,))
+    pins = [p for p in draft.get('pins') or []
+            if any(k in (p.get('kind') or '') or k in (p.get('name') or '') for k in keys)]
+    same_day = [p for p in pins if day and p.get('day') == day]
+    picked = same_day or pins
+    return picked[-1] if picked else None
+
+
 def stay_recommend(messages, rec, draft, ai_query=''):
     """숙소를 추천해 달라는 말이면 숙소 추천 조건을, 아니면 None.
 
@@ -991,11 +1034,17 @@ def stay_recommend(messages, rec, draft, ai_query=''):
         return None
 
     mentions = any(w in text for w in _STAY_ASK_WORDS)
+    # '식당 주변으로 추천해줘'의 '식당'은 찾을 종류가 아니라 숙소를 찾을 기준 (🟦 11/17)
+    # → '○○ 주변/근처/쪽' 부분은 빼고 종류 낱말을 본다 (전엔 식당 카드가 나오고 숙소는 AI가 아무거나 넣었음)
+    near_match = _STAY_NEAR_RE.search(text)
+    kind_text = _STAY_NEAR_RE.sub(' ', text) if near_match else text
     # 숙소 질문에 '추천해줘'라고만 답했을 때 (다른 장소 종류를 말했으면 그 추천)
     # (AI가 '바다'처럼 다른 추천 종류를 읽었거나, 사용자가 다른 종류를 말했으면 그 추천)
-    stay_query = not ai_query or any(w in ai_query for w in _STAY_ASK_WORDS)
+    near_word = near_match.group(1) if near_match else ''
+    stay_query = (not ai_query or any(w in ai_query for w in _STAY_ASK_WORDS)
+                  or bool(near_word and near_word in ai_query))
     answered = ('숙소' in last_ai and stay_query
-                and not any(k in text for k in _RECO_KEYWORDS + tuple(QUERY_CONCEPTS)
+                and not any(k in kind_text for k in _RECO_KEYWORDS + tuple(QUERY_CONCEPTS)
                             if k not in ('숙소', '호텔')))
 
     if not mentions and not answered:
@@ -1010,7 +1059,7 @@ def stay_recommend(messages, rec, draft, ai_query=''):
     day = day or (nights[0] if nights else None)
 
     # 어디 근처: 말한 동네 → 그날 담아 둔 장소 → 지역 중심
-    m = _STAY_NEAR_RE.search(text)
+    m = near_match
     near = _clean_text(m.group(1), 30) if m and m.group(1) not in ('그', '이', '저', '어느') else (rec or {}).get('near')
     anchor = None
 
@@ -1079,6 +1128,13 @@ def _pick_anchor(rec, draft):
 
     if rec.get('anchor'):
         return rec['anchor'], rec.get('near')
+
+    # '식당 근처 카페'처럼 기준이 종류 이름이면 → 일정에 담아 둔 그 종류 장소 (🟦 11/17, 전엔 '강릉 식당'을 검색해 엉뚱한 곳)
+    if rec.get('near') and rec['near'] in _RECO_KEYWORDS + tuple(QUERY_CONCEPTS):
+        pin = _pin_of_kind(draft, rec['near'], rec.get('day'))
+        if pin:
+            rec['near'] = pin['name']   # 검색어에 '식당'이 붙지 않게, 안내도 "'이모네생선찜' 근처"로
+            return (pin['lat'], pin['lon']), pin['name']
 
     if rec.get('near'):
         found = kakao_first_place(_with_region(rec['near'], place))
@@ -1907,21 +1963,33 @@ def _month_day(year, month, day, today):
     return found
 
 
+# '당일치기말고', '2박3일 대신', '1박2일이 아니라' — 바로 뒤에 붙으면 버리는 기간 (🟦 11/17)
+_NOT_THIS_RE = re.compile(r'^\s*(?:은|는|이|가|을|를)?\s*(?:말고|대신|아니고|아니라|아닌|에서|빼고|취소)')
+_DAY_TRIP_RE = re.compile(r'당일\s*치기|당일\s*여행')
+
+
 def guess_nights(text):
-    """'2박3일'·'1박 2일' → 박 수, '당일치기' → 0, 없으면 None."""
+    """'2박3일'·'1박 2일' → 박 수, '당일치기' → 0, 없으면 None.
+
+    기간을 두 번 말하면 '말고·대신·아니고'가 붙지 않은 마지막 것 (🟦 11/17)
+      '당일치기말고 1박2일로 해줘' → 1  (전엔 '당일치기'가 먼저 걸려서 0 → 17일~17일 그대로)
+      '1박2일 말고 당일치기로'     → 0
+    """
     if not isinstance(text, str):
         return None
 
-    if '당일치기' in text or '당일 여행' in text:
-        return 0
+    found = []   # (위치, 끝 위치, 박 수)
+    for match in _DAY_TRIP_RE.finditer(text):
+        found.append((match.start(), match.end(), 0))
+    for match in _NIGHTS_RE.finditer(text):
+        found.append((match.start(), match.end(), int(match.group(1))))
+    for match in _KO_NIGHTS_RE.finditer(text):
+        found.append((match.start(), match.end(), _KO_NUMBERS[match.group(1)]))
 
-    match = _NIGHTS_RE.search(text)
-    if match:
-        return int(match.group(1))
-
-    match = _KO_NIGHTS_RE.search(text)
-    if match:
-        return _KO_NUMBERS[match.group(1)]
+    if found:
+        found.sort()
+        kept = [f for f in found if not _NOT_THIS_RE.match(text[f[1]:])]
+        return (kept or found)[-1][2]
 
     # '3일로 해줘' → 2박 (단 '11월 3일로'처럼 날짜면 기간이 아님)
     match = _DAYS_ONLY_RE.search(text)
@@ -2678,10 +2746,18 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     # 사용자가 이번 말에 종류를 직접 말했는데('박물관') AI가 다른 종류('카페')를 보내면 사용자 말을 따른다
     # (🟩 11/12, GPT가 가끔 앞 턴의 추천 종류를 다시 보내서 '셋째 날 박물관 추천'에 카페 카드가 나오던 것)
     if rec and not guessed:
-        said = next((k for k in _RECO_KEYWORDS if k in messages[-1]['content']), None)
+        # '식당 주변으로 숙소'의 '식당'은 기준 장소라서 종류로 보지 않는다 (🟦 11/17)
+        said_text = _STAY_NEAR_RE.sub(' ', messages[-1]['content'])
+        said = next((k for k in _RECO_KEYWORDS if k in said_text), None)
         if said and said not in rec['query'] and rec['query'] not in messages[-1]['content']:
             logger.info('추천 종류 바로잡기: AI %s → 사용자 %s', rec['query'], said)
             rec['query'] = said
+
+    # AI가 기준 장소를 빠뜨리면 사용자 말의 '○○ 근처/주변/쪽'에서 읽는다 (🟦 11/17, '식당 근처 카페' → 지역 중심 16km)
+    if rec and not rec.get('near'):
+        near_m = _STAY_NEAR_RE.search(messages[-1]['content'])
+        if near_m and near_m.group(1) not in ('그', '이', '저', '어느', '어디'):
+            rec['near'] = _clean_text(near_m.group(1), 30)
 
     # 숙소 추천은 서버가 조건을 정한다 (빈 밤·담아 둔 장소 근처·가격대)
     ai_query = rec['query'] if rec and not guessed else ''
