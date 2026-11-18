@@ -47,6 +47,9 @@ def head_snippet(lang):
     parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/fit_buttons.js'))
     # 폰 화면 [맨 위로] 버튼 (🟦 11/16)
     parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/to_top.js'))
+    # PC에서 폰 화면 미리보기 [💻 PC | 📱 폰] — 모든 화면에서 지금 화면을 바로 폰 틀로 (🟧 11/18, 전엔 홈에만)
+    parts.append('<link rel="stylesheet" href="%s">' % _versioned('sherpaapp/css/phone_preview.css'))
+    parts.append('<script src="%s"></script>' % _versioned('sherpaapp/js/phone_preview.js'))
     return ''.join(parts)
 
 
