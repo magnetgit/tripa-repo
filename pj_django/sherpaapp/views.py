@@ -2526,14 +2526,14 @@ def pw_find(request):
 
     code = (request.POST.get('code') or '').strip()
 
-    # 인증 코드 확인 (pw_code 에서 세션에 넣어 둔 것)
+    # 인증번호 확인 (pw_code 에서 세션에 넣어 둔 것)
     saved = request.session.get('pw_reset') or {}
     now = datetime.now().timestamp()
 
     if saved.get('user_id') != user_id or now > saved.get('until', 0):
         return HttpResponse("""
             <script>
-                alert('인증 코드를 먼저 받아 주세요. (10분이 지났으면 다시 받기)');
+                alert('인증번호를 먼저 받아 주세요. (10분이 지났으면 재전송)');
                 history.back();
             </script>
         """)
@@ -2541,7 +2541,7 @@ def pw_find(request):
     if saved.get('tries', 0) >= PW_CODE_TRIES:
         return HttpResponse("""
                 <script>
-                    alert('5번 틀렸어요. 인증 코드를 다시 받아 주세요.');
+                    alert('5번 틀렸어요. 인증번호를 다시 받아 주세요.');
                     history.back();
                 </script>
             """)
@@ -2551,7 +2551,7 @@ def pw_find(request):
         request.session['pw_reset'] = saved          # 바꾼 dict 를 세션에 다시 넣기
         return HttpResponse(f"""
         <script>
-            alert('인증 코드가 맞지 않아요. ({saved['tries']}/5)');
+            alert('인증번호가 맞지 않아요. ({saved['tries']}/5)');
             history.back();
         </script>
         """)
@@ -2645,8 +2645,8 @@ def pw_code(request):
             'sent': now,
         }
         send_mail(
-            '[TRIPA] 비밀번호 찾기 인증 코드',
-            f'인증 코드: {code}\n10분 안에 입력해 주세요. 직접 요청하지 않았다면 이 메일은 무시해 주세요.',
+            '[TRIPA] 비밀번호 찾기 인증번호',
+            f'인증번호: {code}\n10분 안에 입력해 주세요. 직접 요청하지 않았다면 이 메일은 무시해 주세요.',
             None,                                           # 보내는 사람: settings.DEFAULT_FROM_EMAIL
             [member.email],
         )
@@ -2654,7 +2654,7 @@ def pw_code(request):
         request.session['pw_reset'] = {'sent': now}         # 없는 회원도 5초 막기는 똑같이
 
     # 회원이 있든 없든 같은 문구 (가입 여부가 드러나지 않게)
-    return JsonResponse({'success': True, 'message': '입력한 정보가 맞으면 인증 코드를 메일로 보냈어요.'})
+    return JsonResponse({'success': True, 'message': '입력한 정보가 맞으면 인증번호를 메일로 보냈어요.'})
 
 
 # 비밀번호 찾기 2단계 (🟦 [확인] 버튼): 코드가 맞는지만 확인 → 맞으면 화면이 새 비밀번호 칸을 열어 줌
@@ -2668,13 +2668,13 @@ def pw_code_check(request):
     now = datetime.now().timestamp()
 
     if saved.get('user_id') != user_id or now > saved.get('until', 0):
-        return JsonResponse({'success': False, 'message': '인증 코드를 먼저 받아 주세요. (10분이 지났으면 다시 받기)'})
+        return JsonResponse({'success': False, 'message': '인증번호를 먼저 받아 주세요. (10분이 지났으면 재전송)'})
     if saved.get('tries', 0) >= PW_CODE_TRIES:
-        return JsonResponse({'success': False, 'message': '5번 틀렸어요. 인증 코드를 다시 받아 주세요.'})
+        return JsonResponse({'success': False, 'message': '5번 틀렸어요. 인증번호를 다시 받아 주세요.'})
     if not check_password(code, saved['code']):
         saved['tries'] = saved.get('tries', 0) + 1
         request.session['pw_reset'] = saved
-        return JsonResponse({'success': False, 'message': f"인증 코드가 맞지 않아요. ({saved['tries']}/{PW_CODE_TRIES})"})
+        return JsonResponse({'success': False, 'message': f"인증번호가 맞지 않아요. ({saved['tries']}/{PW_CODE_TRIES})"})
 
     return JsonResponse({'success': True, 'message': '인증됐어요. 새 비밀번호를 입력해 주세요.'})
 
