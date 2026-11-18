@@ -1335,5 +1335,8 @@ window.TRIPA_DICT = {
 "🧭 여행지까지 가는 길": "🧭 Getting to the destination",
 "☂ 날씨 상관없이": "☂ Ignore weather",
 "☔ 날씨 반영하기": "☔ Consider weather",
-"· 날씨 상관없이 짠 일정이에요": "· Planned regardless of weather"
+"· 날씨 상관없이 짠 일정이에요": "· Planned regardless of weather",
+"· 오늘 일정": "· Today's plan",
+"비 예보가 있는 날은 실내 장소를 먼저 넣어 다시 짜요": "Rebuilds the plan with indoor places first on days with rain in the forecast",
+"비 예보와 상관없이 원래 추천대로 다시 짜요": "Rebuilds the plan with the original picks, ignoring the rain forecast"
 };
