@@ -127,12 +127,13 @@
 
     <!-- 비밀번호 찾기 -->
     <section class="auth-panel" id="panelPw" role="tabpanel" aria-labelledby="tabPw" hidden>
-        <p class="auth-panel__desc">아이디·이메일·이름을 넣고 인증 코드를 받은 뒤, 메일로 온 코드와 새 비밀번호를 입력해 주세요.</p>
+        {# 🟧 11/18 한 번에 다 보이던 칸을 단계별로: 아이디 → 이름 → 이메일 → 인증 코드 → 새 비밀번호. 지난 칸은 위에 남아서 고칠 수 있음 #}
+        <p class="auth-panel__desc" id="pwStepDesc" aria-live="polite">가입할 때 쓴 아이디를 입력해 주세요.</p>
 
         <form action="{% url 'pw_find' %}" method="post" id="pwForm" onsubmit="return checkPwForm(this);">
             {% csrf_token %}
 
-            <div class="field">
+            <div class="field" data-pw-step="1">
                 <label for="pwId">아이디</label>
                 <div class="field-box">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -142,7 +143,17 @@
                 </div>
             </div>
 
-            <div class="field">
+            <div class="field" data-pw-step="2" hidden>
+                <label for="pwName">이름</label>
+                <div class="field-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
+                    </svg>
+                    <input type="text" id="pwName" name="name" placeholder="이름" autocomplete="name" required>
+                </div>
+            </div>
+
+            <div class="field" data-pw-step="3" hidden>
                 <label for="pwEmail">이메일</label>
                 <div class="field-box">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -150,20 +161,14 @@
                     </svg>
                     <input type="email" id="pwEmail" name="email" placeholder="example@tripa.com" autocomplete="email" required>
                 </div>
+                <span id="pwInfoMsg" class="field-msg" aria-live="polite"></span>
             </div>
 
-            <div class="field">
-                <label for="pwName">이름</label>
-                <div class="field-box">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
-                    </svg>
-                    <input type="text" id="pwName" name="name" placeholder="이름" required>
-                </div>
-            </div>
+            <!-- 1~3단계 [다음]: 3단계에서 누르면 인증 코드를 메일로 보냄 (POST pw_code) -->
+            <button type="button" class="btn-submit" id="pwNextBtn">다음</button>
 
-            <!-- 인증 코드: 버튼으로 메일 받기 (POST pw_code) → 6자리 입력 -->
-            <div class="field">
+            <!-- 4단계 인증 코드: 메일을 보낸 뒤에 열림. 6자리 입력 + 다시 받기 -->
+            <div class="field" data-pw-step="4" hidden>
                 <label for="pwCode">인증 코드</label>
                 <div class="field-row">
                     <div class="field-box">
@@ -174,7 +179,7 @@
                                inputmode="numeric" maxlength="6" pattern="[0-9]{6}"
                                autocomplete="one-time-code" title="메일로 받은 6자리 숫자" required>
                     </div>
-                    <button type="button" class="btn-side" id="pwCodeBtn">인증 코드 받기</button>
+                    <button type="button" class="btn-side" id="pwCodeBtn">다시 받기</button>
                 </div>
                 <span id="pwCodeMsg" class="field-msg" aria-live="polite"></span>
                 <button type="button" class="btn-side btn-code-check" id="pwCheckBtn">인증 코드 확인</button>
@@ -311,30 +316,119 @@
         }, 1000);
     }
 
-    pwCodeBtn.addEventListener('click', function () {
-        // 아이디·이메일·이름 중 빈 칸이 있으면 그 칸 안내를 띄우고 멈춤
-        var need = ['pwId', 'pwEmail', 'pwName'].map(function (id) { return document.getElementById(id); });
-        for (var i = 0; i < need.length; i++) {
-            if (!need[i].reportValidity()) return;
-        }
+    // ---------------------------------------------------------------- 단계별 진행 (🟧 11/18)
+    // 1 아이디 → 2 이름 → 3 이메일 → [다음] 누르면 인증 코드 보냄 → 4 코드 입력·다시 받기 → 확인되면 새 비밀번호
+    var pwNextBtn = document.getElementById('pwNextBtn');
+    var pwInfoMsg = document.getElementById('pwInfoMsg');
+    var pwStepDesc = document.getElementById('pwStepDesc');
+    var pwInputs = { 1: document.getElementById('pwId'), 2: document.getElementById('pwName'), 3: document.getElementById('pwEmail') };
+    var PW_DESC = {
+        1: '가입할 때 쓴 아이디를 입력해 주세요.',
+        2: '가입할 때 쓴 이름을 입력해 주세요.',
+        3: '가입할 때 쓴 이메일을 입력해 주세요. 이 주소로 인증 코드를 보내요.',
+        4: '메일로 받은 6자리 인증 코드를 입력해 주세요.',
+        5: '새 비밀번호를 정해 주세요.'
+    };
+    var pwStep = 1;
 
-        pwCodeBtn.disabled = true;
-        pwCodeBtn.textContent = '보내는 중...';
+    function showInfoMsg(text, ok) {
+        pwInfoMsg.textContent = text;
+        pwInfoMsg.classList.remove('is-ok', 'is-bad');
+        if (text) pwInfoMsg.classList.add(ok ? 'is-ok' : 'is-bad');
+    }
+
+    // 지금 단계까지의 칸만 보여 줌 (지난 칸은 위에 남음)
+    function renderPwStep(focus) {
+        pwForm.querySelectorAll('[data-pw-step]').forEach(function (field) {
+            field.hidden = Number(field.getAttribute('data-pw-step')) > pwStep;
+        });
+        pwNextBtn.hidden = pwStep > 3;
+        pwStepDesc.textContent = PW_DESC[codeOk ? 5 : pwStep];
+        if (focus) {
+            var target = pwStep <= 3 ? pwInputs[pwStep] : pwCode;
+            if (target) target.focus();
+        }
+        placeNotch();
+    }
+
+    // 인증 코드 메일 보내기 (3단계 [다음], 4단계 [다시 받기])
+    function sendCode(fromNext) {
+        var busy = fromNext ? pwNextBtn : pwCodeBtn;
+        var label = busy.textContent;
+        busy.disabled = true;
+        busy.textContent = '보내는 중...';
         setCodeOk(false);   // 새 코드를 받으면 다시 확인해야 함
+        showInfoMsg('', true);
 
         fetch("{% url 'pw_code' %}", { method: 'POST', body: new FormData(pwForm) })
             .then(function (res) { return res.json(); })
             .then(function (data) {
-                showCodeMsg(data.message || '잠시 뒤 다시 시도해 주세요.', data.success);
-                if (data.success) pwCode.focus();
-                waitResend(RESEND_SECONDS);
+                var message = data.message || '잠시 뒤 다시 시도해 주세요.';
+                if (data.success) {
+                    pwStep = 4;
+                    renderPwStep(true);
+                    showCodeMsg(message, true);
+                    waitResend(RESEND_SECONDS);
+                } else if (pwStep >= 4) {
+                    showCodeMsg(message, false);      // 다시 받기를 너무 빨리 누른 경우 등
+                    waitResend(RESEND_SECONDS);
+                } else {
+                    showInfoMsg(message, false);      // 아이디·이름·이메일이 맞지 않는 경우
+                }
             })
             .catch(function () {
-                showCodeMsg('인증 코드를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.', false);
-                pwCodeBtn.disabled = false;
-                pwCodeBtn.textContent = '인증 코드 받기';
+                (pwStep >= 4 ? showCodeMsg : showInfoMsg)('인증 코드를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.', false);
+            })
+            .finally(function () {
+                if (fromNext) { pwNextBtn.disabled = false; pwNextBtn.textContent = label; }
+                else if (pwCodeBtn.textContent === '보내는 중...') { pwCodeBtn.disabled = false; pwCodeBtn.textContent = '다시 받기'; }
+                placeNotch();
             });
+    }
+
+    function nextPwStep() {
+        var input = pwInputs[pwStep];
+        if (!input) return;
+        input.value = input.value.trim();
+        if (!input.reportValidity()) return;      // 빈 칸·이메일 모양이 아니면 그 칸 안내
+        if (pwStep < 3) {
+            pwStep++;
+            renderPwStep(true);
+        } else {
+            sendCode(true);
+        }
+    }
+
+    pwNextBtn.addEventListener('click', nextPwStep);
+    pwCodeBtn.addEventListener('click', function () { sendCode(false); });
+
+    // 칸에서 Enter → [다음] / 지난 칸을 고치면 그 단계로 돌아감 (받은 코드는 다시 받아야 함)
+    [1, 2, 3].forEach(function (step) {
+        pwInputs[step].addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            if (pwStep === step) nextPwStep();
+            else if (pwStep <= 3) pwInputs[Math.min(step + 1, pwStep)].focus();
+        });
+        pwInputs[step].addEventListener('input', function () {
+            showInfoMsg('', true);
+            if (pwStep >= 4) {
+                pwStep = 3;
+                pwCode.value = '';
+                pwCodeMsg.textContent = '';
+                setCodeOk(false);
+                renderPwStep(false);
+            }
+        });
     });
+
+    // 아이디 찾기 결과에서 넘어온 경우: 세 칸이 채워져 있으니 이메일 단계까지 펼침
+    function openPwFilled() {
+        pwStep = 3;
+        setCodeOk(false);
+        renderPwStep(false);
+        pwNextBtn.focus();
+    }
 
     // 인증 코드 확인: 맞으면 새 비밀번호 칸과 변경 버튼을 열어 줌
     var pwCheckBtn = document.getElementById('pwCheckBtn');
@@ -348,6 +442,7 @@
         pwSubmit.hidden = !ok;
         pwCheckBtn.textContent = ok ? '✓ 인증 완료' : '인증 코드 확인';
         pwCheckBtn.classList.toggle('is-done', ok);
+        pwStepDesc.textContent = PW_DESC[ok ? 5 : pwStep];
         placeNotch();
     }
 
@@ -387,7 +482,6 @@
 
     // 아이디를 바꿔도 다시 확인
     document.getElementById('pwId').addEventListener('input', function () {
-        if (codeOk) setCodeOk(false);
         updatePwRules();   // '아이디 넣지 않기' 규칙도 다시 봄
     });
 
@@ -484,6 +578,8 @@
             });
     }
 
+    renderPwStep(false);    // 처음엔 아이디 칸과 [다음]만
+
     // 아이디 찾기: 팝업(alert) 대신 결과 카드 (서버 id_find 가 X-Requested-With: fetch 면 JSON 으로 답함)
     var idForm = document.getElementById('idForm');
     var idResult = document.getElementById('idResult');
@@ -515,6 +611,7 @@
                 document.getElementById('pwId').value = data.ids[0];       // 찾은 아이디 미리 넣기
                 document.getElementById('pwEmail').value = idForm.email.value;
                 document.getElementById('pwName').value = idForm.name.value;
+                openPwFilled();
             });
             actions.appendChild(login);
             actions.appendChild(toPw);
