@@ -45,7 +45,7 @@ export function costAmount(cost, people) {
 
 // 예상 비용: 1인 요금 × 인원, 방 요금 × 방 개수(인원 ÷ 방 기준 인원). 인원은 지금 초안 값으로 다시 계산
 export function costText(cost, people) {
-  if (cost && cost.same_stay) return '숙박비는 체크인 줄에'; // 같은 날 같은 숙소 두 번째 줄 (금액 0)
+  if (cost && cost.same_stay) return '숙박비는 짐 맡기기 줄에'; // 같은 날 같은 숙소 두 번째 줄 (금액 0)
   if (!cost || cost.per == null) return '';
   const n = Math.max(1, Number(people) || 1);
   const tag = cost.source === 'tour' ? '관광공사 요금' : cost.source === 'ai' ? 'AI 예상' : '보통 가격 예상';

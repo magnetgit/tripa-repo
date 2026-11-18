@@ -362,7 +362,7 @@
   }
 
   function costText(cost) {
-    if (cost && cost.same_stay) return '숙박비는 체크인 줄에';   // 같은 날 같은 숙소 두 번째 줄 (금액 0)
+    if (cost && cost.same_stay) return '숙박비는 짐 맡기기 줄에';   // 같은 날 같은 숙소 두 번째 줄 (금액 0)
     if (!cost || cost.per == null) return '';
     var n = peopleCount();
     var tag = cost.source === 'tour' ? '관광공사 요금' : cost.source === 'ai' ? 'AI 예상' : '보통 가격 예상';
@@ -1254,7 +1254,7 @@
           : items.slice(0, i).some(function (x) { return x.is_stay && x.name === it.name; });
         var stayTag = make('span', 'tc-tag tc-tag--stay');
         stayTag.appendChild(icon('bed'));
-        stayTag.appendChild(document.createTextNode(back ? ' 숙소로 귀가' : it.stay_role === 'checkin' ? ' 체크인 · 짐 두기' : ' 체크인'));
+        stayTag.appendChild(document.createTextNode(back ? ' 숙소로 귀가' : it.stay_role === 'checkin' ? ' 짐 맡기기' : ' 체크인'));
         head.appendChild(stayTag);
       } else if (it.pin) {
         head.appendChild(make('span', 'tc-tag tc-tag--pin', '담은 장소'));
