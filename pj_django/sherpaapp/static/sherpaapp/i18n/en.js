@@ -1332,5 +1332,8 @@ window.TRIPA_DICT = {
 "🚶 걸어서 0원": "🚶 On foot 0 KRW",
 "🛏 체크인 · 짐 두고 다시 나가기": "🛏 Check in · Drop bags and head back out",
 "🧭 가는 길 ·": "🧭 Getting there ·",
-"🧭 여행지까지 가는 길": "🧭 Getting to the destination"
+"🧭 여행지까지 가는 길": "🧭 Getting to the destination",
+"☂ 날씨 상관없이": "☂ Ignore weather",
+"☔ 날씨 반영하기": "☔ Consider weather",
+"· 날씨 상관없이 짠 일정이에요": "· Planned regardless of weather"
 };

@@ -10,6 +10,29 @@
 
 ---
 
+## 2026-11-18 · 일정 미리보기 [☂ 날씨 상관없이] 버튼 · 숙소를 고르면 지도의 추천 숙소 정리 — 🟦 임영준 (🟩·🟧 파일)
+DB·마이그레이션·`.env` 변경 없음 · 기존 응답 키·함수 이름 그대로, 인자·키·함수 **추가만**
+
+### 1) 일정 미리보기 [☂ 날씨 상관없이]
+- 미리보기에 비·눈 오는 날이 있으면 '일정 미리보기' 옆에 버튼. 누르면 비 예보를 안 보고 다시 짬(실내 먼저 고르지 않음), 다시 누르면 [☔ 날씨 반영하기]로 원래대로
+  - 날짜 탭 날씨 표시는 그대로, 날씨 줄은 "… · 날씨 상관없이 짠 일정이에요", 실내 대안·'비 오면 아쉬워요' 문구는 숨김
+  - 켠 채로 [이 일정 적용하기]를 누르면 저장 일정도 같게
+- 🟩 `schedule_service.generate_schedule(travel, reset_existing=True, ignore_weather=False)` — `ignore_weather=True`면 `rainy_dates`를 빈 칸으로 (인자 추가만)
+- `travel_chat_preview`·`travel_chat_apply` 요청에 `ignore_weather`(true/false, 없으면 false) 추가. 미리보기 캐시 키에도 넣음
+- 화면: 여행 만들기 `travel_chat.js` + React(`PlanPreview.jsx`·`App.jsx`·`lib/api.js`·`plan.js`·`storage.js`, `npm run build`) 둘 다
+- 시험: 강릉 1박2일을 두 날 다 비로 만들어 비교 → 끄면 박물관 위주, 켜면 해변 위주(바다 컨셉 그대로)
+
+### 2) 숙소를 고르면 지도의 추천 숙소(보라색) 정리
+- 전: 숙소를 고른 뒤에도 추천 숙소 보라색 점·카드가 남고, 고른 숙소는 일정의 주황색 숙소 표시와 겹침
+- 🟧 `stay_pins.js`에 `TripaStayPins.forDraft(messages, draft)` 추가: 모든 밤을 정했으면 `[]`, 빈 밤이 남았으면 고른 숙소만 뺀 추천 목록 (`fromMessages`·`draw`는 그대로)
+- `travel_chat.js` `updateMap`, `MapPanel.jsx` `recStays`가 `forDraft`를 씀
+
+### 🟩 지윤 · 🟧 수한
+- [ ] 🟩 `generate_schedule`에 `ignore_weather` 인자가 생긴 것 확인 (기본값 False라 다른 곳 호출은 그대로)
+- [ ] 🟧 `stay_pins.js` `forDraft` 확인
+
+---
+
 ## 2026-11-18 · 🐛 채팅 초안 채우기 보완: 틀린 날짜·빠지는 인원·못 찾는 숙소 등 10가지 — 🟧 이수한
 DB·마이그레이션·`.env`·응답 키 변경 없음 · `services/chat_service.py` 만 (함수·표 추가, 기존 함수 이름 그대로)
 

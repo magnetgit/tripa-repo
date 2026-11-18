@@ -28,6 +28,7 @@ function freshState() {
     planBusy: false,
     planError: '',
     dayTab: 0,
+    ignoreWeather: false, // true 면 비 예보를 안 보고 일정을 짠다 (🟦 11/18)
     changed: [],       // 이번에 바뀐 초안 칸 이름 (반짝임 표시)
     changeTick: 0,
   };
@@ -131,11 +132,11 @@ export default function App({ cfg }) {
     const cur = stateRef.current;
     if (cur.planBusy || !cur.ready) return;
 
-    const sig = planSig(cur.draft);
+    const sig = planSig(cur.draft, cur.ignoreWeather);
     const rkey = removedKey(cur.removed, cur.order);
     update(() => ({ planBusy: true, planError: '' }));
 
-    fetchPreview(cfg, cur.draft, cur.removed, orderList(cur.order)).then(
+    fetchPreview(cfg, cur.draft, cur.removed, orderList(cur.order), cur.ignoreWeather).then(
       (data) => {
         if (data.ok && Array.isArray(data.days)) {
           errorSigRef.current = '';
@@ -156,7 +157,7 @@ export default function App({ cfg }) {
   }, [cfg, update]);
 
   // 초안이 바뀌면(말이 오가는 중엔 0.5초 기다렸다가) 한 번만 새로 만든다
-  const sig = planSig(state.draft);
+  const sig = planSig(state.draft, state.ignoreWeather);
   const fresh = isPlanFresh(state);
   useEffect(() => {
     if (!state.ready || fresh || state.planBusy || errorSigRef.current === sig) return undefined;
@@ -300,7 +301,7 @@ export default function App({ cfg }) {
       setApplyLabel('');
     };
 
-    applyPlan(cfg, cur.draft, cur.removed, orderList(cur.order)).then(
+    applyPlan(cfg, cur.draft, cur.removed, orderList(cur.order), cur.ignoreWeather).then(
       async (data) => {
         if (!data.ok) { fail(data.error || '일정을 만들지 못했어요.'); return; }
         clearChat(cfg.member);
@@ -364,6 +365,8 @@ export default function App({ cfg }) {
           onFocusPlace: (it, info) => setFocus({ name: it.name, lat: Number(it.lat), lon: Number(it.lon), key: Date.now(), info }),
           onTab: (i) => update(() => ({ dayTab: i })),
           onMove: moveItem, onRemove: removeItem, onResetOrder: resetOrder, onRestore: restoreDay, onRefresh: refreshPlan,
+          // '날씨 상관없이' 켜기·끄기 → 표식이 바뀌어 미리보기를 새로 만든다 (🟦 11/18)
+          onToggleWeather: () => { errorSigRef.current = ''; update((prev) => ({ ignoreWeather: !prev.ignoreWeather, planError: '' })); },
         }}
       />
       <MapPanel state={state} sprite={cfg.sprite} transitUrl={cfg.transitUrl} focus={focus} />

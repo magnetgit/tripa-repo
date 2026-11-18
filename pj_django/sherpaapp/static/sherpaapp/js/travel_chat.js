@@ -64,7 +64,8 @@
     planTabs: document.getElementById('tcTabs'),
     planBody: document.getElementById('tcTimeline'),
     planState: document.getElementById('tcPlanState'),
-    planRefresh: document.getElementById('tcPlanRefresh')
+    planRefresh: document.getElementById('tcPlanRefresh'),
+    planWeather: document.getElementById('tcPlanWeather')   // '날씨 상관없이' (🟦 11/18)
   };
 
   var state = {
@@ -79,7 +80,8 @@
     order: {},          // 미리보기에서 사용자가 바꾼 순서 {일차: [장소 이름, ...]}
     planBusy: false,
     planError: '',
-    dayTab: 0
+    dayTab: 0,
+    ignoreWeather: false   // true 면 비 예보를 안 보고 일정을 짠다 (🟦 11/18)
   };
   var planTimer = null;
   var removeTimer = null;
@@ -99,6 +101,7 @@
       state.plan = saved.plan && Array.isArray(saved.plan.days) ? saved.plan : null;
       state.removed = Array.isArray(saved.removed) ? saved.removed.filter(isRemoved) : [];
       state.order = cleanOrder(saved.order);
+      state.ignoreWeather = !!saved.ignoreWeather;
       return state.messages.length > 0;
     } catch (e) {
       return false;
@@ -114,7 +117,8 @@
         ready: state.ready,
         plan: state.plan,
         removed: state.removed,
-        order: state.order
+        order: state.order,
+        ignoreWeather: state.ignoreWeather
       }));
     } catch (e) { /* 저장이 안 돼도 동작에는 문제 없음 */ }
   }
@@ -967,7 +971,8 @@
       d.place, d.start, d.end, d.people, d.budget_style, d.budget_total, d.transport, d.categories, d.start_time,
       sp ? [sp.name, sp.lat, sp.lon] : null,
       (d.stays || []).map(function (x) { return [x.date, x.name, x.lat, x.lon, x.arrival_time, x.departure_time]; }),
-      (d.pins || []).map(function (p) { return [p.day, p.name, p.time, p.lat, p.lon]; })
+      (d.pins || []).map(function (p) { return [p.day, p.name, p.time, p.lat, p.lon]; }),
+      state.ignoreWeather
     ]);
   }
 
@@ -1137,6 +1142,7 @@
     el.planBody.textContent = '';
     el.planState.textContent = '';
     el.planRefresh.hidden = !state.ready || state.planBusy;
+    renderWeatherBtn();
 
     if (!state.ready) {
       planMessage('필수 정보를 모두 채우면 날짜별 일정 미리보기가 여기에 나와요.');
@@ -1187,12 +1193,15 @@
     });
 
     var day = days[state.dayTab];
-    var rainyDay = !!(day.weather && day.weather.rainy);
+    // '날씨 상관없이'면 비 오는 날 표시(실내 대안·비 오면 아쉬워요)도 안 함
+    var rainyDay = !state.ignoreWeather && !!(day.weather && day.weather.rainy);
 
     // 그날 날씨 한 줄 (비 오면 실외 장소에 '실내 대안' 버튼)
     if ('weather' in day) {
       var outdoorCount = dayItems(day).filter(function (it) { return it.indoor === false && !it.is_stay; }).length;
-      el.planBody.appendChild(make('p', rainyDay ? 'tc-rec__rain' : 'tc-plan__wx', dayWeatherText(day.weather, outdoorCount)));
+      var wxText = dayWeatherText(day.weather, outdoorCount);
+      if (state.ignoreWeather && day.weather) wxText = wxText.split(' · 실외')[0].split(' · 오늘 일정')[0] + ' · 날씨 상관없이 짠 일정이에요';
+      el.planBody.appendChild(make('p', rainyDay ? 'tc-rec__rain' : 'tc-plan__wx', wxText));
     }
 
     var list = make('ol', 'tc-tl');
@@ -1413,7 +1422,7 @@
     state.planError = '';
     renderPlan();
 
-    post(cfg.previewUrl, { draft: state.draft, removed: state.removed, order: orderList() })
+    post(cfg.previewUrl, { draft: state.draft, removed: state.removed, order: orderList(), ignore_weather: state.ignoreWeather })
       .then(function (data) {
         state.planBusy = false;
 
@@ -1742,7 +1751,9 @@
     }
 
     // 추천받은 숙소: 보라색 점 + 이름·1박 가격 카드 (🟧 11/16, js/stay_pins.js). 지도 범위도 추천 숙소에 맞춘다
-    var recStays = window.TripaStayPins ? window.TripaStayPins.fromMessages(state.messages) : [];
+    // 고른 숙소는 빼고, 모든 밤을 정했으면 안 그림 (🟦 11/18, 주황 숙소 표시와 겹치던 것)
+    var recStays = window.TripaStayPins
+      ? (window.TripaStayPins.forDraft || window.TripaStayPins.fromMessages)(state.messages, d) : [];
     if (recStays.length) {
       stayPins = window.TripaStayPins.draw(map, recStays, {
         chosen: function (item) {
@@ -1843,7 +1854,7 @@
     el.apply.appendChild(document.createTextNode('일정을 만드는 중...'));
     renderMessages();
 
-    post(cfg.applyUrl, { draft: state.draft, removed: state.removed, order: orderList() })
+    post(cfg.applyUrl, { draft: state.draft, removed: state.removed, order: orderList(), ignore_weather: state.ignoreWeather })
       .then(function (data) {
         if (data.ok) {
           clearStore();
@@ -1956,6 +1967,28 @@
 
   el.apply.addEventListener('click', applyDraft);
 
+  // '날씨 상관없이' 버튼: 비 예보가 있는 일정이거나 이미 켰을 때만 보임 (🟦 11/18)
+  function renderWeatherBtn() {
+    if (!el.planWeather) return;
+    var days = state.plan && planFresh() ? state.plan.days : [];
+    var rainy = days.some(function (day) { return day.weather && day.weather.rainy; });
+    el.planWeather.hidden = !state.ready || state.planBusy || !(rainy || state.ignoreWeather);
+    el.planWeather.setAttribute('aria-pressed', state.ignoreWeather ? 'true' : 'false');
+    el.planWeather.textContent = state.ignoreWeather ? '☔ 날씨 반영하기' : '☂ 날씨 상관없이';
+    el.planWeather.title = state.ignoreWeather
+      ? '비 예보가 있는 날은 실내 장소를 먼저 넣어 다시 짜요'
+      : '비 예보와 상관없이 원래 추천대로 다시 짜요';
+  }
+
+  if (el.planWeather) {
+    el.planWeather.addEventListener('click', function () {
+      state.ignoreWeather = !state.ignoreWeather;
+      state.planError = '';
+      save();
+      maybePlan(true);
+    });
+  }
+
   el.planRefresh.addEventListener('click', function () {
     state.planError = '';
     maybePlan(true);
@@ -1987,6 +2020,7 @@
     state.plan = null;
     state.removed = [];
     state.order = {};
+    state.ignoreWeather = false;
     state.planBusy = false;
     state.planError = '';
     state.dayTab = 0;

@@ -9,6 +9,9 @@ import { planPopupInfo } from '../lib/mapPopup.js';
 const WX_MARK = { sun: '☀', cloud: '☁', rain: '☔', snow: '❄' };
 const wxText = (w) => `${WX_MARK[w.kind] || '☁'}${w.temp != null ? ` ${w.temp}°` : ''}`;
 
+// 지금 미리보기에 비·눈 오는 날이 있는지 ('날씨 상관없이' 버튼을 보일지)
+const hasRainyDay = (state) => isPlanFresh(state) && state.plan.days.some((d) => d.weather && d.weather.rainy);
+
 function Msg({ text, loading, error }) {
   return (
     <div className="tc-plan__body" aria-live="polite">
@@ -18,7 +21,7 @@ function Msg({ text, loading, error }) {
 }
 
 export default function PlanPreview({
-  state, sprite, onTab, onMove, onRemove, onResetOrder, onRestore, onRefresh, focus, onFocusPlace,
+  state, sprite, onTab, onMove, onRemove, onResetOrder, onRestore, onRefresh, onToggleWeather, focus, onFocusPlace,
 }) {
   const [dragFrom, setDragFrom] = useState(-1);
   const [overIndex, setOverIndex] = useState(-1);
@@ -26,9 +29,24 @@ export default function PlanPreview({
   const head = (
     <div className="tc-plan__head">
       <h3><Icon name="route" sprite={sprite} /> 일정 미리보기</h3>
-      <button type="button" className="tc-link" hidden={!state.ready || state.planBusy} onClick={onRefresh}>
-        다시 만들기
-      </button>
+      <span className="tc-plan__acts">
+        {/* 비 예보와 상관없이 짜기 (🟦 11/18): 비 오는 날이 있는 일정이거나 이미 켰을 때만 */}
+        {onToggleWeather && (
+          <button
+            type="button"
+            className="tc-wxbtn"
+            aria-pressed={!!state.ignoreWeather}
+            hidden={!state.ready || state.planBusy || !(state.ignoreWeather || hasRainyDay(state))}
+            title={state.ignoreWeather ? '비 예보가 있는 날은 실내 장소를 먼저 넣어 다시 짜요' : '비 예보와 상관없이 원래 추천대로 다시 짜요'}
+            onClick={onToggleWeather}
+          >
+            {state.ignoreWeather ? '☔ 날씨 반영하기' : '☂ 날씨 상관없이'}
+          </button>
+        )}
+        <button type="button" className="tc-link" hidden={!state.ready || state.planBusy} onClick={onRefresh}>
+          다시 만들기
+        </button>
+      </span>
     </div>
   );
 
@@ -62,6 +80,8 @@ export default function PlanPreview({
   const farText = far ? farLegText(far) : null;
   const moveSum = items.reduce((s, it, i) => s + (it.move != null && !(far && i === 0) ? it.move : 0), 0);
   const goneToday = state.removed.filter((r) => r.day === day.day).length;
+  // '날씨 상관없이'면 비 오는 날 표시(실내/실외 비 문구)도 안 함 (🟦 11/18)
+  const rainyDay = !state.ignoreWeather && !!(day.weather && day.weather.rainy);
 
   return (
     <section className="tc-plan" aria-label="일정 미리보기">
@@ -90,14 +110,14 @@ export default function PlanPreview({
 
       <div className="tc-plan__body" aria-live="polite">
         {'weather' in day && (
-          <p className={day.weather && day.weather.rainy ? 'tc-rec__rain' : 'tc-plan__wx'}>
+          <p className={rainyDay ? 'tc-rec__rain' : 'tc-plan__wx'}>
             {!day.weather
               ? '날씨 정보를 찾지 못했어요.'
               : day.weather.source === 'last_year'
                 ? `${wxText(day.weather)} 작년 이맘때 ${day.weather.label || ''}${day.weather.last_year_rain ? ' · 작년엔 비·눈이 왔어요' : ''} · 예보는 여행 16일 전부터 나와요`
                 : day.weather.source === 'past'
                   ? `${wxText(day.weather)} 그날 날씨 ${day.weather.label || ''}`
-                  : `${wxText(day.weather)} ${day.weather.label || ''}${day.weather.rain_pct != null ? ` · 강수 ${day.weather.rain_pct}%` : ''}${day.weather.rainy ? ' · 실외 장소는 실내로 바꾸는 걸 생각해 보세요' : ' · 실외 일정도 괜찮아요'}`}
+                  : `${wxText(day.weather)} ${day.weather.label || ''}${day.weather.rain_pct != null ? ` · 강수 ${day.weather.rain_pct}%` : ''}${state.ignoreWeather ? ' · 날씨 상관없이 짠 일정이에요' : day.weather.rainy ? ' · 실외 장소는 실내로 바꾸는 걸 생각해 보세요' : ' · 실외 일정도 괜찮아요'}`}
           </p>
         )}
         <ol className="tc-tl">
@@ -167,7 +187,7 @@ export default function PlanPreview({
                     ) : it.kind ? (
                       <span className="tc-tag">{it.kind}</span>
                     ) : null}
-                    {!it.is_stay && <PlaceTag indoor={it.indoor} rainy={!!(day.weather && day.weather.rainy)} />}
+                    {!it.is_stay && <PlaceTag indoor={it.indoor} rainy={rainyDay} />}
                     <span className="tc-tl__mv">
                       <button type="button" className="tc-tl__mvbtn" title="위로" aria-label={`${it.name} 위로 옮기기`}
                         disabled={i === 0} onClick={() => onMove(day, i, i - 1)}>↑</button>

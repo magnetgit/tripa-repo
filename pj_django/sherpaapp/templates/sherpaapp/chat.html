@@ -6,7 +6,7 @@
     <title>TRIPA - 여행 만들기 (React)</title>
 
     <!-- 화면 모양은 기존 여행 만들기와 같은 style.css 를 그대로 씀 -->
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261116b">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261118">
     <!-- React 빌드 결과물 (frontend 에서 npm run build → static/chat/) -->
     <link rel="stylesheet" href="{% static 'chat/chat.css' %}">
 </head>
@@ -65,7 +65,7 @@
 
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ KAKAO_MAP_API_KEY }}&autoload=false"></script>
 <!-- 추천 숙소를 지도에 점 + 이름·가격 카드로 (🟧 11/16). React 지도(MapPanel.jsx)가 window.TripaStayPins 로 씀 -->
-<script src="{% static 'sherpaapp/js/stay_pins.js' %}?v=20261116"></script>
+<script src="{% static 'sherpaapp/js/stay_pins.js' %}?v=20261118"></script>
 <script type="module" src="{% static 'chat/chat.js' %}"></script>
 
 </body>

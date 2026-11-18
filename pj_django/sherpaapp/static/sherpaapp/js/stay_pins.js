@@ -12,6 +12,7 @@
  *   pins.points  → kakao.maps.LatLng 목록 (지도 범위를 숙소에 맞출 때)
  *   pins.clear() → 지우기 (다시 그리기 전에)
  *   TripaStayPins.fromMessages(messages) → 가장 최근 추천 중 숙소만 (좌표 있는 것)
+ *   TripaStayPins.forDraft(messages, draft) → 위 목록에서 고른 숙소 빼기, 모든 밤을 정했으면 [] (🟦 11/18)
  *
  * items 는 추천 카드 그대로 (mock.json recommendation.items): name, lat, lon, kind, cost{per, unit}
  */
@@ -72,6 +73,24 @@
       }
     }
     return [];
+  }
+
+  /** 지도에 그릴 추천 숙소 (🟦 11/18): 고른 뒤에는 겹치지 않게
+   *  - 모든 밤에 숙소를 정했으면 [] (추천 숙소는 더 안 보여 줌)
+   *  - 빈 밤이 남았으면 추천 중 이미 고른 숙소만 뺌 (고른 숙소는 일정의 주황색 숙소 표시로 보임)
+   */
+  function forDraft(messages, draft) {
+    var items = fromMessages(messages);
+    if (!items.length || !draft) return items;
+    var stays = (draft.stays || []).filter(function (s) { return s && s.lat != null; });
+    var start = draft.start ? new Date(draft.start + 'T00:00:00') : null;
+    var end = draft.end ? new Date(draft.end + 'T00:00:00') : null;
+    var nights = start && end ? Math.round((end - start) / 86400000) : 0;
+    var booked = {};
+    stays.forEach(function (s) { if (s.date) booked[s.date] = true; });
+    if (nights > 0 && Object.keys(booked).length >= nights) return [];
+    var names = stays.map(function (s) { return s.name || s.query; });
+    return items.filter(function (it) { return names.indexOf(it.name) < 0; });
   }
 
   function overlap(a, b, gap) {
@@ -187,5 +206,5 @@
     };
   }
 
-  window.TripaStayPins = { draw: draw, fromMessages: fromMessages, priceText: priceText };
+  window.TripaStayPins = { draw: draw, fromMessages: fromMessages, forDraft: forDraft, priceText: priceText };
 })();
