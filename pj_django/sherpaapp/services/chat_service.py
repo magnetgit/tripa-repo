@@ -373,6 +373,12 @@ def _find_stay(query, region):
         found = kakao_first_place(_with_region(text, region), group='AD5')
         if found:
             return found
+    # 🟧 11/18(3차) 숙소 이름에 다른 도시가 들어 있으면 여행 지역을 붙이지 않고 한 번 더
+    #   ('순천' 여행인데 둘째 밤은 '여수 유탑마리나호텔' → '순천 여수 유탑마리나호텔'로 찾아 못 찾았음)
+    #   도시 이름이 있을 때만 (지역 없이 아무 말이나 찾으면 엉뚱한 지역의 숙소가 나옴)
+    from .access_service import CITIES
+    if any(name in query and name not in (region or '') for name in CITIES):
+        return kakao_first_place(query, group='AD5')
     return None
 
 
@@ -981,6 +987,12 @@ def open_nights(draft):
 _SAME_STAY_WORDS = ('같은 곳', '같은곳', '같은 숙소', '같은숙소', '거기서', '똑같이', '그대로', '연박')
 
 
+# 어느 밤 숙소인지 짚어 말한 것: '11월 29일 숙소는', '12/6 밤은', '마지막 밤만', '둘째 날 숙소'
+_STAY_NIGHT_RE = re.compile(
+    r'\d{1,2}\s*(?:월|[./])\s*\d{1,2}\s*일?\s*(?:에|의|은|는)?\s*(?:밤|숙소|숙박|호텔)'
+    r'|(?:마지막|첫|첫째|둘째|셋째|넷째)\s*(?:날|밤)\s*(?:에|의|은|는|만)?\s*(?:밤|숙소|숙박|호텔|만|은|는)')
+
+
 def fill_open_nights(draft, prev, user_text):
     """숙소를 날짜 없이 한 곳만 말하면 비어 있는 밤에도 같은 숙소를 넣는다. (🟦 11/12)
 
@@ -990,7 +1002,9 @@ def fill_open_nights(draft, prev, user_text):
     """
     stays = list(draft.get('stays') or [])
     start = _parse_date(draft.get('start'))
-    if not start or guess_trip_day(user_text):
+    # 🟧 11/18(3차) '11월 29일 숙소는 ○○'처럼 날짜를 말했으면 그 밤만 (전엔 '2일차'라고 말할 때만 안 채웠음)
+    #   날짜 바로 뒤에 숙소 말이 올 때만 ('11월 28일부터 2박 3일 … 숙소는 ○○'의 날짜는 여행 날짜라 지금처럼 모든 밤에 채움)
+    if not start or guess_trip_day(user_text) or _STAY_NIGHT_RE.search(user_text or ''):
         return
 
     prev_keys = {(s.get('date'), s.get('query')) for s in prev.get('stays') or [] if isinstance(s, dict)}
@@ -2020,6 +2034,7 @@ def _same_region(a, b):
 _CHANGE_PLACE_RE = re.compile(r'바꿔|바꿀|변경|말고|대신|가자|갈래|할래|로\s*하자|change|instead', re.I)
 
 
+_STAY_REMOVE_RE = re.compile(r'(?:숙소|숙박|호텔)[^.,!?\n]{0,12}(?:빼|지워|지우|삭제|취소|없애)')
 _FOREIGN_STAY_RE = re.compile(
     r'hotel|hostel|resort|motel|airbnb|guest\s*house|accommodat|lodging|staying|stay at|check[\s-]?in|villa'
     r'|ホテル|旅館|宿|泊|酒店|宾馆|民宿|住在', re.I)
@@ -2200,6 +2215,13 @@ def _keep_found_stays(ai_stays, prev, user_text):
         return ai_stays
     if any(word in (user_text or '') for word in _STAY_ASK_WORDS + _STAY_WORDS) or _FOREIGN_STAY_RE.search(user_text or ''):
         return ai_stays
+    # 🟧 11/18(3차) '마지막 밤만 부산역 토요코인으로' — 숙소라는 낱말은 없지만 AI가 새로 넣은 숙소 이름이 이번 말에 있으면 숙소 이야기
+    said = _squash(user_text)
+    known = {_squash(x.get('query')) for x in prev.get('stays') or [] if isinstance(x, dict)}
+    for item in ai_stays:
+        query = _squash(item.get('query')) if isinstance(item, dict) else ''
+        if query and query not in known and query in said:
+            return ai_stays
 
     view = {s['date']: s for s in _llm_view(prev).get('stays') or [] if s.get('date')}
     found = {
@@ -2458,15 +2480,23 @@ def guess_dates(text, today):
         return found
 
     # 2) '이번주 토요일', '다음주 금요일', '토요일'
-    match = _WEEK_DAY_RE.search(text)
-    if match:
+    # 🟧 11/18(3차) '○○ 말고'가 붙은 것은 버림 ('이번 주말 말고 다음 주말' → 다음 주말)
+    #   요일을 둘 말하면 앞이 출발, 뒤가 돌아오는 날 ('토요일에 출발해서 일요일에 오는')
+    days = [m for m in _WEEK_DAY_RE.finditer(text) if not _NOT_THIS_RE.match(text[m.end():])]
+    if days:
+        match = days[0]
         found['start'] = _weekday_date(today, _WEEKDAY_INDEX[match.group(2)], _week_offset(match.group(1)))
+        if len(days) > 1 and found['nights'] is None:
+            back = _WEEKDAY_INDEX[days[1].group(2)]
+            gap = (back - found['start'].weekday()) % 7
+            if 0 < gap <= 6:
+                found['end'] = found['start'] + timedelta(days=gap)
         return found
 
     # 3) '이번 주말', '다음주 주말' → 그 주 토요일
-    match = _WEEKEND_RE.search(text)
-    if match:
-        found['start'] = _weekday_date(today, 5, _week_offset(match.group(1)))
+    ends = [m for m in _WEEKEND_RE.finditer(text) if not _NOT_THIS_RE.match(text[m.end():])]
+    if ends:
+        found['start'] = _weekday_date(today, 5, _week_offset(ends[0].group(1)))
         return found
 
     # 4) '3일 뒤', '내일', '모레'
@@ -2484,6 +2514,25 @@ def guess_dates(text, today):
             break
 
     return found
+
+
+_PAST_START_RE = re.compile(
+    r'(?:어제|그저께|그제|엊그제|지난\s*주|저번\s*주|지난\s*달|작년)\s*(?:[월화수목금토일]요일)?\s*(?:에|날)?\s*(?:부터|출발|가려|갈\s*거|갈래)')
+
+
+def said_past_date(text, today):
+    """분명히 지난 날짜를 여행 날짜로 말했는지 (🟧 11/18): 연도까지 말한 지난 날짜('2025년 11월 10일'), '어제부터'·'지난주에'
+    연도 없이 말한 '11월 10일'은 내년 날짜로 읽으므로 해당 없음"""
+    text = text or ''
+    if any(w in text for w in _STAY_WORDS + _NOT_TRIP_DATE_WORDS):
+        return False
+    dated = re.sub(r'(\d{4})-(\d{1,2})-(\d{1,2})', r'\1년 \2월 \3일', text)
+    for match in _MONTH_DAY_RE.finditer(dated):
+        if match.group(1):
+            day = _month_day(match.group(1), match.group(2), match.group(3), today)
+            return bool(day and day < today)
+    # '어제부터'·'지난주 토요일에 출발'처럼 지난 때를 출발로 말했을 때만 ('어제 본 영상', '지난주에 다녀온 강릉'은 아님)
+    return bool(_PAST_START_RE.search(text))
 
 
 def _apply_guessed_dates(ai_draft, prev, messages, today):
@@ -2592,6 +2641,20 @@ _ADULT_CUES = ((('부부', '아내', '와이프', '남편', '신랑', '집사람
 
 # '인당 25만원', '1인당 30만 원', '한 사람당 20만원' (🟧 11/18)
 _PER_PERSON_BUDGET_RE = re.compile(r'(?:1\s*인당|일인당|인당|한\s*사람당|한\s*명당|각자)\s*(\d{1,4})\s*만\s*원?')
+
+
+_PEOPLE_MORE_RE = re.compile(r'(한|두|세|네|다섯|\d{1,2})\s*(?:명|사람)\s*(?:이|을|만)?\s*(더|추가|늘|빠|줄|못\s*가|안\s*가|덜)')
+
+
+def relative_people(text, before):
+    """'한 명 더 갈 거야' → before + 1, '두 명 빠졌어' → before - 2. 해당 없으면 None"""
+    match = _PEOPLE_MORE_RE.search(text or '')
+    if not match or not before:
+        return None
+    count = _KOREAN_COUNTS.get(match.group(1)) or int(match.group(1))
+    more = match.group(2) in ('더', '추가', '늘')
+    people = before + count if more else before - count
+    return people if 1 <= people <= 30 else None
 
 
 def guess_people(text):
@@ -3170,6 +3233,13 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
 
     # 숙소 얘기가 없는 턴에는 이미 찾은 숙소를 지킨다 (로컬 모델이 예전 말로 덮어쓰는 문제)
     ai_draft['stays'] = _keep_found_stays(ai_draft.get('stays'), prev, messages[-1]['content'])
+    # 🟧 11/18(3차) '숙소 빼줘'·'2일차 숙소 지워줘' → AI가 그대로 두는 경우가 있어서 코드로 뺌
+    if _STAY_REMOVE_RE.search(messages[-1]['content']) and isinstance(ai_draft.get('stays'), list):
+        gone_day = guess_trip_day(messages[-1]['content'])
+        first = _parse_date(prev.get('start'))
+        gone_date = (first + timedelta(days=gone_day - 1)).isoformat() if gone_day and first else None
+        ai_draft['stays'] = [x for x in ai_draft['stays']
+                             if gone_date and isinstance(x, dict) and x.get('date') != gone_date]
     ai_draft['stays'] = _drop_unsaid_stays(ai_draft.get('stays'), prev, messages[-1]['content'])
 
     guessed_cats = []
@@ -3212,7 +3282,11 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
 
     # 인원은 사용자 문장에서 코드로 읽은 값을 먼저 쓴다 ('혼자 가', '둘이서', '4명')
     guessed_people = guess_people(messages[-1]['content'])
-    if guessed_people:
+    # 🟧 11/18(3차) '한 명 더 늘었어'·'두 명 빠졌어' → 정해 둔 인원에서 더하고 빼기 (전엔 '한 명'만 읽어 1명이 됐음)
+    moved_people = relative_people(messages[-1]['content'], prev.get('people'))
+    if moved_people:
+        ai_draft['people'] = moved_people
+    elif guessed_people:
         ai_draft['people'] = guessed_people
 
     # 🟧 11/18 '예산은 인당 25만원' → 총예산 = 금액 × 인원 (AI가 가끔 25만원 그대로 넣었음)
@@ -3224,6 +3298,12 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     # 날짜는 사용자 문장에서 코드로 계산한 값을 먼저 쓴다 ('이번주 토요일', '2박 3일')
     ai_dates = (ai_draft.get('start'), ai_draft.get('end'))
     ai_draft = _apply_guessed_dates(ai_draft, prev, messages, today)
+    # 🟧 11/18 분명히 지난 날짜를 말했으면 날짜를 넣지 않는다 (AI가 내년 같은 날짜로 바꿔 넣었음). 정해 둔 날짜가 있으면 그대로
+    past_said = said_past_date(user_text, today)
+    if past_said:
+        ai_draft['start'], ai_draft['end'] = prev.get('start'), prev.get('end')
+        if isinstance(ai_draft.get('stays'), list) and not prev.get('start'):
+            ai_draft['stays'] = []
     dates_fixed = ai_dates != (ai_draft.get('start'), ai_draft.get('end'))
 
     # 🟧 11/18 코드가 출발일을 바로잡았으면, AI가 틀린 날짜에 맞춰 적은 숙소 날짜도 같은 만큼 옮긴다
@@ -3296,6 +3376,18 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         sentences = re.split(r'(?<=[.?!])\s+', reply)
         kept = [x for x in sentences if not ('지역' in x and ('?' in x or '않' in x or '정해' in x)) and '어디로' not in x]
         reply = ' '.join(["여행 지역은 '%s'(으)로 반영했어요." % new_draft['place']] + kept).strip()
+
+    if past_said:
+        # AI 답에는 틀린 날짜가 적혀 있을 수 있어서 날짜 문장을 빼고, 왜 안 들어갔는지 알려 줌
+        kept = [x for x in re.split(r'(?<=[.?!])\s+', reply) if not _REPLY_DATE_RE.search(x) and '출발일' not in x and '종료일' not in x]
+        reply = ' '.join(['지난 날짜로는 일정을 만들 수 없어요. 출발일을 오늘 이후로 다시 알려 주세요.'] + kept).strip()
+
+    # 🟧 11/18 올해 이미 지난 날짜('11월 10일')를 말하면 내년 날짜로 들어간다 → 조용히 넘어가지 않게 알려 줌
+    rolled = _parse_date(new_draft.get('start'))
+    if rolled and not past_said and new_draft.get('start') != prev.get('start') and rolled.year == today.year + 1 \
+            and (rolled - today).days > 300 and '내년' not in user_text and str(rolled.year) not in user_text:
+        notes.append('%d월 %d일은 올해 이미 지나서 내년(%d년) 날짜로 넣었어요. 다른 날이면 다시 말해 주세요.'
+                     % (rolled.month, rolled.day, rolled.year))
 
     # 숙소/출발지를 못 찾았으면 알려준다
     for place in [new_draft.get('start_place')] + (new_draft.get('stays') or []):

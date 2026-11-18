@@ -229,6 +229,7 @@
                                 id="t_start"
                                 name="t_start"
                                 value="{{ travel.t_start|date:'Y-m-d' }}"
+                                {% now "Y-m-d" as today_str %}{% if travel.t_start|date:'Y-m-d' >= today_str %} min="{{ today_str }}"{% endif %}
                                 required>
 
                         </div>
@@ -247,6 +248,7 @@
                                 id="t_end"
                                 name="t_end"
                                 value="{{ travel.t_end|date:'Y-m-d' }}"
+                                {% now "Y-m-d" as today_str %}{% if travel.t_start|date:'Y-m-d' >= today_str %} min="{{ today_str }}"{% endif %}
                                 required>
 
                         </div>

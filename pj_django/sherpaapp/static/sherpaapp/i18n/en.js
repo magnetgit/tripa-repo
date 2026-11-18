@@ -1382,5 +1382,7 @@ window.TRIPA_DICT = {
 "인증번호 5번째 숫자": "Verification code digit 5",
 "인증번호 6번째 숫자": "Verification code digit 6",
 " 메일이 오지 않았다면 [이전]으로 돌아가 아이디·이메일·이름을 확인해 주세요.": " If no email arrived, go back with [Back] and check the ID, email and name.",
-"메일이 오지 않았다면 [이전]으로 돌아가 아이디·이메일·이름을 확인해 주세요.": "If no email arrived, go back with [Back] and check the ID, email and name."
+"메일이 오지 않았다면 [이전]으로 돌아가 아이디·이메일·이름을 확인해 주세요.": "If no email arrived, go back with [Back] and check the ID, email and name.",
+"지난 날짜로는 옮길 수 없어요. 시작하는 날을 오늘 이후로 골라 주세요.": "You can't move it to a past date. Please pick a start date from today onward.",
+"지난 날짜로는 일정을 만들 수 없어요. 출발일을 오늘 이후로 정해 주세요.": "You can't create a plan for a past date. Please set the start date to today or later."
 };
