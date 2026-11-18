@@ -2344,11 +2344,11 @@
             <div class="trip-edit__row">
                 <label class="trip-edit__field">
                     <span>시작하는 날</span>
-                    <input type="date" name="t_start" value="{{ travel.t_start|date:'Y-m-d' }}">
+                    <input type="date" name="t_start" value="{{ travel.t_start|date:'Y-m-d' }}"{% now "Y-m-d" as today_str %}{% if travel.t_start|date:'Y-m-d' >= today_str %} min="{{ today_str }}"{% endif %}>
                 </label>
                 <label class="trip-edit__field">
                     <span>끝나는 날</span>
-                    <input type="date" name="t_end" value="{{ travel.t_end|date:'Y-m-d' }}">
+                    <input type="date" name="t_end" value="{{ travel.t_end|date:'Y-m-d' }}"{% now "Y-m-d" as today_str %}{% if travel.t_start|date:'Y-m-d' >= today_str %} min="{{ today_str }}"{% endif %}>
                 </label>
             </div>
 

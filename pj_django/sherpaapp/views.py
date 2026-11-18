@@ -1202,6 +1202,11 @@ def travel_detail_day(
 # 여행 수정
 # ==============================================
 
+def _alert_back(message):
+    """알림을 띄우고 앞 화면으로 (옛 폼 화면용). 문구는 코드에 적힌 것만 넣는다"""
+    return HttpResponse("<script>alert(%s);history.back();</script>" % json.dumps(message, ensure_ascii=False))
+
+
 def travel_update(
     request,
     travel_id
@@ -1234,11 +1239,30 @@ def travel_update(
             member = None
 
 
+    # 🟧 11/18 내 여행만 (전엔 주인 확인이 없어서 여행 번호만 알면 남의 여행을 열고 고칠 수 있었음)
+    if not member:
+        return redirect('login')
+    if travel.member_id != member.m_id:
+        return HttpResponseForbidden('내 여행만 수정할 수 있어요.')
+
     # ==========================================
     # 수정 저장
     # ==========================================
 
     if request.method == 'POST':
+
+        # 🟧 11/18 날짜 검사: 모양·순서·지난 날짜 (지난 날짜로 '바꾸는' 것만 막음)
+        try:
+            form_start = datetime.strptime(request.POST.get('t_start') or '', '%Y-%m-%d').date()
+            form_end = datetime.strptime(request.POST.get('t_end') or '', '%Y-%m-%d').date()
+        except ValueError:
+            return _alert_back('날짜를 다시 골라 주세요.')
+        if form_end < form_start:
+            return _alert_back('끝나는 날이 시작하는 날보다 빠를 수 없어요.')
+        if form_start != travel.t_start and form_start < date.today():
+            return _alert_back('지난 날짜로는 옮길 수 없어요. 시작하는 날을 오늘 이후로 골라 주세요.')
+        if (form_end - form_start).days + 1 > TRAVEL_MAX_DAYS:
+            return _alert_back('여행 기간은 %d일까지 정할 수 있어요.' % TRAVEL_MAX_DAYS)
 
         travel.t_title = (
             request.POST.get(
@@ -1664,6 +1688,9 @@ def travel_reschedule(request, travel_id):
         return JsonResponse({'success': False, 'message': '이름과 지역은 100자까지 쓸 수 있어요.'}, status=400)
     if new_end < new_start:
         return JsonResponse({'success': False, 'message': '끝나는 날이 시작하는 날보다 빠를 수 없어요.'}, status=400)
+    # 🟧 11/18 출발일을 지난 날짜로 옮길 수 없다 (날짜를 그대로 두고 이름·지역만 고치는 것은 지난 여행도 됨)
+    if new_start != travel.t_start and new_start < date.today():
+        return JsonResponse({'success': False, 'message': '지난 날짜로는 옮길 수 없어요. 시작하는 날을 오늘 이후로 골라 주세요.'}, status=400)
     if (new_end - new_start).days + 1 > TRAVEL_MAX_DAYS:
         return JsonResponse({'success': False, 'message': '여행 기간은 %d일까지 정할 수 있어요.' % TRAVEL_MAX_DAYS}, status=400)
 
@@ -5347,6 +5374,9 @@ def travel_chat(request):
     return JsonResponse(result)
 
 
+PAST_DATE_MESSAGE = '지난 날짜로는 일정을 만들 수 없어요. 출발일을 오늘 이후로 정해 주세요.'
+
+
 @require_POST
 def travel_chat_apply(request):
     member = _chat_member(request)
@@ -5362,6 +5392,11 @@ def travel_chat_apply(request):
     category_names = list(
         Category.objects.order_by('c_id').values_list('c_name', flat=True)
     )
+
+    # 🟧 11/18 지난 날짜로는 여행을 만들 수 없다 (아래 normalize 가 출발일을 비우기 전에 이유를 알려 줌)
+    raw_start = chat_service._parse_date((body.get('draft') or {}).get('start')) if isinstance(body.get('draft'), dict) else None
+    if raw_start and raw_start < date.today():
+        return _chat_error(PAST_DATE_MESSAGE, 400)
 
     # 브라우저가 보낸 초안은 한 번 더 검증한다.
     draft = chat_service.normalize_draft(
