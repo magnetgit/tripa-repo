@@ -946,11 +946,28 @@ _STAY_ASK_WORDS = ('숙소', '숙박', '호텔', '게스트하우스', '게하',
                    '잘만한', '잘 만한', '잘 수 있는', '잘수있는', '자는 곳', '잠자는', '하룻밤', '머물', '묵는', '묵고',
                    '민박', '에어비앤비', '에어비엔비', '풀빌라', '글램핑', '한옥스테이', '레지던스', '콘도', '여관')
 _STAY_REQUEST_WORDS = ('추천', '찾아', '알려', '골라', '어디가 좋', '어디 좋',
-                       '보여줘', '보여 줘', '정해줘', '정해 줘', '구해줘', '구해 줘', '잡아줘', '잡아 줘', '좋을까', '없을까')
+                       '보여줘', '보여 줘', '정해줘', '정해 줘', '구해줘', '구해 줘', '잡아줘', '잡아 줘', '좋을까', '없을까',
+                       # 🟩 11/18 '더 싼 곳 없니', '비싼 데 있어?' (화면 시험에서 카드 없이 말로만 답했음)
+                       '없니', '없나', '없냐', '없어?', '있니', '있나', '있냐', '있어?', '있을까')
 # 사용자가 종류를 말하면 그 종류만
 _STAY_TYPES = ('게스트하우스', '호스텔', '펜션', '리조트', '모텔', '호텔', '민박', '풀빌라', '글램핑', '한옥스테이')
 _CHEAP_WORDS = ('저렴', '싼', '싸게', '가성비', '저가', '알뜰')
-_PREMIUM_WORDS = ('고급', '럭셔리', '특급', '5성', '오성', '비싸도', '오션뷰')
+_PREMIUM_WORDS = ('고급', '럭셔리', '특급', '5성', '오성', '비싸도', '오션뷰', '비싼', '비싸', '프리미엄', '호캉스')
+# '너무 비싸', '비싸서'는 더 싼 곳을 찾는 말
+_TOO_PRICEY_RE = re.compile(r'너무\s*비싸|비싸서|비싸네|비싸다|비싼데|비싸요|비싸ㅠ')
+
+
+def stay_price(text):
+    """숙소 가격 말 → 'cheap' · 'premium' · None (🟩 11/18)
+    '비싼' 안에 '싼'이 있어서 '더 비싼 곳'이 저렴한 숙소가 되지 않게 '비싼·비싸'를 먼저 지우고 본다"""
+    text = text or ''
+    if _TOO_PRICEY_RE.search(text):
+        return 'cheap'
+    if any(w in re.sub(r'비싼|비싸', '', text) for w in _CHEAP_WORDS):
+        return 'cheap'
+    if any(w in text for w in _PREMIUM_WORDS):
+        return 'premium'
+    return None
 _STAY_NEAR_RE = re.compile(r'([가-힣A-Za-z0-9]+)\s*(?:근처|주변|부근|인근|쪽)')
 
 # 숙소 종류별로 몇 개씩 찾을지 (카카오 분류 AD5 = 숙박)
@@ -1170,7 +1187,9 @@ def stay_recommend(messages, rec, draft, ai_query=''):
     text = messages[-1]['content'] if messages else ''
     last_ai = next((m['content'] for m in reversed(messages[:-1]) if m['role'] == 'assistant'), '')
 
-    if not any(w in text for w in _STAY_REQUEST_WORDS):
+    price = stay_price(text)
+    # 🟩 11/18 숙소 얘기 중에 '아니다 더 비싼곳으로'처럼 가격만 말해도 추천
+    if not any(w in text for w in _STAY_REQUEST_WORDS) and not (price and '숙소' in last_ai):
         return None
 
     mentions = any(w in text for w in _STAY_ASK_WORDS)
@@ -1223,10 +1242,12 @@ def stay_recommend(messages, rec, draft, ai_query=''):
 
     # 종류: 사용자가 말한 종류 → 가격 말 → 인원
     kind = next((t for t in _STAY_TYPES if t in text), None)
-    if any(w in text for w in _CHEAP_WORDS):
-        tier = 'cheap'
-    elif any(w in text for w in _PREMIUM_WORDS):
-        tier = 'premium'
+    if not price and not kind:
+        # 🟩 11/18 '더 비싼곳으로' 다음에 '추천하라고'만 하면 앞 말의 가격을 이어서 (전엔 4명이라 단체 숙소가 나왔음)
+        before = [m['content'] for m in reversed(messages[:-1]) if m['role'] == 'user'][:4]
+        price = next((p for p in map(stay_price, before) if p), None)
+    if price:
+        tier = price
     elif (draft.get('people') or 0) >= 4:
         tier = 'group'
     else:
