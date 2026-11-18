@@ -2565,6 +2565,13 @@ def guess_start_place(text, place):
     return name, when
 
 
+# 시·군 이름이지만 다른 뜻으로 더 자주 쓰는 말 (🟧 11/18 도시 표가 시·군 139곳으로 늘어서)
+# '예산 50만원', '동해 바다', '화성 탐사' … 이런 말은 AI가 지역으로 읽었을 때만 지역이 됨
+_PLACE_WORDS_NOT_CITY = {'예산', '동해', '남해', '화성', '영광', '보은', '장수', '고성', '진도', '영동', '구미',
+                         '사천', '하동', '산청', '무안', '보성', '강진', '화순', '장성', '청도', '고령', '영양',
+                         '음성', '진천', '과천', '시흥', '오산', '의왕', '군포', '광명', '양주', '부여', '공주', '상주'}
+
+
 def guess_place(text):
     """'대구 맛집 위주로' → '대구'. AI가 여행 지역을 빠뜨렸을 때만 쓴다 (🟧 11/18, 같은 말에 가끔 지역을 안 적었음)
     가는 길 비교가 아는 도시 이름(access_service.CITIES)만 읽고, '서울역에서 출발'·'부산 말고'처럼 여행지가 아닌 말은 건너뜀"""
@@ -2572,6 +2579,8 @@ def guess_place(text):
     text = text or ''
     best = None
     for name in CITIES:
+        if name in _PLACE_WORDS_NOT_CITY:
+            continue
         for match in re.finditer(re.escape(name), text):
             after = text[match.end():match.end() + 6]
             if re.match(r'\s*(?:역|공항|터미널|항|IC|시청|에서|말고|대신|출발|살|사는)', after):

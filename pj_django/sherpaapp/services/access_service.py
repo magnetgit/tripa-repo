@@ -22,6 +22,8 @@ from datetime import date, datetime, time, timedelta
 
 from django.core.cache import cache
 
+from . import rest_stop_service
+from .region_cities import REGION_CITIES
 from . import transport_timetable as tt
 
 # 도시: 좌표, TAGO 역 이름, 고속버스 터미널, 가까운 공항, 항구
@@ -56,6 +58,12 @@ CITIES = {
     '욕지도': {'pos': (34.6330, 128.2640), 'port': '욕지항여객선터미널', 'island': True},
     '청산도': {'pos': (34.1800, 126.8580), 'port': '청산도항여객터미널', 'island': True},
 }
+# 큰 도시(위 표): 출발지가 어느 도시인지, 작은 도시로 갈 때 어디를 거칠지 정할 때 씀
+CORE_CITIES = tuple(CITIES)
+# 🟧 11/18 지방 시·군 139곳 더하기 (services/region_cities.py). 전엔 표에 없는 도시(거제 등)는 60km 안의
+# 가장 가까운 큰 도시(부산)로 잡혀서, 차로 가도 '부산 시내' 도착 → 부산에서 거제로 다시 가는 일정이 됐음
+for _name, _city in REGION_CITIES.items():
+    CITIES.setdefault(_name, dict(_city))
 STATION_LABEL = {'여수EXPO': '여수엑스포역', '경주': '신경주역'}
 # ---- 섬 가는 배 (🟧 11/17 항구별로 다시 짬) ----
 # 뭍 쪽 항구: 이름(카카오 검색용) · 좌표(검색 실패 때) · 화면에 쓰는 짧은 이름
@@ -129,6 +137,7 @@ LEAVE_HOME = 7 * 60         # 첫날 집에서 나서는 가장 이른 시각
 RETURN_AFTER = 17 * 60      # 마지막 날 돌아오는 편은 오후 5시 뒤 첫 편
 BUFFER = {'flight': 50, 'ferry': 40, 'ktx': 15, 'itx': 15, 'bus': 15}
 CACHE_SECONDS = 600
+VIA_LAST_MAX = 150          # 다른 도시의 역·터미널을 거칠 때, 거기서 여행지까지 이보다 오래 걸리면 그 방법은 뺌 (분)
 TITLES = {
     'car': '자차', 'ktx': 'KTX', 'ktx_rent': 'KTX + 렌터카', 'train_transfer': 'KTX 환승', 'bus': '고속버스',
     'flight': '비행기 + 대중교통', 'flight_rent': '비행기 + 렌터카', 'ferry': '배 + 대중교통', 'ferry_car': '배에 내 차 싣기',
@@ -157,16 +166,32 @@ def _won(n):
     return int(round((n or 0) / 100.0) * 100)
 
 
-def city_of(text=None, point=None):
-    """'제주도'·'부산광역시' 같은 이름이나 좌표 → CITIES 의 키 (못 찾으면 None)"""
+def city_of(text=None, point=None, core=False):
+    """'제주도'·'부산광역시' 같은 이름이나 좌표 → CITIES 의 키 (못 찾으면 None)
+    core=True 면 큰 도시(CORE_CITIES)에서만 — 출발지용 (성남에 살면 서울의 역·터미널·공항을 씀)"""
     text = text or ''
-    for key in sorted(CITIES, key=len, reverse=True):
+    names = CORE_CITIES if core else CITIES
+    for key in sorted(names, key=len, reverse=True):
         if key[:2] in text:
             return key
     if point:
-        key, d = min(((k, _km(point, c['pos'])) for k, c in CITIES.items()), key=lambda x: x[1])
+        key, d = min(((k, _km(point, CITIES[k]['pos'])) for k in names), key=lambda x: x[1])
         return key if d < 60 else None
     return None
+
+
+def _hub_cities(d_city, kind):
+    """d_city 로 갈 때 쓸 역('station')·터미널('terminal')이 있는 도시들: 그 도시 먼저, 다음은 70km 안에서 가까운 순 (최대 5곳)
+    예) 거제(역 없음) → 창원·진주·부산 … 중 실제 시간표가 있는 첫 도시를 거쳐 감 (🟧 11/18)"""
+    here = CITIES[d_city]
+    near = sorted((_km(here['pos'], c['pos']), k) for k, c in CITIES.items()
+                  if k != d_city and c.get(kind) and not c.get('island'))
+    return ([d_city] if here.get(kind) else []) + [k for d, k in near if d <= 70][:4]
+
+
+def _center(city):
+    lat, lon = CITIES[city]['pos']
+    return {'name': f'{city} 시내', 'lat': lat, 'lon': lon, 'addr': ''}
 
 
 def _hub(name, fallback_city):
@@ -193,6 +218,9 @@ def _local(a, b, people, car=False):
                     '대중교통', a, b, r['minutes'], (r['fare'] or 0) * people, r['summary'], True)
     if d < 3:
         return _leg('taxi', '택시', a, b, d * 3 + 8, _won(4800 + d * 1000))
+    if d > 15:        # 도시를 넘는 구간(창원역 → 거제): 시외버스로 어림 (시내버스 속도로 치면 너무 오래 걸림)
+        return _leg('local_bus', '시외버스', a, b, d * 1.3 / 50 * 60 + 20, _won((1500 + d * 1.3 * 110) * people),
+                    '시외버스 어림')
     return _leg('local_bus', '대중교통', a, b, d * 1.4 / 25 * 60 + 10, 1500 * people)
 
 
@@ -216,8 +244,9 @@ def _timed(rows, earliest, recent=False):
 
 
 # ------------------------------------------------------------------ 큰 구간 (열차·버스·항공·배)
-def _train(a_city, b_city, day, earliest):
-    """열차 한 번 (없으면 오송·서울·용산 환승) → [(출발역, 도착역, 출발분, 분, 1인 요금, 이름, 실제)]"""
+def _train(a_city, b_city, day, earliest, strict=False):
+    """열차 한 번 (없으면 오송·서울·용산 환승) → [(출발역, 도착역, 출발분, 분, 1인 요금, 이름, 실제)]
+    strict: 시간표에 없으면 어림하지 않고 None (작은 도시의 역은 그 구간 열차가 없을 수 있어서)"""
     s1, s2 = CITIES[a_city].get('station'), CITIES[b_city].get('station')
     if not s1 or not s2:
         return None
@@ -235,11 +264,13 @@ def _train(a_city, b_city, day, earliest):
         second = _timed(tt.trains(tt.station_id(via), tt.station_id(s2), day), first[0] + first[1] + 15)
         if second:
             return [(s1, via) + first, (via, s2) + second]
+    if strict:
+        return None
     # 시간표가 없으면 어림 (바로 가는 것으로)
     return [(s1, s2, earliest + 20, d * 1.15 / 160 * 60 + 15, _won(d * 1.15 * KTX_WON_PER_KM), 'KTX', False)]
 
 
-def _bus(a_city, b_city, day, earliest):
+def _bus(a_city, b_city, day, earliest, strict=False):
     t1, t2 = CITIES[a_city].get('terminal'), CITIES[b_city].get('terminal')
     if not t1 or not t2:
         return None
@@ -250,6 +281,8 @@ def _bus(a_city, b_city, day, earliest):
     d = _km(CITIES[a_city]['pos'], CITIES[b_city]['pos'])
     if hit:
         return (t1, t2) + hit[:2] + (hit[2] or _won(d * 1.3 * BUS_WON_PER_KM),) + hit[3:]
+    if strict:
+        return None
     return (t1, t2, earliest + 20, d * 1.3 / 75 * 60 + 15, _won(d * 1.3 * BUS_WON_PER_KM), '고속버스', False)
 
 
@@ -314,7 +347,7 @@ class _Ctx:
         self.end = travel.t_end or travel.t_start
         self.nights = max(0, (self.end - self.start).days)
         self.days = self.nights + 1
-        self.o_city = city_of(None, (origin['lat'], origin['lon'])) or city_of(origin['name'])
+        self.o_city = city_of(None, (origin['lat'], origin['lon']), core=True) or city_of(origin['name'], core=True)
         self.d_city = city_of(travel.t_place) or city_of(None, _dest_point(travel))
         self.dest = _dest_hub(travel, self.d_city)
         self.return_after = _return_after(travel)
@@ -355,8 +388,40 @@ def _main_leg(kind, label, a_name, b_name, a_city, b_city, dep, minutes, fare_ea
     return leg
 
 
+def _add_rests(legs):
+    """2시간 넘게 운전하는 자차 구간을 휴게소에서 나눈다 (🟧 11/18, 장거리 여행에 휴게소 포함)
+
+    '자차 성남 → 강릉 2시간 47분' → '자차 성남 → 횡성휴게소 강릉방향' + (15분 쉼) + '자차 횡성휴게소 → 강릉'
+    2시간마다 한 곳(최대 3곳). 휴게소를 못 찾으면 그 구간은 그대로 둔다.
+    나눈 구간에는 추가 키 rest {'name', 'minutes'} (그 구간 끝에서 쉬는 곳) 가 붙는다.
+    """
+    out = []
+    for leg in legs:
+        count = rest_stop_service.stops_for(leg['minutes']) if leg['mode'] == 'car' and leg.get('_dep') is None else 0
+        stops = rest_stop_service.find(tuple(leg['from_pt']), tuple(leg['to_pt']), count) if count else []
+        if not stops:
+            out.append(leg)
+            continue
+        marks = [0.0] + [x['at'] for x in stops] + [1.0]
+        places = ([{'name': leg['from'], 'lat': leg['from_pt'][0], 'lon': leg['from_pt'][1]}] + stops
+                  + [{'name': leg['to'], 'lat': leg['to_pt'][0], 'lon': leg['to_pt'][1]}])
+        for i in range(len(places) - 1):
+            share = marks[i + 1] - marks[i]
+            detail = leg['detail'] if i == 0 else '휴게소에서 %d분 쉬고 출발' % rest_stop_service.REST_MINUTES
+            part = _leg('car', leg['label'], places[i], places[i + 1], max(1, round(leg['minutes'] * share)),
+                        _won(leg['fare'] * share) if leg['fare'] else 0, detail, leg['real'])
+            if i < len(stops):
+                part['_rest'] = rest_stop_service.REST_MINUTES
+                part['rest'] = {'name': stops[i]['name'], 'minutes': rest_stop_service.REST_MINUTES}
+            out.append(part)
+        # 100원 단위로 나누다 생긴 차이는 마지막 구간에 (합계가 나누기 전과 같게)
+        out[-1]['fare'] += leg['fare'] - sum(x['fare'] for x in out[-len(places) + 1:])
+    return out
+
+
 def _assemble(ctx, mode, go, back, items, t_way, arrive_hub, pickup=0, note=''):
     """구간들에 시각을 붙이고 합계·태그 전 값까지 만든다"""
+    go, back = _add_rests(go), _add_rests(back)
     # 가는 길: 큰 구간 출발 시각(_dep)에서 앞 구간을 거꾸로 맞춤
     _schedule(go, LEAVE_HOME)
     _schedule(back, ctx.return_after, back=True)
@@ -387,7 +452,7 @@ def _schedule(legs, default_start, back=False):
         t = default_start
     else:
         t = legs[anchor]['_dep'] - sum(l['minutes'] for l in legs[:anchor]) - BUFFER.get(legs[anchor]['mode'], 10)
-        t -= 10 * anchor
+        t -= sum(l.get('_rest', 10) for l in legs[:anchor])     # 구간 사이 틈 (휴게소에서 쉬면 그만큼)
     for i, leg in enumerate(legs):
         if i == anchor:
             t = max(t, leg['_dep'])
@@ -396,7 +461,8 @@ def _schedule(legs, default_start, back=False):
         leg['depart'] = _clock(t)
         t += leg['minutes']
         leg['arrive'] = _clock(t)
-        t += BUFFER.get(legs[i + 1]['mode'], 10) if i + 1 < len(legs) and i + 1 == anchor else 10
+        gap = BUFFER.get(legs[i + 1]['mode'], 10) if i + 1 < len(legs) and i + 1 == anchor else 10
+        t += max(gap, leg.get('_rest', 0))                       # 휴게소에서 쉬는 시간 (🟧 11/18)
 
 
 def _rent_item(ctx):
@@ -411,35 +477,46 @@ def _plan_car(ctx):
     go = [_leg('car', '자차', ctx.origin, ctx.dest, d * 1.3 / 75 * 60 + 15, _won(d * 1.3 * CAR_WON_PER_KM),
                '유류비·통행료 어림')]
     back = [_leg('car', '자차', ctx.dest, ctx.origin, go[0]['minutes'], go[0]['fare'], '유류비·통행료 어림')]
-    lat, lon = CITIES[ctx.d_city]['pos']
-    arrive = {'name': f'{ctx.d_city} 시내', 'lat': lat, 'lon': lon, 'addr': ''}   # 첫 장소와 같은 자리면 경로가 0이라
+    arrive = _center(ctx.d_city)             # 첫 장소와 같은 자리면 경로가 0이라
     return _assemble(ctx, 'car', go, back, [], 'car', arrive, note='차 1대 기준')
 
 
 def _plan_train(ctx, rent=False):
     if not CITIES[ctx.o_city].get('station') and ctx.o_city != '인천':
         return None
-    if not CITIES[ctx.d_city].get('station'):
-        return None
     o_city = '서울' if ctx.o_city == '인천' else ctx.o_city
     s1 = _hub(STATION_LABEL.get(CITIES[o_city]['station'], CITIES[o_city]['station'] + '역'), o_city)
     to_st = _local(ctx.origin, s1, ctx.people)
     earliest = LEAVE_HOME + to_st['minutes'] + 15
-    trips = _train(o_city, ctx.d_city, ctx.start, earliest)
-    back_trips = _train(ctx.d_city, o_city, ctx.end, ctx.return_after)
-    if not trips or not back_trips:
+    # 🟧 11/18 여행지에 역이 없거나 그 구간 열차가 없으면, 가까운 도시 중 실제 시간표가 있는 역을 거쳐 감
+    #          (큰 도시끼리는 지금처럼 시간표가 없어도 어림으로 보여 줌)
+    h_city = trips = back_trips = None
+    for h in _hub_cities(ctx.d_city, 'station'):
+        if h == o_city:
+            continue
+        strict = not (h == ctx.d_city and h in CORE_CITIES)
+        trips = _train(o_city, h, ctx.start, earliest, strict)
+        back_trips = _train(h, o_city, ctx.end, ctx.return_after, strict) if trips else None
+        if trips and back_trips:
+            h_city = h
+            break
+    if not h_city:
         return None
+    via = h_city != ctx.d_city
     def legs_of(rows, a_city, b_city):
         out = []
         for i, (x, y, dep, mins, fare, name, real) in enumerate(rows):
             kind = 'itx' if '춘천' in (x, y) or 'ITX' in (name or '') else 'ktx'
-            out.append(_main_leg(kind, 'KTX' if kind == 'ktx' else 'ITX-청춘',
+            # 🟧 11/18 열차 종류를 이름 그대로 (ITX-새마을·무궁화호가 'ITX-청춘'으로 나오던 것)
+            grade = (name or '').split(' ')[0]
+            label = 'KTX' if not grade or grade.startswith('KTX') else ('ITX-청춘' if '춘천' in (x, y) else grade)
+            out.append(_main_leg(kind, label,
                                  STATION_LABEL.get(x, x + '역'), STATION_LABEL.get(y, y + '역'),
-                                 a_city if i == 0 else ctx.d_city, b_city, dep, mins, fare, name, real, ctx.people))
+                                 a_city if i == 0 else h_city, b_city, dep, mins, fare, name, real, ctx.people))
         return out
-    go = [to_st] + legs_of(trips, o_city, ctx.d_city)
-    s2 = _hub(go[-1]['to'], ctx.d_city)
-    back = legs_of(back_trips, ctx.d_city, o_city)
+    go = [to_st] + legs_of(trips, o_city, h_city)
+    s2 = _hub(go[-1]['to'], h_city)
+    back = legs_of(back_trips, h_city, o_city)
     items = []
     if rent:
         go.append(_leg('rental', '렌터카 인수', s2, s2, 20, 0, '역 앞 렌터카'))
@@ -451,6 +528,15 @@ def _plan_train(ctx, rent=False):
     if ctx.o_city == '인천':
         go[0]['detail'] = (go[0]['detail'] + ' · 인천에서 서울역까지').strip(' ·')
     mode = 'ktx_rent' if rent else ('train_transfer' if len(trips) > 1 else 'ktx')
+    if via:
+        # 역에서 여행지까지 이어 가는 구간도 넣어서 시간·비용을 그대로 보여 줌 (도착 = 여행지)
+        center = _center(ctx.d_city)
+        go.append(_local(s2, center, ctx.people, car=rent))
+        if go[-1]['minutes'] > VIA_LAST_MAX:
+            return None                      # 역에서 여행지까지가 너무 멀면 이 방법은 안 보여 줌
+        back.insert(0, _local(center, s2, ctx.people, car=rent))
+        return _assemble(ctx, mode, go, back, items, t_way, center, 0,
+                         note='%s까지 열차, 거기서 %s까지 %s' % (s2['name'], ctx.d_city, '렌터카' if rent else '버스'))
     return _assemble(ctx, mode, go, back, items, t_way, s2, 20 if rent else 10)
 
 
@@ -459,18 +545,36 @@ def _plan_bus(ctx):
         return None
     t1 = _hub(CITIES[ctx.o_city]['terminal'] + ' 고속버스터미널', ctx.o_city)
     to_t = _local(ctx.origin, t1, ctx.people)
-    trip = _bus(ctx.o_city, ctx.d_city, ctx.start, LEAVE_HOME + to_t['minutes'] + 15)
-    back_trip = _bus(ctx.d_city, ctx.o_city, ctx.end, ctx.return_after)
-    if not trip or not back_trip:
+    # 🟧 11/18 여행지 터미널로 가는 고속버스가 없으면, 가까운 도시 중 실제 시간표가 있는 터미널을 거쳐 감
+    #          (거제 고현은 고속버스 시간표에 없음 → 통영 터미널까지 가서 버스로 이어 감)
+    h_city = trip = back_trip = None
+    for h in _hub_cities(ctx.d_city, 'terminal'):
+        if h == ctx.o_city:
+            continue
+        strict = not (h == ctx.d_city and h in CORE_CITIES)
+        trip = _bus(ctx.o_city, h, ctx.start, LEAVE_HOME + to_t['minutes'] + 15, strict)
+        back_trip = _bus(h, ctx.o_city, ctx.end, ctx.return_after, strict) if trip else None
+        if trip and back_trip:
+            h_city = h
+            break
+    if not h_city:
         return None
     x, y, dep, mins, fare, name, real = trip
-    go = [to_t, _main_leg('bus', '고속버스', x + ' 고속버스터미널', y + ' 고속버스터미널', ctx.o_city, ctx.d_city,
+    go = [to_t, _main_leg('bus', '고속버스', x + ' 고속버스터미널', y + ' 고속버스터미널', ctx.o_city, h_city,
                          dep, mins, fare, name, real, ctx.people)]
-    arrive = _hub(go[-1]['to'], ctx.d_city)
+    arrive = _hub(go[-1]['to'], h_city)
     x, y, dep, mins, fare, name, real = back_trip
-    back = [_main_leg('bus', '고속버스', x + ' 고속버스터미널', y + ' 고속버스터미널', ctx.d_city, ctx.o_city,
+    back = [_main_leg('bus', '고속버스', x + ' 고속버스터미널', y + ' 고속버스터미널', h_city, ctx.o_city,
                       dep, mins, fare, name, real, ctx.people)]
     back.append(_local(_hub(back[-1]['to'], ctx.o_city), ctx.origin, ctx.people))
+    if h_city != ctx.d_city:
+        center = _center(ctx.d_city)
+        go.append(_local(arrive, center, ctx.people))
+        if go[-1]['minutes'] > VIA_LAST_MAX:
+            return None                      # 터미널에서 여행지까지가 너무 멀면 이 방법은 안 보여 줌
+        back.insert(0, _local(center, arrive, ctx.people))
+        return _assemble(ctx, 'bus', go, back, [], 'public_transport', center, 0,
+                         note='%s까지 고속버스, 거기서 %s까지 버스' % (arrive['name'], ctx.d_city))
     return _assemble(ctx, 'bus', go, back, [], 'public_transport', arrive, 10)
 
 
@@ -633,7 +737,7 @@ def compare(travel, people=None):
     if not origin:
         return {'applicable': False, 'note': '출발지가 없어요. 여행 수정에서 출발지를 넣어 주세요.'}
     people = people or 1
-    ck = 'access2:%s:%s:%s:%.4f:%.4f' % (travel.t_id, travel.t_start, people, origin['lat'], origin['lon'])
+    ck = 'access4:%s:%s:%s:%.4f:%.4f' % (travel.t_id, travel.t_start, people, origin['lat'], origin['lon'])
     hit = cache.get(ck)
     if hit:
         return hit
