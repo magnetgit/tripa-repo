@@ -5173,7 +5173,7 @@ function spStayRoles(places) {
 
 function spStayRoleHtml(role) {
     if (role === "checkin") {
-        return `<span class="sp-stay-role">🛏 체크인 · 짐 두고 다시 나가기</span>`;
+        return `<span class="sp-stay-role">🧳 숙소에 짐 맡기고 나가기</span>`;
     }
     if (role === "return") {
         return `<span class="sp-stay-role sp-stay-role--return">🏠 숙소로 귀가</span>`;
@@ -5193,10 +5193,10 @@ function buildCheckinBarHtml(places, roles) {
             <div class="checkin-bar is-on">
                 <span aria-hidden="true">🛏</span>
                 <div>
-                    <b>${escapeHtml(formatVisitTime(checkin.arrive_time))} ${escapeHtml(checkin.place_name || "숙소")} 체크인 · 짐 두고 다시 나가요</b>
-                    <small>시각은 체크인 줄의 시간을 눌러 바꿔요. 줄을 끌어 순서를 바꿀 수도 있어요.</small>
+                    <b>${escapeHtml(formatVisitTime(checkin.arrive_time))} ${escapeHtml(checkin.place_name || "숙소")}에 짐 맡기고 다시 나가요</b>
+                    <small>시각은 짐 맡기기 줄의 시간을 눌러 바꿔요. 줄을 끌어 순서를 바꿀 수도 있어요.</small>
                 </div>
-                <button type="button" onclick="deleteSchedulePlace(${Number(checkin.sp_id)})">체크인 줄 빼기</button>
+                <button type="button" onclick="deleteSchedulePlace(${Number(checkin.sp_id)})">짐 맡기기 줄 빼기</button>
             </div>
         `;
     }
@@ -5204,14 +5204,14 @@ function buildCheckinBarHtml(places, roles) {
     const stay = stays[stays.length - 1];
     return `
         <div class="checkin-bar">
-            <span aria-hidden="true">🛏</span>
+            <span aria-hidden="true">🧳</span>
             <div>
-                <b>체크인하고 다시 나가기</b>
-                <small>${escapeHtml(stay.place_name || "숙소")}에 짐을 먼저 두고 다시 나가요 (밤에 돌아오는 줄은 그대로).
-                    체크인 시각 전이면 짐만 맡길 수 있어요.</small>
+                <b>숙소에 짐 맡기고 나가기</b>
+                <small>${escapeHtml(stay.place_name || "숙소")}에 짐을 먼저 맡기고 다시 나가요 (밤에 돌아오는 줄은 그대로).
+                    실제 체크인은 밤에 돌아와서 해도 돼요.</small>
             </div>
-            <input type="time" class="checkin-time" value="15:00" step="600" aria-label="체크인 시각">
-            <button type="button" onclick="addCheckin(this)">체크인 넣기</button>
+            <input type="time" class="checkin-time" value="15:00" step="600" aria-label="짐 맡길 시각">
+            <button type="button" onclick="addCheckin(this)">짐 맡기기 넣기</button>
         </div>
     `;
 }
@@ -5220,7 +5220,7 @@ function addCheckin(button) {
     const input = button.parentElement.querySelector(".checkin-time");
     const time = input ? input.value : "";
     if (!time) {
-        alert("체크인 시각을 골라 주세요.");
+        alert("짐 맡길 시각을 골라 주세요.");
         return;
     }
 
@@ -5240,15 +5240,15 @@ function addCheckin(button) {
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (!data || !data.success) {
-                throw new Error((data && data.message) || "체크인 줄을 넣지 못했어요.");
+                throw new Error((data && data.message) || "짐 맡기기 줄을 넣지 못했어요.");
             }
             alert(data.message);
             loadDay(day);   // 숙소 두 줄·바뀐 시간으로 다시 그림
         })
         .catch(function (error) {
-            alert(error.message || "체크인 줄을 넣지 못했어요.");
+            alert(error.message || "짐 맡기기 줄을 넣지 못했어요.");
             button.disabled = false;
-            button.textContent = "체크인 넣기";
+            button.textContent = "짐 맡기기 넣기";
         });
 }
 
@@ -5820,7 +5820,7 @@ function spCostText(c) {
         return "";
     }
     if (c.same_stay) {
-        return "숙박비는 체크인 줄에";   // 같은 날 같은 숙소 두 번째 줄 (11/10 규칙, 금액 0)
+        return "숙박비는 짐 맡기기 줄에";   // 같은 날 같은 숙소 두 번째 줄 (11/10 규칙, 금액 0)
     }
     if (c.edited) {
         return `예산 ${wonText(c.amount)} (직접 고침)`;   // 비용 관리에서 회원이 고친 금액

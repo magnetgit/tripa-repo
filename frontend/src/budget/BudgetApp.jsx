@@ -57,6 +57,8 @@ export default function BudgetApp({ cfg }) {
       if (it.edited) itemChanges[it.sp_id] = null;
     } else if (text !== '' && toNumber(text) !== (it.amount ?? -1)) {
       itemChanges[it.sp_id] = toNumber(text);
+    } else if (text === '' && it.edited) {
+      itemChanges[it.sp_id] = null;   // 🟧 11/18 고친 금액을 지우면 AI 금액으로 되돌림 (전엔 저장이 안 돼 옛 금액이 돌아왔음)
     }
   });
   const total = toNumber(totalInput);   // 총예산 (내가 정한 금액, 분류 합계와 따로)
@@ -158,7 +160,7 @@ export default function BudgetApp({ cfg }) {
                   inputMode="numeric"
                   className={total !== (data.total || 0) ? 'is-edit' : ''}
                   value={total.toLocaleString('ko-KR')}
-                  onChange={(e) => { setTotalInput(e.target.value.replace(/[^\d]/g, '').slice(0, 9)); setMsg(''); }}
+                  onChange={(e) => { setTotalInput(e.target.value.replace(/[^\d]/g, '').slice(0, 9).replace(/^\d{9}$/, (m) => (Number(m) > 100000000 ? '100000000' : m))); setMsg(''); }}
                 />
                 <span>원</span>
               </label>

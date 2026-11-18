@@ -1,0 +1,49 @@
+{% comment %}
+없는 주소로 왔을 때 (🟧 11/18) — 전에는 메뉴도 없는 영어 'Not Found' 한 줄이었음
+DEBUG=False(서버)일 때만 이 화면이 나와요. 로컬(DEBUG=True)은 Django 노란 화면 그대로.
+모양은 이 파일 안 CSS만 씀 (어느 화면에서 틀려도 뜨게, style.css 에 기대지 않음)
+{% endcomment %}<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>TRIPA - 페이지를 찾을 수 없어요</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; margin: 0; padding: 24px 16px;
+            background: linear-gradient(180deg, #cfe3fb 0%, #eaf3ff 55%, #fff 100%);
+            color: #1f2d4a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+        }
+        .err-card {
+            width: 100%; max-width: 420px; padding: 32px 24px; border-radius: 20px;
+            background: #fff; box-shadow: 0 12px 36px rgba(30, 64, 175, 0.14); text-align: center;
+        }
+        .err-logo { color: #2d6cdf; font-size: 20px; font-weight: 900; letter-spacing: .5px; text-decoration: none; }
+        .err-code { margin: 18px 0 4px; color: #2d6cdf; font-size: 52px; font-weight: 900; line-height: 1; }
+        .err-title { margin: 8px 0; font-size: 19px; font-weight: 800; }
+        .err-text { margin: 0 0 22px; color: #5b6b86; font-size: 14px; line-height: 1.6; word-break: keep-all; }
+        .err-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        .err-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 46px; padding: 0 20px; border: 1px solid #dbe3ee; border-radius: 12px;
+            background: #fff; color: #1f2d4a; font-size: 15px; font-weight: 800; text-decoration: none; cursor: pointer;
+        }
+        .err-btn--primary { border-color: #2d6cdf; background: #2d6cdf; color: #fff; }
+    </style>
+</head>
+<body>
+<main class="err-card">
+    <a class="err-logo" href="/">TRIPA</a>
+    <p class="err-code" data-no-i18n>404</p>
+    <h1 class="err-title">페이지를 찾을 수 없어요</h1>
+    <p class="err-text">주소가 바뀌었거나 없는 페이지예요. 주소를 다시 확인하거나 홈에서 다시 시작해 주세요.</p>
+    <div class="err-actions">
+        <a class="err-btn err-btn--primary" href="/">홈으로 가기</a>
+        <a class="err-btn" href="/travel_list/">내 여행 보기</a>
+    </div>
+</main>
+</body>
+</html>

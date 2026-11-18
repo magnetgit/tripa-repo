@@ -180,7 +180,7 @@ export default function PlanPreview({
                         <Icon name="bed" sprite={sprite} />
                         {(it.stay_role ? it.stay_role === 'return' : items.slice(0, i).some((x) => x.is_stay && x.name === it.name))
                           ? ' 숙소로 귀가'
-                          : it.stay_role === 'checkin' ? ' 체크인 · 짐 두기' : ' 체크인'}
+                          : it.stay_role === 'checkin' ? ' 짐 맡기기' : ' 체크인'}
                       </span>
                     ) : it.pin ? (
                       <span className="tc-tag tc-tag--pin">담은 장소</span>

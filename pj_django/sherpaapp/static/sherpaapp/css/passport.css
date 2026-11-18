@@ -488,7 +488,9 @@ body {
     white-space: nowrap;
 }
 
-.pp-photo__change svg { width: 11px; height: 11px; }
+/* 🟧 11/18 폰(560px 이하)에서는 아래 `.pp-photo svg { 94px }` 가 뒤에 와서 이 연필 아이콘까지 94px 로 커졌음
+   → 선택자를 더 자세히 써서 화면 폭과 상관없이 11px */
+.pp-photo .pp-photo__change svg { width: 11px; height: 11px; color: inherit; }
 
 .pp-avatar-picker {
     margin: 0 28px 18px;

@@ -1,0 +1,128 @@
+/* 휴대폰 위 막대 + 아래 탭 — style.css 를 안 쓰는 화면용 (🟧 11/18, 내 정보·내 정보 수정)
+ *
+ * 다른 화면은 style.css 의 '휴대폰 화면' 규칙이 그리는데, 여권 모양 화면(passport.css)은 style.css 를
+ * 불러오지 않아서 아래 메뉴가 없었다 (로그아웃이 2.3화면 아래, 다른 메뉴로 갈 길은 '홈으로' 하나).
+ * 모양·크기는 style.css 의 .m-topbar / .m-tabbar 와 같게 맞췄다. 그쪽을 바꾸면 여기도 같이 바꿔 주세요.
+ * 조각: templates/_mobile_nav.html
+ */
+:root {
+    --m-top-h: 52px;
+    --m-tab-h: 60px;
+}
+
+.m-topbar,
+.m-tabbar {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    /* 본문이 위·아래 막대에 가리지 않게 */
+    body {
+        padding-top: calc(var(--m-top-h) + var(--tp-safe-top, env(safe-area-inset-top, 0px)) + 16px) !important;
+        padding-bottom: calc(var(--m-tab-h) + var(--tp-safe-bottom, env(safe-area-inset-bottom, 0px)) + 24px) !important;
+    }
+
+    .m-topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1100;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: calc(var(--m-top-h) + var(--tp-safe-top, env(safe-area-inset-top, 0px)));
+        padding: var(--tp-safe-top, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+        border-bottom: 1px solid #e6ebf3;
+        background: rgba(255, 255, 255, 0.92);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    }
+
+    .m-topbar__logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: #2d6cdf;
+        font-size: 16px;
+        font-weight: 900;
+        text-decoration: none;
+    }
+
+    .m-topbar__logo .tp-icon { width: 20px; height: 20px; }
+
+    .m-topbar__title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        color: #1f2d4a;
+        font-size: 14px;
+        font-weight: 800;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .m-topbar__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        color: #475569;
+    }
+
+    .m-topbar__btn:active { background: #eef2f8; }
+    .m-topbar__btn .tp-icon { width: 21px; height: 21px; }
+
+    .m-tabbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1100;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        min-height: calc(var(--m-tab-h) + var(--tp-safe-bottom, env(safe-area-inset-bottom, 0px)));
+        padding: 4px max(4px, env(safe-area-inset-right)) var(--tp-safe-bottom, env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left));
+        border-top: 1px solid #e6ebf3;
+        background: rgba(255, 255, 255, 0.96);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 -4px 16px rgba(30, 64, 175, 0.06);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    }
+
+    .m-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        min-height: 52px;
+        color: #7b88a1;
+        font-size: 11px;
+        font-weight: 700;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-tab .tp-icon { width: 22px; height: 22px; }
+    .m-tab.is-on { color: #2d6cdf; }
+
+    .m-tab--create b {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #2d6cdf;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(45, 108, 223, 0.35);
+    }
+
+    .m-tab--create .tp-icon { width: 20px; height: 20px; }
+}

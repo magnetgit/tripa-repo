@@ -8,10 +8,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=9">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/passport.css' %}?v=10">
+    {# 🟧 11/18 휴대폰 위 막대 + 아래 탭 (이 화면은 style.css 를 안 써서 메뉴가 없었음) #}
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/mobile_nav.css' %}?v=20261118">
 </head>
 
 <body>
+{% include "_mobile_nav.html" with tab="" title="내 정보 수정" %}
 
 {% include "_passport_bg.html" %}
 

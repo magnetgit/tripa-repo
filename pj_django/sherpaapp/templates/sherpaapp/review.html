@@ -229,7 +229,7 @@
                             <form method="post" action="{% url 'review_delete' r.rv_id %}" class="rv-mine__del"
                                   onsubmit="return confirm('\'{{ r.place_name|escapejs }}\' 리뷰를 지울까요? 받은 추천도 함께 사라져요.');">
                                 {% csrf_token %}
-                                <input type="hidden" name="page" value="{{ page.number }}">
+                                <input type="hidden" name="page" value="{{ page.number }}"><input type="hidden" name="by" value="{{ by }}"><input type="hidden" name="v" value="{{ v }}"><input type="hidden" name="sort" value="{{ sort }}">
                                 <button type="submit" class="rv-mine__btn is-danger">삭제</button>
                             </form>
                         {% else %}
@@ -306,7 +306,7 @@
         <dialog class="rv-dialog" id="reviewEditDialog" aria-labelledby="reviewEditTitle">
             <form method="post" class="rv-dialog__form" id="reviewEditForm">
                 {% csrf_token %}
-                <input type="hidden" name="page" value="{{ page.number }}">
+                <input type="hidden" name="page" value="{{ page.number }}"><input type="hidden" name="by" value="{{ by }}"><input type="hidden" name="v" value="{{ v }}"><input type="hidden" name="sort" value="{{ sort }}">
                 <h2 id="reviewEditTitle">리뷰 고치기</h2>
                 <p class="rv-dialog__sub" data-name></p>
                 <label for="reviewEditRating">별점</label>

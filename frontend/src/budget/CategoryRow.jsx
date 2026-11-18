@@ -4,7 +4,7 @@ import Icon from '../components/Icon.jsx';
 import { fetchAlternatives, swapPlace } from './api.js';
 import { ALT_CATS, distText, won } from './cats.js';
 
-const digits = (text) => text.replace(/[^\d]/g, '').slice(0, 9);   // 쉼표는 화면용, 숫자만 보관
+const digits = (text) => text.replace(/[^\d]/g, '').slice(0, 9).replace(/^\d{9}$/, (m) => (Number(m) > 100000000 ? '100000000' : m));   // 쉼표는 화면용, 숫자만 보관
 const comma = (text) => (text === '' ? '' : Number(text).toLocaleString('ko-KR'));
 
 export default function CategoryRow({
@@ -57,7 +57,7 @@ export default function CategoryRow({
             inputMode="numeric"
             aria-label={`${cat.name} 예산`}
             value={Number(value || 0).toLocaleString('ko-KR')}
-            onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, '').slice(0, 9))}   // 쉼표는 화면용, 숫자만 보관
+            onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, '').slice(0, 9).replace(/^\d{9}$/, (m) => (Number(m) > 100000000 ? '100000000' : m)))}   // 쉼표는 화면용, 숫자만 보관
           />
           <span>원</span>
         </label>

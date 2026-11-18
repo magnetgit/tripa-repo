@@ -1164,6 +1164,9 @@ def stay_recommend(messages, rec, draft, ai_query=''):
     # → '○○ 주변/근처/쪽' 부분은 빼고 종류 낱말을 본다 (전엔 식당 카드가 나오고 숙소는 AI가 아무거나 넣었음)
     near_match = _STAY_NEAR_RE.search(text)
     kind_text = _STAY_NEAR_RE.sub(' ', text) if near_match else text
+    # 🟧 11/18 '둘째 날 숙소 근처 맛집 추천해줘'의 '숙소'는 기준 장소일 뿐 → 다른 종류(맛집)를 찾는 말이면 숙소 추천이 아님
+    if near_match and any(w in near_match.group(1) for w in _STAY_ASK_WORDS)             and any(k in kind_text for k in _RECO_KEYWORDS if k not in ('숙소', '호텔'))             and not any(w in kind_text for w in _STAY_ASK_WORDS):
+        return None
     # 숙소 질문에 '추천해줘'라고만 답했을 때 (다른 장소 종류를 말했으면 그 추천)
     # (AI가 '바다'처럼 다른 추천 종류를 읽었거나, 사용자가 다른 종류를 말했으면 그 추천)
     near_word = near_match.group(1) if near_match else ''
@@ -1413,6 +1416,11 @@ def search_recommendations(rec, draft, size=CARD_SIZE, spare=0, photos=True, cos
     # 가까운 곳은 좌표로 찾는다. ('대영횟집 카페'로 검색하면 결과가 0개가 된다)
     near_found = bool(anchor) and anchor_name == rec.get('near')
     region = draft.get('place') if near_found else (rec.get('near') or draft.get('place'))
+    # 🟧 11/18 지역을 둘 말한 여행('순천, 여수'): 검색어에 둘 다 붙이면 결과가 0개
+    #   → 기준 좌표(그날 숙소 등)가 있으면 지역 이름 없이 그 근처에서, 없으면 앞 지역으로
+    many = region_parts(region) if region == draft.get('place') else []
+    if len(many) > 1:
+        region = None if anchor else many[0]
 
     if anchor:
         extra.update({'y': anchor[0], 'x': anchor[1], 'radius': 20000})
@@ -1691,8 +1699,8 @@ def build_system_prompt(draft, category_names, today):
         "people은 여행 가는 사람 수(숫자)입니다. '혼자'는 1, '둘이서'·'커플'은 2입니다. 인원은 예상 비용을 1인 기준×인원으로 계산하는 데 쓰입니다.\n"
         "7. 숙소는 사용자가 알려준 것만 stays에 넣습니다. 숙소는 잠자는 밤마다 하나이고, 마지막 날은 집으로 돌아가므로 마지막 날에는 숙소를 넣지 않습니다(1박 2일이면 첫날 밤 숙소 하나만). date는 YYYY-MM-DD, query는 숙소 이름 또는 동네, "
         "arrival_time/departure_time은 HH:MM(모르면 null)입니다. 날짜가 정해진 뒤에만 넣을 수 있습니다. "
-        "checkin_time은 그날 숙소에 먼저 들러 체크인·짐을 두고 다시 나갈 시각(HH:MM)입니다. "
-        "사용자가 '3시에 체크인하고 다시 나갈래'처럼 말할 때만 넣고, 아니면 null로 둡니다(그때 arrival_time은 다시 들어오는 시각). "
+        "checkin_time은 그날 숙소에 먼저 들러 짐을 맡기고 다시 나갈 시각(HH:MM)입니다. "
+        "사용자가 '3시에 숙소에 짐 맡기고 다시 나갈래', '3시에 체크인하고 다시 나갈래'처럼 말할 때만 넣고, 아니면 null로 둡니다(그때 arrival_time은 다시 들어오는 시각). "
         "사용자가 숙소를 추천해 달라고 하면 동네를 되묻지 말고 recommend의 query를 '숙소'로 채우세요(동네를 말했으면 near). "
         "추천받은 숙소는 사용자가 카드에서 직접 넣으니 stays에 지어 넣지 마세요.\n"
         "7-1. 도구: get_weather(place, start, end)로 날씨 예보를 볼 수 있습니다. "
@@ -2012,13 +2020,19 @@ def _same_region(a, b):
 _CHANGE_PLACE_RE = re.compile(r'바꿔|바꿀|변경|말고|대신|가자|갈래|할래|로\s*하자|change|instead', re.I)
 
 
+_FOREIGN_STAY_RE = re.compile(
+    r'hotel|hostel|resort|motel|airbnb|guest\s*house|accommodat|lodging|staying|stay at|check[\s-]?in|villa'
+    r'|ホテル|旅館|宿|泊|酒店|宾馆|民宿|住在', re.I)
+
+
 def _drop_unsaid_stays(ai_stays, prev, user_text):
     """이번 말에 숙소 얘기가 없는데 AI가 새로 넣은 숙소는 뺀다 (🟩 11/18).
     여행지를 바꾼 뒤 '아니 그냥 둘래'라고만 했는데, AI가 첫 말의 '해운대 그랜드조선'을 제주 숙소로 다시 넣었음"""
     if not isinstance(ai_stays, list):
         return ai_stays
     text = user_text or ''
-    if any(word in text for word in _STAY_ASK_WORDS + _STAY_WORDS) or HOME_STAY_RE.search(text):
+    # 🟧 11/18 영어·일본어·중국어로 숙소를 말한 경우도 숙소 얘기 ('staying at Lotte Hotel Jeju' 의 숙소가 빠졌음)
+    if any(word in text for word in _STAY_ASK_WORDS + _STAY_WORDS) or HOME_STAY_RE.search(text)             or _FOREIGN_STAY_RE.search(text):
         return ai_stays
     if '같은' in text or '똑같' in text or '연박' in text:      # '둘째 날도 같은 곳' → 같은 숙소를 더 넣는 말
         return ai_stays
@@ -2184,7 +2198,7 @@ def _keep_found_stays(ai_stays, prev, user_text):
     """
     if not isinstance(ai_stays, list):
         return ai_stays
-    if any(word in (user_text or '') for word in _STAY_ASK_WORDS + _STAY_WORDS):
+    if any(word in (user_text or '') for word in _STAY_ASK_WORDS + _STAY_WORDS) or _FOREIGN_STAY_RE.search(user_text or ''):
         return ai_stays
 
     view = {s['date']: s for s in _llm_view(prev).get('stays') or [] if s.get('date')}
@@ -2327,7 +2341,10 @@ def guess_nights(text):
         return (kept or found)[-1][2]
 
     # '3일로 해줘' → 2박 (단 '11월 3일로'처럼 날짜면 기간이 아님)
+    # 🟧 11/18 '출발일을 13일로', '15일부터로 미뤄줘'도 기간이 아니라 날짜 → _apply_guessed_dates 가 읽음
     match = _DAYS_ONLY_RE.search(text)
+    if match and any(w in text for w in _DATE_MOVE_WORDS):
+        return None
     if match and not _MONTH_DAY_RE.search(text) and int(match.group(1)) >= 1:
         return int(match.group(1)) - 1
 
@@ -2352,6 +2369,11 @@ def _relative_nights(text, prev):
     return None
 
 
+# '오늘·내일·모레'를 여행 날짜로 볼 만한 말 (가다·출발·당일치기·기간 등)
+_GOING_RE = re.compile(r'출발|떠나|당일|부터|여행|가려|갈\s*거|갈게|갈래|가자|가요|갑니다|가\s*볼|다녀|놀러|\d\s*박|일정')
+# '출발일을 13일로', '15일부터로 미뤄줘' — 달을 안 말한 날짜 (기간 'N일로'와 헷갈리던 것)
+_BARE_DAY_RE = re.compile(r'(?<![\d월./])(\d{1,2})\s*일\s*(?:로|으로|부터|에|날)')
+_DATE_MOVE_WORDS = ('출발', '미뤄', '미루', '앞당', '옮겨', '옮기', '날짜', '부터')
 _CLAUSE_SPLIT_RE = re.compile(r'[,!?\n]|\.(?!\d)')      # '11.28' 의 점은 나누지 않음
 
 
@@ -2370,8 +2392,20 @@ def guess_dates(text, today):
     # 숙소·영업 이야기에 나온 날짜는 여행 날짜가 아니다. 전엔 그런 말이 한 군데라도 있으면 문장 전체를 안 읽어서,
     # 한 번에 길게 말하면('12월 첫째 주 토요일부터 1박 2일 강릉. … 숙소는 ○○호텔') 날짜를 AI 계산에만 맡겼음 (🟧 11/18)
     # → 쉼표·마침표로 나눈 토막 중 그런 말이 있는 토막만 빼고 읽는다
+    #   🟧 11/18(2차) 쉼표 없이 이어 쓴 문장('다음 주 토요일부터 1박 2일로 남해 가는데 숙소는 ○○고 …')은
+    #   숙소 말이 처음 나오는 곳 앞까지만 읽는다 (뒤는 숙소 이야기). 영업·날씨 말이 든 토막은 지금처럼 통째로 뺌
+    #   숙소 말 앞의 날짜가 그 밤 숙소를 가리키는 경우('12월 6일 숙소는 ○○')는 _apply_guessed_dates 가 거름
     if any(word in text for word in _STAY_WORDS + _NOT_TRIP_DATE_WORDS):
-        parts = [x for x in _CLAUSE_SPLIT_RE.split(text) if x and not any(w in x for w in _STAY_WORDS + _NOT_TRIP_DATE_WORDS)]
+        parts = []
+        for part in _CLAUSE_SPLIT_RE.split(text):
+            if not part or any(w in part for w in _NOT_TRIP_DATE_WORDS):
+                continue
+            cut = min((part.find(w) for w in _STAY_WORDS if w in part), default=-1)
+            if cut >= 0:
+                found['near_stay'] = True
+                part = part[:cut]
+            if part.strip():
+                parts.append(part)
         text = ' , '.join(parts)
         if not text.strip():
             return found
@@ -2443,6 +2477,9 @@ def guess_dates(text, today):
 
     for word, add in _RELATIVE_WORDS:
         if word in text:
+            # 🟧 11/18 '오늘 저녁 뭐 먹지', '내일 날씨 어때'의 오늘·내일은 여행 날짜가 아니다 → 가는 이야기일 때만
+            if not _GOING_RE.search(text):
+                break
             found['start'] = today + timedelta(days=add)
             break
 
@@ -2459,6 +2496,27 @@ def _apply_guessed_dates(ai_draft, prev, messages, today):
     text = messages[-1]['content'] if messages else ''
     guessed = guess_dates(text, today)
     new_start = guessed['start'] if guessed['start'] and guessed['start'] >= today else None
+
+    p_start0, p_end0 = _parse_date(prev.get('start')), _parse_date(prev.get('end'))
+    # 🟧 11/18 '12월 6일 숙소는 ○○'처럼 숙소 이야기에 나온 날짜가 이미 정한 여행 기간 안이면 그 밤을 가리키는 말 → 출발일로 안 봄
+    if new_start and guessed.get('near_stay') and p_start0 and p_end0 and p_start0 <= new_start <= p_end0:
+        new_start = None
+        guessed = dict(guessed, start=None, end=None)
+    # 🟧 11/18 '출발일을 13일로', '15일부터로 미뤄줘' — 달을 안 말하면 정해 둔 출발일과 같은 달(지났으면 다음 달)
+    if not new_start and p_start0 and any(w in text for w in _DATE_MOVE_WORDS) \
+            and not any(w in text for w in _STAY_WORDS + _NOT_TRIP_DATE_WORDS):
+        bare = _BARE_DAY_RE.search(text)
+        if bare:
+            for add in (0, 1):
+                year, month = p_start0.year + (p_start0.month + add - 1) // 12, (p_start0.month + add - 1) % 12 + 1
+                try:
+                    moved = date(year, month, int(bare.group(1)))
+                except ValueError:
+                    continue
+                if moved >= today:
+                    new_start = moved
+                    guessed = dict(guessed, start=moved, end=None)
+                    break
 
     # 이번 문장에 날짜 이야기가 전혀 없으면, 이미 정한 날짜를 AI가 바꾸지 못하게 한다
     # (AI가 자기 답에 잘못 적은 날짜를 다음 턴 초안에 옮겨 적는 경우가 있었음)
@@ -2530,6 +2588,10 @@ _KIDS_RE = re.compile(r'(?:아이들?|애들?|아기|자녀|딸|아들|조카|�
 _KID_COUNTS = {'하나': 1, '한': 1, '둘': 2, '두': 2, '셋': 3, '세': 3, '넷': 4, '네': 4}
 # 같이 가는 어른 수를 알려 주는 말 (말하는 사람 포함)
 _ADULT_CUES = ((('부부', '아내', '와이프', '남편', '신랑', '집사람'), 2), (('혼자', '나랑', '저랑'), 1))
+
+
+# '인당 25만원', '1인당 30만 원', '한 사람당 20만원' (🟧 11/18)
+_PER_PERSON_BUDGET_RE = re.compile(r'(?:1\s*인당|일인당|인당|한\s*사람당|한\s*명당|각자)\s*(\d{1,4})\s*만\s*원?')
 
 
 def guess_people(text):
@@ -2640,6 +2702,13 @@ def guess_start_place(text, place):
     return name, when
 
 
+# 시·군 이름이지만 다른 뜻으로 더 자주 쓰는 말 (🟧 11/18 도시 표가 시·군 139곳으로 늘어서)
+# '예산 50만원', '동해 바다', '화성 탐사' … 이런 말은 AI가 지역으로 읽었을 때만 지역이 됨
+_PLACE_WORDS_NOT_CITY = {'예산', '동해', '남해', '화성', '영광', '보은', '장수', '고성', '진도', '영동', '구미',
+                         '사천', '하동', '산청', '무안', '보성', '강진', '화순', '장성', '청도', '고령', '영양',
+                         '음성', '진천', '과천', '시흥', '오산', '의왕', '군포', '광명', '양주', '부여', '공주', '상주'}
+
+
 def guess_place(text):
     """'대구 맛집 위주로' → '대구'. AI가 여행 지역을 빠뜨렸을 때만 쓴다 (🟧 11/18, 같은 말에 가끔 지역을 안 적었음)
     가는 길 비교가 아는 도시 이름(access_service.CITIES)만 읽고, '서울역에서 출발'·'부산 말고'처럼 여행지가 아닌 말은 건너뜀"""
@@ -2647,6 +2716,8 @@ def guess_place(text):
     text = text or ''
     best = None
     for name in CITIES:
+        if name in _PLACE_WORDS_NOT_CITY:
+            continue
         for match in re.finditer(re.escape(name), text):
             after = text[match.end():match.end() + 6]
             if re.match(r'\s*(?:역|공항|터미널|항|IC|시청|에서|말고|대신|출발|살|사는)', after):
@@ -3143,6 +3214,12 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     guessed_people = guess_people(messages[-1]['content'])
     if guessed_people:
         ai_draft['people'] = guessed_people
+
+    # 🟧 11/18 '예산은 인당 25만원' → 총예산 = 금액 × 인원 (AI가 가끔 25만원 그대로 넣었음)
+    each = _PER_PERSON_BUDGET_RE.search(user_text)
+    head_count = ai_draft.get('people') or prev.get('people')
+    if each and head_count:
+        ai_draft['budget_total'] = int(each.group(1)) * 10000 * int(head_count)
 
     # 날짜는 사용자 문장에서 코드로 계산한 값을 먼저 쓴다 ('이번주 토요일', '2박 3일')
     ai_dates = (ai_draft.get('start'), ai_draft.get('end'))

@@ -37,3 +37,36 @@
         padding-bottom: calc(16px + var(--tp-safe-bottom)) !important;
     }
 }
+
+/* =========================================================
+   휴대폰에서 쓰기 편하게 (🟧 11/18, 모든 화면에 붙음)
+========================================================= */
+@media (max-width: 900px) {
+    /* 1) 입력 칸 글자 16px 은 js/fit_buttons.js 가 한다 (16px 보다 작은 칸만 키움.
+          CSS 로 전부 16px 로 맞추면 내 정보 수정처럼 원래 더 큰 입력 칸이 작아진다) */
+
+    /* 2) 작은 버튼: 보이는 크기는 그대로 두고 누르는 영역만 넓힌다 (손가락 기준 44px 안팎) */
+    .tl-del,                 /* 내 여행 카드의 삭제(✕) 24px */
+    .transport-fold-btn,     /* 이동 구간 '자세히 ▾' 높이 22px */
+    .fest-card__add,         /* 축제 카드 '+ 일정에' 높이 26px */
+    .tc-link,                /* 채팅 '새로 시작' 높이 28px */
+    .cb-link,                /* 비용 '다른 분류도 보기' 높이 20px */
+    .pp-link-danger {        /* 내 정보 '회원탈퇴' 높이 25px */
+        position: relative;
+    }
+
+    .tl-del::after,
+    .transport-fold-btn::after,
+    .fest-card__add::after,
+    .tc-link::after,
+    .cb-link::after,
+    .pp-link-danger::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: max(100%, 44px);
+        height: max(100%, 44px);
+        transform: translate(-50%, -50%);
+    }
+}
