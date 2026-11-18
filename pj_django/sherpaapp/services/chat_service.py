@@ -2138,6 +2138,9 @@ def _relative_nights(text, prev):
     return None
 
 
+_CLAUSE_SPLIT_RE = re.compile(r'[,!?\n]|\.(?!\d)')      # '11.28' 의 점은 나누지 않음
+
+
 def guess_dates(text, today):
     """사용자 문장에서 출발일·종료일을 직접 계산한다. (AI는 요일 계산을 자주 틀림)
 
@@ -2147,8 +2150,17 @@ def guess_dates(text, today):
     """
     found = {'start': None, 'end': None, 'nights': guess_nights(text)}
 
-    if not isinstance(text, str) or any(word in text for word in _STAY_WORDS + _NOT_TRIP_DATE_WORDS):
+    if not isinstance(text, str):
         return found
+
+    # 숙소·영업 이야기에 나온 날짜는 여행 날짜가 아니다. 전엔 그런 말이 한 군데라도 있으면 문장 전체를 안 읽어서,
+    # 한 번에 길게 말하면('12월 첫째 주 토요일부터 1박 2일 강릉. … 숙소는 ○○호텔') 날짜를 AI 계산에만 맡겼음 (🟧 11/18)
+    # → 쉼표·마침표로 나눈 토막 중 그런 말이 있는 토막만 빼고 읽는다
+    if any(word in text for word in _STAY_WORDS + _NOT_TRIP_DATE_WORDS):
+        parts = [x for x in _CLAUSE_SPLIT_RE.split(text) if x and not any(w in x for w in _STAY_WORDS + _NOT_TRIP_DATE_WORDS)]
+        text = ' , '.join(parts)
+        if not text.strip():
+            return found
 
     # 0) '12월 첫째 주 토요일', '1월 둘째 주 주말' (🟧 11/18)
     match = _NTH_WEEKDAY_RE.search(text)
@@ -2921,6 +2933,16 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
     ai_dates = (ai_draft.get('start'), ai_draft.get('end'))
     ai_draft = _apply_guessed_dates(ai_draft, prev, messages, today)
     dates_fixed = ai_dates != (ai_draft.get('start'), ai_draft.get('end'))
+
+    # 🟧 11/18 코드가 출발일을 바로잡았으면, AI가 틀린 날짜에 맞춰 적은 숙소 날짜도 같은 만큼 옮긴다
+    # (안 옮기면 숙소가 여행 날짜 밖이 돼서 통째로 빠졌음: '12월 첫째 주 토요일부터 … 숙소는 ○○호텔')
+    ai_start, fixed_start = _parse_date(ai_dates[0]), _parse_date(ai_draft.get('start'))
+    if ai_start and fixed_start and ai_start != fixed_start and isinstance(ai_draft.get('stays'), list):
+        kept_keys = {(x.get('date'), x.get('query')) for x in prev.get('stays') or [] if isinstance(x, dict)}
+        for stay in ai_draft['stays']:
+            stay_day = _parse_date(stay.get('date')) if isinstance(stay, dict) else None
+            if stay_day and (stay.get('date'), stay.get('query')) not in kept_keys:
+                stay['date'] = (stay_day + (fixed_start - ai_start)).isoformat()
 
     # 다른 언어로 말하면 AI가 지역을 '釜山'처럼 적을 때가 있어 한국어 이름으로 (🟩 11/12)
     if lang != 'ko' and llm is call_llm and ai_draft.get('place') != prev.get('place'):
