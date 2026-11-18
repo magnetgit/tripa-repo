@@ -1,0 +1,4 @@
+{% comment %}
+🟦 11/18 여행 상세 '여행 정보'의 빈 칸: 내 여행이면 [채우기] → 여행 수정 팝업을 그 칸에 맞춰 엶
+쓰는 법: {% include "_trip_fill.html" with field="start_place" %}  (field = 팝업 입력칸 name)
+{% endcomment %}{% if member and member.m_id == travel.member_id %}<button type="button" class="td-fill" onclick="openTripEdit('{{ field }}')"><span class="td-fill__empty">비어 있어요</span> 채우기</button>{% else %}-{% endif %}

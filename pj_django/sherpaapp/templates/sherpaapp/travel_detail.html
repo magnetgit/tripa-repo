@@ -590,6 +590,67 @@
             box-sizing: border-box;
         }
 
+        .trip-edit__field select {
+            width: 100%;
+            height: 44px;
+            padding: 0 10px;
+            border: 1.5px solid #dbe4f3;
+            border-radius: 10px;
+            font: inherit;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        /* 🟦 11/18 비워 둔 항목 채우기 */
+        .trip-edit__sub {
+            margin: 18px 0 10px;
+            padding-top: 14px;
+            border-top: 1px solid #eef2f8;
+            font-size: 14px;
+            color: #2d6cdf;
+        }
+
+        .trip-edit__row--three { grid-template-columns: 1.3fr 0.7fr 1fr; }
+
+        .trip-edit__check {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin: 4px 0 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1f2d4a;
+            cursor: pointer;
+        }
+
+        .trip-edit__check small { font-weight: 500; color: #7b88a1; }
+        .trip-edit__check input { margin-top: 2px; }
+
+        .trip-edit__field.is-target input,
+        .trip-edit__field.is-target select {
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+        }
+
+        .td-fill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            border: 1px dashed #f59e0b;
+            border-radius: 999px;
+            background: #fffbeb;
+            color: #b45309;
+            font: inherit;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .td-fill__empty { font-weight: 500; color: #92400e; opacity: 0.8; }
+        .td-fill:hover { background: #fef3c7; }
+        .td-fill-note { color: #b45309; font-size: 12px; }
+
         .trip-edit__field input:focus {
             outline: none;
             border-color: #2d6cdf;
@@ -637,7 +698,8 @@
         }
 
         @media (max-width: 480px) {
-            .trip-edit__row { grid-template-columns: 1fr; }
+            .trip-edit__row,
+            .trip-edit__row--three { grid-template-columns: 1fr; }
         }
 
         .place-modal-header button {
@@ -2141,7 +2203,26 @@
                         </div>
                         <div class="summary-item">
                             <dt class="summary-label">{% include "_icon.html" with name="route" %} 교통 수단</dt>
-                            <dd class="summary-value">{% if travel.t_way|lower == 'car' %}자동차{% elif travel.t_way == 'public_transport' %}대중교통{% elif travel.t_way == 'walk' %}도보{% elif travel.t_way == 'bike' %}자전거{% else %}{{ travel.t_way|default:'-' }}{% endif %}</dd>
+                            <dd class="summary-value">{% if travel.t_way|lower == 'car' %}자동차{% elif travel.t_way == 'public_transport' %}대중교통{% elif travel.t_way == 'walk' %}도보{% elif travel.t_way == 'bike' %}자전거{% elif travel.t_way %}{{ travel.t_way }}{% else %}{% include "_trip_fill.html" with field="t_way" %}{% endif %}</dd>
+                        </div>
+                        {# 🟦 11/18 AI 대화에서 비워 둔 항목도 여기서 보이고 [채우기]로 여행 수정 팝업을 엶 #}
+                        <div class="summary-item">
+                            <dt class="summary-label">{% include "_icon.html" with name="flag" %} 출발지</dt>
+                            <dd class="summary-value">{% if travel.start_place %}{{ travel.start_place }}{% if travel.start_time %} · {{ travel.start_time|time:"H:i" }}{% endif %}{% else %}{% include "_trip_fill.html" with field="start_place" %}{% endif %}</dd>
+                        </div>
+                        {% if edit_nights %}
+                        <div class="summary-item">
+                            <dt class="summary-label">{% include "_icon.html" with name="bed" %} 숙소</dt>
+                            <dd class="summary-value">{% if stay_filled %}{{ stay_names|join:", " }}{% if stay_filled < edit_nights|length %} <small class="td-fill-note">({{ edit_nights|length }}박 중 {{ stay_filled }}박)</small>{% endif %}{% else %}{% include "_trip_fill.html" with field="stay_1" %}{% endif %}</dd>
+                        </div>
+                        {% endif %}
+                        <div class="summary-item">
+                            <dt class="summary-label">{% include "_icon.html" with name="users" %} 인원</dt>
+                            <dd class="summary-value">{{ trip_people }}명</dd>
+                        </div>
+                        <div class="summary-item">
+                            <dt class="summary-label">{% include "_icon.html" with name="wallet" %} 총예산</dt>
+                            <dd class="summary-value">{{ travel.t_budget|default:0|floatformat:"0g" }}원</dd>
                         </div>
                     </dl>
 
@@ -2354,6 +2435,61 @@
 
             <p class="trip-edit__summary" id="tripEditSummary" aria-live="polite"></p>
             <p class="trip-edit__hint">날짜를 옮기면 DAY별 일정도 함께 옮겨져요. 기간을 줄이면 뒤쪽 DAY의 일정이 지워져요.</p>
+
+            {# 🟦 11/18 AI 대화에서 비워 둔 항목 채우기 (서버: travel_reschedule 의 extra=1) #}
+            <input type="hidden" name="extra" value="1">
+            <h3 class="trip-edit__sub">출발 · 숙소</h3>
+            <div class="trip-edit__row trip-edit__row--start">
+                <label class="trip-edit__field">
+                    <span>출발지</span>
+                    <input type="text" name="start_place" maxlength="200" value="{{ travel.start_place|default:'' }}"
+                           placeholder="예: 서울역, 집 주소">
+                </label>
+                <label class="trip-edit__field">
+                    <span>출발 시간</span>
+                    <input type="time" name="start_time" value="{{ travel.start_time|time:'H:i' }}">
+                </label>
+            </div>
+
+            <div id="tripEditStays" class="trip-edit__stays">
+                {% for night in edit_nights %}
+                <label class="trip-edit__field">
+                    <span>{{ night.n }}박째 숙소 ({{ night.date|date:"m/d" }} 밤)</span>
+                    <input type="text" name="stay_{{ night.n }}" maxlength="200" value="{{ night.name }}"
+                           placeholder="{% if forloop.first %}예: 강릉 세인트존스 호텔{% else %}비우면 전날 숙소 그대로{% endif %}">
+                </label>
+                {% endfor %}
+            </div>
+
+            <h3 class="trip-edit__sub">이동수단 · 인원 · 예산</h3>
+            <div class="trip-edit__row trip-edit__row--three">
+                <label class="trip-edit__field">
+                    <span>여행지 안 이동수단</span>
+                    <select name="t_way">
+                        <option value=""{% if not travel.t_way %} selected{% endif %}>정하지 않음</option>
+                        <option value="car"{% if travel.t_way|lower == 'car' %} selected{% endif %}>자동차</option>
+                        <option value="public_transport"{% if travel.t_way == 'public_transport' %} selected{% endif %}>대중교통</option>
+                        <option value="walk"{% if travel.t_way == 'walk' %} selected{% endif %}>도보</option>
+                        <option value="bike"{% if travel.t_way == 'bike' %} selected{% endif %}>자전거</option>
+                        {% if travel.t_way and travel.t_way|lower != 'car' and travel.t_way != 'public_transport' and travel.t_way != 'walk' and travel.t_way != 'bike' %}
+                        <option value="{{ travel.t_way }}" selected>{{ travel.t_way }} (그대로)</option>
+                        {% endif %}
+                    </select>
+                </label>
+                <label class="trip-edit__field">
+                    <span>인원</span>
+                    <input type="number" name="people" min="1" max="20" value="{{ trip_people }}">
+                </label>
+                <label class="trip-edit__field">
+                    <span>총예산 (원)</span>
+                    <input type="text" name="t_budget" inputmode="numeric" value="{{ travel.t_budget|default:'' }}">
+                </label>
+            </div>
+
+            <label class="trip-edit__check">
+                <input type="checkbox" name="regen" value="1">
+                <span>바뀐 출발지·숙소로 일정 다시 짜기 <small>(지금 일정은 새로 짠 일정으로 바뀌어요)</small></span>
+            </label>
             <p class="trip-edit__error" id="tripEditError" role="alert"></p>
 
             <div class="trip-edit__actions">
@@ -2622,13 +2758,49 @@ document.addEventListener("DOMContentLoaded", function () {
 document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeRouteShare(); });
 
 
-function openTripEdit() {
+// field: '여행 정보'의 [채우기]에서 열면 그 칸 이름 (예: "start_place") → 그 칸으로 바로 이동
+function openTripEdit(field) {
     const modal = document.getElementById("tripEditModal");
     if (!modal) return;
+    const form = document.getElementById("tripEditForm");
     document.getElementById("tripEditError").textContent = "";
     updateTripEditSummary();
     modal.style.display = "flex";
-    document.getElementById("tripEditForm").t_title.focus();
+
+    form.querySelectorAll(".trip-edit__field.is-target").forEach(function (el) { el.classList.remove("is-target"); });
+    const target = (field && form.elements[field]) || form.t_title;
+    const label = target.closest(".trip-edit__field");
+    if (field && label) label.classList.add("is-target");
+    target.scrollIntoView({ block: "center" });
+    target.focus();
+}
+
+// 날짜를 바꾸면 'n박째 숙소' 칸 수도 맞춤 (적어 둔 값은 n박째 그대로 남김)
+function renderTripStays() {
+    const form = document.getElementById("tripEditForm");
+    const box = document.getElementById("tripEditStays");
+    const days = tripEditDays();
+    if (!box || days === null || days < 1) return;
+
+    const nights = days - 1;
+    const kept = {};
+    box.querySelectorAll("input").forEach(function (input) { kept[input.name] = input.value; });
+
+    const start = new Date(form.t_start.value);
+    box.innerHTML = "";
+    for (let n = 1; n <= nights; n++) {
+        const night = new Date(start.getTime() + (n - 1) * 86400000);
+        const mmdd = String(night.getMonth() + 1).padStart(2, "0") + "/" + String(night.getDate()).padStart(2, "0");
+        const label = document.createElement("label");
+        label.className = "trip-edit__field";
+        label.innerHTML = '<span></span><input type="text" maxlength="200">';
+        label.querySelector("span").textContent = n + "박째 숙소 (" + mmdd + " 밤)";
+        const input = label.querySelector("input");
+        input.name = "stay_" + n;
+        input.value = kept[input.name] || "";
+        input.placeholder = n === 1 ? "예: 강릉 세인트존스 호텔" : "비우면 전날 숙소 그대로";
+        box.appendChild(label);
+    }
 }
 
 function closeTripEdit() {
@@ -2654,6 +2826,9 @@ function saveTripEdit(event, confirmed) {
 
     button.disabled = true;
     error.textContent = "";
+    // 숙소·출발지를 카카오에서 찾고, 고르면 일정도 다시 짜서 몇 초 걸릴 수 있음
+    const buttonText = button.textContent;
+    button.textContent = form.regen && form.regen.checked ? "일정 다시 짜는 중..." : "저장 중...";
 
     fetch("{% url 'travel_reschedule' travel_id=travel.t_id %}", {
         method: "POST",
@@ -2683,6 +2858,7 @@ function saveTripEdit(event, confirmed) {
         })
         .finally(function () {
             button.disabled = false;
+            button.textContent = buttonText;
         });
 
     return false;
@@ -2693,6 +2869,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!form) return;
     form.t_start.addEventListener("change", updateTripEditSummary);
     form.t_end.addEventListener("change", updateTripEditSummary);
+    form.t_start.addEventListener("change", renderTripStays);
+    form.t_end.addEventListener("change", renderTripStays);
     form.addEventListener("input", function () {
         document.getElementById("tripEditError").textContent = "";
     });

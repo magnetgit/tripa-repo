@@ -917,6 +917,17 @@ def travel_detail(request, travel_id):
             visited_place_ids.add(place.p_id)
             visited_places.append(place)
 
+    # 여행 수정 팝업의 밤별 숙소 칸 + 왼쪽 '여행 정보'의 빈 칸 표시 (🟦 11/18)
+    stay_by_date = {
+        p.plan_date: p.accommodation_name
+        for p in TravelDayPlan.objects.filter(travel=travel).order_by('tdp_id')
+    }
+    edit_nights = [
+        {'n': i + 1, 'date': d['date'], 'name': stay_by_date.get(d['date']) or ''}
+        for i, d in enumerate(days[:-1])
+    ]
+    stay_names = list(dict.fromkeys(n['name'] for n in edit_nights if n['name']))
+
     context = {
         'travel': travel,
         'member': member,
@@ -936,6 +947,10 @@ def travel_detail(request, travel_id):
         # 대중교통 경로는 서버(/transit_route/, 카카오)에서 받으므로 ODsay 키는 더 이상 넘기지 않음 (11/06 결정)
         # 여행지까지 가는 길 (access.js 가 json_script 로 읽음, 🟧 11/11)
         'access_route': travel.access_route if isinstance(travel.access_route, dict) else None,
+        'edit_nights': edit_nights,
+        'stay_names': stay_names,
+        'stay_filled': sum(1 for n in edit_nights if n['name']),
+        'trip_people': _budget_people(request, travel.t_id),
     }
 
     return render(request, 'sherpaapp/travel_detail.html', context)
@@ -1655,6 +1670,116 @@ def travel_costs(request, travel_id, day):
 
 
 TRAVEL_MAX_DAYS = 30
+TRIP_WAYS = ('car', 'public_transport', 'walk', 'bike')
+TRIP_BUDGET_MAX = 100000000
+TRIP_PEOPLE_MAX = 20
+
+
+def _trip_edit_extra(post, travel, region, new_start, new_end):
+    """여행 수정 팝업의 추가 칸(이동수단·인원·예산·출발지·숙소)을 검사하고, 바뀐 곳만 카카오로 위치를 찾는다. (🟦 11/18)
+
+    AI 대화에서 비워 둔 항목을 일정 관리에서 채울 수 있게.
+    잘못된 값이면 ValueError(화면에 보여 줄 말). 숙소는 {밤 번호: None(그대로) / {}(비움) / 찾은 장소}.
+    """
+    data = {}
+
+    way = (post.get('t_way') or '').strip()
+    if way and way not in TRIP_WAYS and way != (travel.t_way or ''):   # 예전 값('car,bus' 등)은 그대로 두기만 허용
+        raise ValueError('이동수단을 다시 골라 주세요.')
+    data['way'] = way
+
+    people = (post.get('people') or '').strip()
+    if people:
+        if not people.isdigit() or not 1 <= int(people) <= TRIP_PEOPLE_MAX:
+            raise ValueError('인원은 1~%d명으로 적어 주세요.' % TRIP_PEOPLE_MAX)
+        data['people'] = int(people)
+
+    budget = re.sub(r'[,\s원]', '', post.get('t_budget') or '')
+    if budget:
+        if not budget.isdigit() or int(budget) > TRIP_BUDGET_MAX:
+            raise ValueError('총예산은 숫자(원)로 적어 주세요.')
+        data['budget'] = int(budget)
+
+    # 출발지: 그대로면 안 찾음, 지우면 비움, 새로 적으면 카카오에서 찾음
+    start_name = (post.get('start_place') or '').strip()[:200]
+    if start_name != (travel.start_place or ''):
+        if start_name:
+            found = chat_service._find_start_place(start_name, region)
+            if not found:
+                raise ValueError("출발지 '%s' 위치를 찾지 못했어요. 역·건물 이름이나 주소로 적어 주세요." % start_name)
+            data['start'] = found
+        else:
+            data['start'] = {}
+
+    start_time = (post.get('start_time') or '').strip()
+    try:
+        data['start_time'] = datetime.strptime(start_time, '%H:%M').time() if start_time else None
+    except ValueError:
+        raise ValueError('출발 시간을 다시 골라 주세요.')
+
+    # 숙소: 밤 번호(1박째, 2박째 ...)로 받는다. 날짜를 옮겨도 n박째는 n박째
+    old_names = {
+        p.plan_date: p.accommodation_name or ''
+        for p in TravelDayPlan.objects.filter(travel=travel).order_by('tdp_id')
+    }
+    found_cache = {}
+    stays = {}
+    for n in range(1, (new_end - new_start).days + 1):
+        name = (post.get('stay_%d' % n) or '').strip()[:200]
+        old = old_names.get(travel.t_start + timedelta(days=n - 1), '')
+        if name == old:
+            stays[n] = None
+            continue
+        if not name:
+            stays[n] = {}
+            continue
+        if name not in found_cache:
+            found_cache[name] = chat_service._find_stay(name, region)
+        if not found_cache[name]:
+            raise ValueError("%d박째 숙소 '%s'를 카카오 숙박 목록에서 찾지 못했어요. 숙소 이름을 다시 적어 주세요." % (n, name))
+        stays[n] = found_cache[name]
+    data['stays'] = stays
+
+    return data
+
+
+def _trip_edit_save(travel, data, new_start):
+    """_trip_edit_extra 결과를 저장한다. (transaction 안에서 부름)"""
+    travel.t_way = data['way']
+    if 'budget' in data:
+        travel.t_budget = data['budget']
+    if 'start' in data:
+        start = data['start']
+        travel.start_place = start.get('name')
+        travel.start_addr = start.get('addr')
+        travel.start_lat = _decimal_or_none(start.get('lat'))
+        travel.start_lon = _decimal_or_none(start.get('lon'))
+    travel.start_time = data['start_time']
+    travel.save(update_fields=['t_way', 't_budget', 'start_place', 'start_addr',
+                               'start_lat', 'start_lon', 'start_time'])
+
+    for n, stay in data['stays'].items():
+        if stay is None:
+            continue
+        night = new_start + timedelta(days=n - 1)
+        plan = TravelDayPlan.objects.filter(travel=travel, plan_date=night).order_by('tdp_id').first()
+        if not plan:
+            if not stay:
+                continue
+            plan = TravelDayPlan(travel=travel, plan_date=night)
+        # 비우면 이름·좌표만 지움 → 그 밤은 전날 숙소를 그대로 씀 (resolve_effective_accommodations 규칙)
+        plan.accommodation_name = stay.get('name')
+        plan.accommodation_addr = stay.get('addr')
+        plan.accommodation_lat = _decimal_or_none(stay.get('lat'))
+        plan.accommodation_lon = _decimal_or_none(stay.get('lon'))
+        plan.save()
+
+        # 숙소에도 사진·리뷰가 붙게 kakao_id 와 함께 장소를 만들어 둠 (_chat_create_travel 과 같은 방법)
+        if stay.get('kakao_id'):
+            candidate = build_accommodation_candidate(stay.get('name'), stay.get('addr'), stay.get('lat'), stay.get('lon'))
+            if candidate:
+                candidate['kakao_id'] = stay['kakao_id']
+                get_or_create_place(travel, candidate)
 
 
 @require_POST
@@ -1723,6 +1848,14 @@ def travel_reschedule(request, travel_id):
                 ),
             }, status=409)
 
+    # 🟦 11/18 팝업에 추가한 칸(extra=1일 때만): 저장하기 전에 먼저 검사·위치 찾기 → 틀리면 아무것도 안 바뀜
+    extra = None
+    if request.POST.get('extra') == '1':
+        try:
+            extra = _trip_edit_extra(request.POST, travel, place, new_start, new_end)
+        except ValueError as error:
+            return JsonResponse({'success': False, 'message': str(error)}, status=400)
+
     with transaction.atomic():
         # 지워질 날 먼저 지움 (장소·비용은 CASCADE로 함께 지워짐)
         Schedule.objects.filter(pk__in=[s.pk for s in dropped]).delete()
@@ -1748,6 +1881,23 @@ def travel_reschedule(request, travel_id):
         travel.t_end = new_end
         travel.t_day = new_start
         travel.save(update_fields=['t_title', 't_place', 't_start', 't_end', 't_day'])
+
+        if extra:
+            _trip_edit_save(travel, extra, new_start)
+
+    if extra and 'people' in extra:
+        _remember_budget_people(request, travel.t_id, extra['people'])   # 비용 관리·예상 비용과 같은 인원
+
+    # 바뀐 숙소·출발지로 일정 다시 짜기 (고른 사람만, 지금 일정은 새로 만든 것으로 바뀜)
+    if extra and request.POST.get('regen') == '1':
+        # 컨셉이 없으면 generate_schedule 이 지금 일정만 지우고 빈 일정이 됨 → 다시 짜지 않음
+        if not TravelCategory.objects.filter(travel=travel).exists():
+            return JsonResponse({'success': True, 'message': '정보는 저장했어요. 여행 컨셉이 없어 일정은 다시 짜지 않았어요.'})
+        try:
+            generate_schedule(travel)
+        except Exception:
+            logger.exception('여행 수정 후 일정 다시 짜기 실패 travel=%s', travel.t_id)
+            return JsonResponse({'success': True, 'message': '정보는 저장했지만 일정을 다시 짜지 못했어요.'})
 
     return JsonResponse({'success': True, 'message': '여행 정보를 바꿨어요.'})
 
