@@ -1348,5 +1348,11 @@ window.TRIPA_DICT = {
 "주소가 바뀌었거나 없는 페이지예요. 주소를 다시 확인하거나 홈에서 다시 시작해 주세요.": "This page has moved or does not exist. Check the address or start again from home.",
 "페이지를 찾을 수 없어요": "Page not found",
 "홈으로 가기": "Go to home",
-"금액은 0원부터 1억 원까지 숫자로 적어 주세요.": "Please enter an amount between 0 and 100,000,000 won, in numbers."
+"금액은 0원부터 1억 원까지 숫자로 적어 주세요.": "Please enter an amount between 0 and 100,000,000 won, in numbers.",
+"가입할 때 쓴 아이디를 입력해 주세요.": "Enter the ID you signed up with.",
+"가입할 때 쓴 이름을 입력해 주세요.": "Enter the name you signed up with.",
+"가입할 때 쓴 이메일을 입력해 주세요. 이 주소로 인증 코드를 보내요.": "Enter the email you signed up with. We'll send a verification code to this address.",
+"다음": "Next",
+"메일로 받은 6자리 인증 코드를 입력해 주세요.": "Enter the 6-digit verification code from the email.",
+"새 비밀번호를 정해 주세요.": "Choose a new password."
 };
