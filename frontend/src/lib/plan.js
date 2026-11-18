@@ -1,13 +1,15 @@
 // 일정 미리보기 계산 (기존 travel_chat.js 와 같은 규칙)
 
 // 일정에 영향을 주는 값이 바뀌었는지 알아보는 표식 (담은 장소/제목은 일정 생성에 영향이 없다)
-export function planSig(d) {
+// ignoreWeather: '날씨 상관없이'를 켜면 다른 일정이므로 표식에 넣는다 (🟦 11/18)
+export function planSig(d, ignoreWeather = false) {
   const sp = d.start_place;
   return JSON.stringify([
     d.place, d.start, d.end, d.people, d.budget_style, d.budget_total, d.transport, d.categories, d.start_time,
     sp ? [sp.name, sp.lat, sp.lon] : null,
     (d.stays || []).map((x) => [x.date, x.name, x.lat, x.lon, x.arrival_time, x.departure_time]),
     (d.pins || []).map((p) => [p.day, p.name, p.time, p.lat, p.lon]),
+    !!ignoreWeather,
   ]);
 }
 
@@ -23,7 +25,7 @@ export function removedKey(removed, order) {
 }
 
 export function isPlanFresh(state) {
-  return !!(state.plan && state.plan.sig === planSig(state.draft));
+  return !!(state.plan && state.plan.sig === planSig(state.draft, state.ignoreWeather));
 }
 
 export function currentDay(state) {

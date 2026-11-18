@@ -4826,6 +4826,16 @@ button.preview-day {
 .tc-plan__head h3 .tp-icon { width: 16px; height: 16px; color: #2d6cdf; }
 .tc-plan__head .tc-link[hidden] { display: none; }
 
+/* 일정 미리보기 '날씨 상관없이' 버튼 (🟦 11/18) */
+.tc-plan__acts { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.tc-wxbtn {
+    padding: 4px 10px; border: 1px solid #c9d6ee; border-radius: 999px; background: #fff;
+    color: #3d5a8c; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.tc-wxbtn:hover { background: #f1f6ff; }
+.tc-wxbtn[aria-pressed="true"] { background: #2d6cdf; border-color: #2d6cdf; color: #fff; }
+.tc-wxbtn[hidden] { display: none; }
+
 .tc-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
 .tc-tabs:empty { display: none; }
 

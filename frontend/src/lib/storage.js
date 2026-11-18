@@ -37,6 +37,7 @@ export function loadChat(member) {
       plan: saved.plan && Array.isArray(saved.plan.days) ? saved.plan : null,
       removed: Array.isArray(saved.removed) ? saved.removed.filter(isRemoved) : [],
       order: cleanOrder(saved.order),
+      ignoreWeather: !!saved.ignoreWeather,
     };
   } catch {
     return null;
@@ -55,6 +56,7 @@ export function saveChat(member, state) {
         plan: state.plan,
         removed: state.removed,
         order: state.order,
+        ignoreWeather: !!state.ignoreWeather,
       }),
     );
   } catch {

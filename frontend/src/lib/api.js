@@ -22,13 +22,14 @@ export function sendChat(cfg, messages, draft) {
 }
 
 // 일정 미리보기 (날짜별 타임라인)
-export function fetchPreview(cfg, draft, removed, order) {
-  return postJson(cfg.previewUrl, { draft, removed, order }, cfg.csrf);
+// ignoreWeather: '날씨 상관없이' 버튼 (🟦 11/18, 서버 ignore_weather)
+export function fetchPreview(cfg, draft, removed, order, ignoreWeather = false) {
+  return postJson(cfg.previewUrl, { draft, removed, order, ignore_weather: !!ignoreWeather }, cfg.csrf);
 }
 
 // '이 일정 적용하기' → 여행 저장
-export function applyPlan(cfg, draft, removed, order) {
-  return postJson(cfg.applyUrl, { draft, removed, order }, cfg.csrf);
+export function applyPlan(cfg, draft, removed, order, ignoreWeather = false) {
+  return postJson(cfg.applyUrl, { draft, removed, order, ignore_weather: !!ignoreWeather }, cfg.csrf);
 }
 
 // 만들어진 여행에 담아 둔 장소 하나 넣기 (일정 상세의 '장소 추가'와 같은 주소, 폼 방식)

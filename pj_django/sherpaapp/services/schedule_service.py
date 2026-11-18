@@ -2564,6 +2564,7 @@ def go_trip_for(travel, travel_date, after=None):
 def generate_schedule(
     travel,
     reset_existing=True,
+    ignore_weather=False,   # 🟦 11/18: True 면 비 예보를 안 보고 짠다 (채팅 '날씨 상관없이' 버튼)
 ):
     """
     날짜별 시작점/숙소를 반영해 일정을 생성한다.
@@ -2682,7 +2683,8 @@ def generate_schedule(
     used_places = set()
 
     # 비 오는 날 (예보 16일 안 · 지난 날 실제 날씨). 그날은 실내 후보를 더해서 실내 먼저
-    rainy_dates = rainy_trip_dates(
+    # 사용자가 '날씨 상관없이'를 고르면 비 오는 날이 없는 것처럼 (🟦 11/18)
+    rainy_dates = set() if ignore_weather else rainy_trip_dates(
         travel
     )
     rainy_candidates = (

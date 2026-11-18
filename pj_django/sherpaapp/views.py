@@ -5366,7 +5366,8 @@ def travel_chat_apply(request):
     warning = None
 
     try:
-        generate_schedule(travel)
+        # '날씨 상관없이'를 고른 채로 적용하면 저장할 일정도 비 예보를 안 본다 (🟦 11/18, 미리보기와 같게)
+        generate_schedule(travel, ignore_weather=bool(body.get('ignore_weather')))
     except Exception:
         chat_logger.exception('AI 대화 여행 일정 생성 실패 (t_id=%s)', travel.t_id)
         warning = '여행은 만들어졌지만 자동 일정 생성에 실패했어요. 상세 화면에서 다시 확인해 주세요.'
@@ -6083,13 +6084,15 @@ def travel_chat_preview(request):
 
     removed = _chat_clean_removed(body.get('removed'))
     order = _chat_clean_order(body.get('order'))
+    # '날씨 상관없이' 버튼 (🟦 11/18): 비 예보가 있어도 실내 먼저 고르지 않음
+    ignore_weather = bool(body.get('ignore_weather'))
 
     # 같은 초안 + 같은 삭제 조건이면 다시 계산하지 않고 저장해 둔 결과를 돌려준다.
     # (저장된 결과를 쓰는 건 요청 횟수로 세지 않는다)
     cache_key = 'chat_preview:%s:%s' % (
         member.pk,
         hashlib.sha1(
-            json.dumps([draft, removed, order], ensure_ascii=False, sort_keys=True, default=str).encode('utf-8')
+            json.dumps([draft, removed, order, ignore_weather], ensure_ascii=False, sort_keys=True, default=str).encode('utf-8')
         ).hexdigest(),
     )
     cached = cache.get(cache_key)
@@ -6120,7 +6123,7 @@ def travel_chat_preview(request):
         # 진짜 일정 생성 로직을 한 번 돌려 결과만 읽고, 저장은 전부 취소(롤백)한다.
         with transaction.atomic():
             travel = _chat_create_travel(member, draft)
-            generate_schedule(travel)
+            generate_schedule(travel, ignore_weather=ignore_weather)
             _chat_finish_schedule(travel, draft, removed, order)
             days = _chat_preview_days(travel, draft)
             transaction.set_rollback(True)

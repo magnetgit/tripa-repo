@@ -24,8 +24,11 @@ function pinOverlay(kakao, kind, label, lat, lon) {
 
 // 가장 최근 추천 중 숙소(좌표 있는 것)만 → 지도에 보라색 점 + 이름·1박 가격 카드로 (🟧 11/16)
 // 그리는 코드는 React 밖 공통 스크립트 static/sherpaapp/js/stay_pins.js (여행 만들기 화면과 같이 씀, chat.html 이 먼저 불러옴)
+// 고른 숙소는 빼고, 모든 밤을 정했으면 안 그림 (🟦 11/18, 주황 숙소 표시와 겹치던 것)
 function recStays(state) {
-  return window.TripaStayPins ? window.TripaStayPins.fromMessages(state.messages) : [];
+  const pins = window.TripaStayPins;
+  if (!pins) return [];
+  return (pins.forDraft || pins.fromMessages)(state.messages, state.draft);
 }
 
 // 지도에 찍을 점이 하나라도 있는지 (안내 문구용)
