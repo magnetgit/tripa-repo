@@ -6683,16 +6683,16 @@ def travel_checkin(request, travel_id, day):
         return JsonResponse({'success': False, 'message': '이 날은 숙소가 없어요. 숙소를 먼저 넣어 주세요.'}, status=400)
     stay = stays[-1]
     if sum(1 for row in rows if row.place_id == stay.place_id) >= 2:
-        return JsonResponse({'success': False, 'message': '이미 체크인 줄이 있어요. 시각은 체크인 줄 시간을 눌러 바꿔 주세요.'}, status=400)
+        return JsonResponse({'success': False, 'message': '이미 짐 맡기기 줄이 있어요. 시각은 그 줄의 시간을 눌러 바꿔 주세요.'}, status=400)
 
     try:
         checkin = datetime.strptime((request.POST.get('time') or '').strip(), '%H:%M').time()
     except ValueError:
-        return JsonResponse({'success': False, 'message': '체크인 시각을 골라 주세요.'}, status=400)
+        return JsonResponse({'success': False, 'message': '짐 맡길 시각을 골라 주세요.'}, status=400)
     if stay.arrive_time and checkin >= stay.arrive_time:
         return JsonResponse({
             'success': False,
-            'message': f"체크인은 숙소로 돌아오는 시각({stay.arrive_time.strftime('%H:%M')})보다 빨라야 해요.",
+            'message': f"짐 맡기는 시각은 숙소로 돌아오는 시각({stay.arrive_time.strftime('%H:%M')})보다 빨라야 해요.",
         }, status=400)
 
     leave = (datetime.combine(schedule.s_day, checkin) + timedelta(minutes=CHECKIN_STAY_MIN)).time()
@@ -6707,7 +6707,7 @@ def travel_checkin(request, travel_id, day):
         reorder_schedule_places_by_time(schedule)                         # 체크인 시각 자리로
         recalculate_schedule_timeline(schedule, anchor_sp_id=row.sp_id)   # 그 뒤 일정 시간 다시
 
-    message = f"{checkin.strftime('%H:%M')}에 {stay.place.p_name} 체크인 줄을 넣었어요."
+    message = f"{checkin.strftime('%H:%M')}에 {stay.place.p_name} 짐 맡기기 줄을 넣었어요."
 
     # 바로 앞 일정이 체크인 시각보다 늦게 끝나면 겹친다고 알려 줌 (막지는 않음)
     row.refresh_from_db()
@@ -6717,7 +6717,7 @@ def travel_checkin(request, travel_id, day):
     )
     if before and before.start_time and before.start_time > checkin:
         message += (f" 앞 일정({before.place.p_name})이 {before.start_time.strftime('%H:%M')}에 끝나서 겹쳐요."
-                    " 체크인 시각을 늦추거나 앞 일정 체류를 줄여 주세요.")
+                    " 짐 맡기는 시각을 늦추거나 앞 일정 체류를 줄여 주세요.")
 
     return JsonResponse({'success': True, 'sp_id': row.sp_id, 'message': message})
 
