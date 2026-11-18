@@ -1995,19 +1995,29 @@ def _budget_category(pay):
     return by_key['etc']
 
 
-# AI 예상 예산을 계산한 인원 (DB 칸이 없어서 로그인 세션에 여행별로 기억)
+# AI 예상 예산을 계산한 인원
+# 🟧 11/18 Travel.t_people 에 저장 (전엔 DB 칸이 없어 로그인 세션에만 → 다시 로그인하면 2명으로 계산돼 예상 비용이 달라졌음)
 BUDGET_PEOPLE_DEFAULT = 2
 
 
 def _budget_people(request, travel_id):
+    """그 여행의 계산 인원: DB(Travel.t_people) → 예전 방식(세션) → 기본 2명"""
+    people = Travel.objects.filter(t_id=travel_id).values_list('t_people', flat=True).first()
+    if people:
+        return people
     saved = (request.session.get('budget_people') or {}).get(str(travel_id))
     return saved or BUDGET_PEOPLE_DEFAULT
 
 
 def _remember_budget_people(request, travel_id, people):
+    """계산 인원 저장 (내 여행만). 세션에도 지금처럼 남겨 둔다"""
+    people = budget_service.clean_people(people)
     saved = dict(request.session.get('budget_people') or {})
     saved[str(travel_id)] = people
     request.session['budget_people'] = saved   # 새 dict로 넣어야 세션이 저장됨
+    Travel.objects.filter(
+        t_id=travel_id, member__user_id=request.session.get('login_ok_user')
+    ).update(t_people=people)
 
 
 # ==============================================
@@ -6754,6 +6764,8 @@ def travel_access(request, travel_id):
         people = max(1, min(20, int(request.GET.get('people') or 0))) or None
     except ValueError:
         people = None
+    if people and people != _budget_people(request, travel.t_id):
+        _remember_budget_people(request, travel.t_id, people)   # 🟧 11/18 인원을 바꿔 보면 그 인원으로 저장
     people = people or _budget_people(request, travel.t_id)
     result = access_service.compare(travel, people)
     chosen = travel.access_route if isinstance(travel.access_route, dict) else None
@@ -6778,6 +6790,8 @@ def travel_access_choose(request, travel_id):
         people = max(1, min(20, int(request.POST.get('people') or 0))) or None
     except ValueError:
         people = None
+    if people:
+        _remember_budget_people(request, travel.t_id, people)
     route = access_service.choose(travel, mode, people or _budget_people(request, travel.t_id))
     if not route:
         return JsonResponse({'success': False, 'message': '그 방법은 지금 찾을 수 없어요. 다시 비교해 주세요.'}, status=409)
