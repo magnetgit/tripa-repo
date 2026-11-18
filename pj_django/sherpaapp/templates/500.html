@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!-- 서버 오류 화면 (11/18). 오류가 난 상황이라 템플릿 태그·다른 파일을 하나도 쓰지 않는다 (이 파일만으로 떠야 함) -->
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>TRIPA - 잠시 문제가 생겼어요</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; margin: 0; padding: 24px 16px;
+            background: linear-gradient(180deg, #cfe3fb 0%, #eaf3ff 55%, #fff 100%);
+            color: #1f2d4a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+        }
+        .err-card {
+            width: 100%; max-width: 420px; padding: 32px 24px; border-radius: 20px;
+            background: #fff; box-shadow: 0 12px 36px rgba(30, 64, 175, 0.14); text-align: center;
+        }
+        .err-logo { color: #2d6cdf; font-size: 20px; font-weight: 900; letter-spacing: .5px; text-decoration: none; }
+        .err-code { margin: 18px 0 4px; color: #e5484d; font-size: 52px; font-weight: 900; line-height: 1; }
+        .err-title { margin: 8px 0; font-size: 19px; font-weight: 800; }
+        .err-text { margin: 0 0 22px; color: #5b6b86; font-size: 14px; line-height: 1.6; word-break: keep-all; }
+        .err-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        .err-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 46px; padding: 0 20px; border: 1px solid #dbe3ee; border-radius: 12px;
+            background: #fff; color: #1f2d4a; font-size: 15px; font-weight: 800; text-decoration: none; cursor: pointer;
+        }
+        .err-btn--primary { border-color: #2d6cdf; background: #2d6cdf; color: #fff; }
+    </style>
+</head>
+<body>
+<main class="err-card">
+    <a class="err-logo" href="/">TRIPA</a>
+    <p class="err-code" data-no-i18n>500</p>
+    <h1 class="err-title">잠시 문제가 생겼어요</h1>
+    <p class="err-text">요청을 처리하지 못했어요. 잠시 뒤에 다시 시도해 주세요. 입력하던 내용은 뒤로 가면 남아 있을 수 있어요.</p>
+    <div class="err-actions">
+        <a class="err-btn err-btn--primary" href="javascript:history.back()">뒤로 가기</a>
+        <a class="err-btn" href="/">홈으로 가기</a>
+    </div>
+</main>
+</body>
+</html>

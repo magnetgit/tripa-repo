@@ -145,3 +145,53 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
 })();
+
+/* 휴대폰: 입력 칸 글자를 16px 이상으로 (🟧 11/18)
+ * 아이폰 사파리는 글자가 16px 보다 작은 입력 칸을 누르면 화면을 자동으로 확대한다
+ * (채팅 입력 14px · 예산 입력 14px · 검색·여행 고르기 13px 이었음).
+ * 16px 보다 작은 칸만 키우고, 원래 더 큰 칸(내 정보 수정의 손글씨 칸 등)은 그대로 둔다.
+ * 나중에 생기는 칸(창·카드 안)은 누르는 순간(pointerdown)에 한 번 더 본다. */
+(function () {
+  'use strict';
+  var SELECTOR = 'input, textarea, select';
+  var SKIP = { checkbox: 1, radio: 1, range: 1, hidden: 1, file: 1, button: 1, submit: 1, color: 1 };
+
+  function isPhone() { return window.matchMedia('(max-width: 900px)').matches; }
+
+  function grow(el) {
+    if (!el || el.nodeType !== 1 || !el.matches || !el.matches(SELECTOR) || SKIP[el.type]) return;
+    if (el.getAttribute('data-tp-16')) return;
+    var size = parseFloat(window.getComputedStyle(el).fontSize);
+    if (size && size < 16) {
+      el.style.setProperty('font-size', '16px', 'important');
+      el.setAttribute('data-tp-16', '1');
+    }
+  }
+
+  function growAll() {
+    if (!isPhone()) return;
+    var list = document.querySelectorAll(SELECTOR);
+    for (var i = 0; i < list.length; i++) grow(list[i]);
+  }
+
+  // 누르는 순간: 방금 생긴 입력 칸도 확대되기 전에 키운다
+  document.addEventListener('pointerdown', function (event) {
+    if (isPhone()) grow(event.target);
+  }, true);
+
+  // 화면이 나중에 그려지는 곳(비용 관리 등)도 잡게, 화면이 바뀌면 조금 뒤에 한 번 더
+  var waiting = null;
+  function soon() {
+    if (waiting) return;
+    waiting = setTimeout(function () { waiting = null; growAll(); }, 300);
+  }
+
+  function begin() {
+    growAll();
+    new MutationObserver(soon).observe(document.body, { childList: true, subtree: true });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', begin);
+  else begin();
+  window.addEventListener('load', growAll);
+})();

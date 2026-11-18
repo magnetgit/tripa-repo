@@ -2048,9 +2048,9 @@ def password_problem(pwd, user_id=''):
     # 영문 소문자
     if not re.search(r'[a-z]', pwd):
         return '비밀번호에 영문 소문자를 하나 이상 넣어 주세요.'
-    # 특수문자 (영문·숫자가 아닌 글자)
-    if not re.search(r'[^A-Za-z0-9]', pwd):
-        return '비밀번호에 특수문자(!@# 등)를 하나 이상 넣어 주세요.'
+    # 숫자 (🟧 11/18: 특수문자 필수는 뺐음 → 영문 대·소문자 + 숫자. 특수문자는 써도 됨)
+    if not re.search(r'[0-9]', pwd):
+        return '비밀번호에 숫자를 하나 이상 넣어 주세요.'
     if re.search(r'(.)\1\1', pwd):
         return '같은 글자를 3번 연속으로 쓸 수 없어요.'
     # 아이디가 들어 있으면 안됨 (대소문자 무시)

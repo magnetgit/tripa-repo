@@ -10,6 +10,31 @@
 
 ---
 
+## 2026-11-18 · 휴대폰 쓰기 편하게: 입력 칸 16px · 작은 버튼 누르는 영역 · 내 정보 메뉴 · 404/500 화면 — 🟧 이수한
+DB·마이그레이션·`.env`·응답 키 변경 없음
+
+### 왜
+- 폰 크기(375px)로 9개 화면을 재 봤더니: 입력 칸 글자가 13~14px(아이폰은 16px 미만이면 누를 때 화면을 확대), 삭제(✕) 24px·'자세히 ▾' 22px 처럼 누르기 작은 버튼, 내 정보 화면에는 아래 메뉴가 없고 로그아웃이 2.3화면 아래, 없는 주소는 영어 'Not Found' 한 줄.
+
+### 바뀐 것
+- `js/fit_buttons.js` (모든 화면 공통): 폰에서 16px 보다 작은 입력 칸·선택 칸만 16px 로 (원래 더 큰 칸은 그대로). 표시 `data-tp-16`
+- `css/safe_area.css` (모든 화면 공통): `.tl-del`·`.transport-fold-btn`·`.fest-card__add`·`.tc-link`·`.cb-link`·`.pp-link-danger` 의 **누르는 영역만** 44px 로 (`::after`, 보이는 크기는 그대로)
+- `css/mobile_nav.css` 새 파일 + `mypage.html`·`mypage_edit.html` 에 `_mobile_nav.html` 포함: 내 정보 화면에도 위 막대·아래 탭
+- `templates/404.html`·`500.html` 새 파일: TRIPA 모양 안내 + 홈으로 가기 (서버처럼 DEBUG=False 일 때만 보임)
+- 번역 사전 9문장 추가 (`i18n_missing` 0)
+- 🐛 `passport.css`: 내 정보 수정의 프로필 [바꾸기] 연필 아이콘이 폰(560px 이하)에서 94px 로 커지던 것 → 11px (`.pp-photo svg` 폰 규칙이 뒤에 와서 덮어썼음, 10/30부터). `?v=10`
+- **비밀번호 규칙 완화**: 특수문자 필수를 빼고 **영문 대·소문자 + 숫자** 로 (특수문자는 써도 됨). `views.password_problem` + `join.html`·`idpw.html` 의 `PW_RULES`·규칙 목록(`special` → `digit`) 세 곳을 같이 바꿈. 이미 가입한 회원 비밀번호는 그대로 쓸 수 있어요
+
+### 🟦 영준
+- `style.css` 는 안 건드렸어요. `mobile_nav.css` 는 `style.css` 의 `.m-topbar`·`.m-tabbar` 를 그대로 옮긴 거라, 그쪽 모양을 바꾸면 이 파일도 같이 바꿔 주세요 (내 정보 화면은 `style.css` 를 안 불러와서 따로 둠).
+- 위 6개 클래스에 `position: relative` 가 붙어요 (폰에서만). 그 버튼 안에 `position: absolute` 를 쓰는 게 생기면 기준이 버튼이 돼요.
+- 작은 버튼을 새로 만들면 `safe_area.css` 맨 아래 목록에 클래스 이름만 추가하면 돼요.
+
+### 🟩 지윤
+- 할 일 없음
+
+---
+
 ## 2026-11-18 · 🐛 채팅: 여행지를 아예 바꾸면 한 번 묻고, 예전 지역 숙소·담은 장소·가는 방법 빼기 + 지역 중심을 시청으로 — 🟩 서지윤
 DB·마이그레이션·`.env` 변경 없음 · 🟩 `services/chat_service.py` 하나 · 초안 키 **추가만** (`mock.json` `chat_place_change`)
 

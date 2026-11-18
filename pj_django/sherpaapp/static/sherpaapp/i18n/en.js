@@ -655,7 +655,7 @@ window.TRIPA_DICT = {
 "비밀번호에 아이디를 넣을 수 없어요.": "Password can't contain your ID.",
 "비밀번호에 영문 대문자를 하나 이상 넣어 주세요.": "Please include at least one uppercase letter in your password.",
 "비밀번호에 영문 소문자를 하나 이상 넣어 주세요.": "Please include at least one lowercase letter in your password.",
-"비밀번호에 특수문자(!@# 등)를 하나 이상 넣어 주세요.": "Please include at least one special character (such as !@#) in your password.",
+"비밀번호에 숫자를 하나 이상 넣어 주세요.": "Please include at least one number in your password.",
 "비싸도 괜찮음": "Pricey is fine",
 "비용": "Cost",
 "비용 {}건": "{} expenses",
@@ -1263,7 +1263,7 @@ window.TRIPA_DICT = {
 "토": "Sat",
 "톨게이트": "Toll gate",
 "통영": "Tongyeong",
-"특수문자 (!@# 등)": "Special characters (such as !@#)",
+"숫자": "Numbers",
 "티켓": "Ticket",
 "팁": "Tip",
 "펜션": "Guesthouse",
@@ -1338,5 +1338,14 @@ window.TRIPA_DICT = {
 "· 날씨 상관없이 짠 일정이에요": "· Planned regardless of weather",
 "· 오늘 일정": "· Today's plan",
 "비 예보가 있는 날은 실내 장소를 먼저 넣어 다시 짜요": "Rebuilds the plan with indoor places first on days with rain in the forecast",
-"비 예보와 상관없이 원래 추천대로 다시 짜요": "Rebuilds the plan with the original picks, ignoring the rain forecast"
+"비 예보와 상관없이 원래 추천대로 다시 짜요": "Rebuilds the plan with the original picks, ignoring the rain forecast",
+"TRIPA - 잠시 문제가 생겼어요": "TRIPA - Something went wrong",
+"TRIPA - 페이지를 찾을 수 없어요": "TRIPA - Page not found",
+"내 정보 수정": "Edit my info",
+"뒤로 가기": "Go back",
+"요청을 처리하지 못했어요. 잠시 뒤에 다시 시도해 주세요. 입력하던 내용은 뒤로 가면 남아 있을 수 있어요.": "We couldn't process your request. Please try again in a moment. What you were typing may still be there if you go back.",
+"잠시 문제가 생겼어요": "Something went wrong",
+"주소가 바뀌었거나 없는 페이지예요. 주소를 다시 확인하거나 홈에서 다시 시작해 주세요.": "This page has moved or does not exist. Check the address or start again from home.",
+"페이지를 찾을 수 없어요": "Page not found",
+"홈으로 가기": "Go to home"
 };
