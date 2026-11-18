@@ -399,6 +399,7 @@ def make_travels(rnd, members, spots):
                 t_way=t_way,
                 t_start=start, t_end=start + timedelta(days=days - 1),
                 t_budget=rnd.randrange(150000, 300001, 10000) * people,
+                t_people=people,
                 start_time=begin,
             )
             t.demo_with = who    # 리뷰 문장·태그에 씀 (DB 칸 아님, 이번 실행 동안만)
@@ -651,6 +652,10 @@ def make_more(rnd):
     members = list(Member.objects.filter(user_id__startswith=DEMO_PREFIX).order_by('m_id'))
     past = list(Travel.objects.filter(member__in=members, t_end__lt=today).select_related('member').order_by('t_id'))
     made = {'routes': 0, 'ratings': 0, 'comments': 0, 'items': 0, 'logs': 0}
+
+    # ---- 인원 칸이 빈 데모 여행: 제목의 동행 말로 채움 (🟧 11/18 Travel.t_people 추가)
+    for t in Travel.objects.filter(member__in=members, t_people__isnull=True):
+        Travel.objects.filter(pk=t.pk).update(t_people=_people_of(t))
 
     # ---- 공유 루트: 60%까지
     shared = set(SharedRoute.objects.filter(travel__in=past).values_list('travel_id', flat=True))
