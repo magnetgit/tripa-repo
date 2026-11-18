@@ -1384,5 +1384,21 @@ window.TRIPA_DICT = {
 " 메일이 오지 않았다면 [이전]으로 돌아가 아이디·이메일·이름을 확인해 주세요.": " If no email arrived, go back with [Back] and check the ID, email and name.",
 "메일이 오지 않았다면 [이전]으로 돌아가 아이디·이메일·이름을 확인해 주세요.": "If no email arrived, go back with [Back] and check the ID, email and name.",
 "지난 날짜로는 옮길 수 없어요. 시작하는 날을 오늘 이후로 골라 주세요.": "You can't move it to a past date. Please pick a start date from today onward.",
-"지난 날짜로는 일정을 만들 수 없어요. 출발일을 오늘 이후로 정해 주세요.": "You can't create a plan for a past date. Please set the start date to today or later."
+"지난 날짜로는 일정을 만들 수 없어요. 출발일을 오늘 이후로 정해 주세요.": "You can't create a plan for a past date. Please set the start date to today or later.",
+"출발 · 숙소": "Departure · Stay",
+"출발 시간": "Departure time",
+"이동수단 · 인원 · 예산": "Transport · People · Budget",
+"여행지 안 이동수단": "Getting around",
+"정하지 않음": "Not set",
+"총예산 (원)": "Total budget (KRW)",
+"비어 있어요": "Empty",
+"채우기": "Fill in",
+"바뀐 출발지·숙소로 일정 다시 짜기": "Re-plan with the new start point and stay",
+"(지금 일정은 새로 짠 일정으로 바뀌어요)": "(the current plan will be replaced)",
+"일정 다시 짜는 중...": "Re-planning...",
+"비우면 전날 숙소 그대로": "Leave empty to keep the previous night's stay",
+"예: 서울역, 집 주소": "e.g. Seoul Station, home address",
+"예: 강릉 세인트존스 호텔": "e.g. St. John's Hotel Gangneung",
+"정보는 저장했어요. 여행 컨셉이 없어 일정은 다시 짜지 않았어요.": "Saved. The plan wasn't rebuilt because the trip has no concept.",
+"정보는 저장했지만 일정을 다시 짜지 못했어요.": "Saved, but the plan couldn't be rebuilt."
 };
