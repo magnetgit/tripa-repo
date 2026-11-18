@@ -17,6 +17,7 @@ import json
 import logging
 import math
 import re
+from collections import Counter
 import time
 from datetime import date, datetime, timedelta
 
@@ -274,6 +275,13 @@ def region_parts(place):
     return [x.strip() for x in _REGION_SPLIT_RE.split(place or '') if x and x.strip()]
 
 
+def _region_word(word):
+    """'부산광역시' → '부산', '고성군' → '고성', '해운대구' → '해운대' (두 글자보다 짧아지면 그대로)"""
+    word = (word or '').strip()
+    short = re.sub(r'(특별자치도|특별자치시|광역시|특별시|도|시|군|구)$', '', word)
+    return short if len(short) >= 2 else word
+
+
 # 시청 이름이 겹치는 곳: '광주시청'은 경기 광주시라서 여행지 광주는 광역시청으로
 _CENTER_ALIAS = {'광주': '광주광역시청'}
 
@@ -283,15 +291,16 @@ def region_center(place):
     첫 검색 결과는 '광주' → 순천만국가정원, '제주' → 서귀포 올레길처럼 그 지역 아무 관광지가 나왔음
     '해운대'처럼 시·군이 아닌 동네는 시청 이름이 안 맞아서 예전 방법으로 찾는다"""
     first = (region_parts(place) or [place or ''])[0].strip()
-    key = re.sub(r'(특별자치도|특별자치시|광역시|특별시|도|시|군)$', '', first)
-    key = key if len(key) >= 2 else first
+    words = first.split() or ['']
+    last = _region_word(words[-1])                  # '경남 고성군' → '고성' ('경남'은 앞에 붙여 검색)
+    key = ' '.join(words[:-1] + [last])
     if key in _CENTER_ALIAS:
         found = kakao_first_place(_CENTER_ALIAS[key], group='PO3')
         if found:
             return found
     for office in ('시청', '군청'):
         found = kakao_first_place('%s %s' % (key, office), group='PO3')
-        if found and (found.get('name') or '').startswith(key):
+        if found and (found.get('name') or '').startswith(last):
             return found
     return kakao_first_place(place) or kakao_first_place(first)
 
@@ -1978,8 +1987,33 @@ def clean_messages(messages):
 # =========================================================
 
 # 여행지를 바꿀지 물은 뒤의 답 (🟩 11/18)
-_YES_RE = re.compile(r'^\s*(응|웅|어[\s,.!]|어$|네|넹|예|그래|좋아|ㅇㅇ|ㅇㅋ|오케이|바꿔|바꿀래|그렇게|맞아|yes|yeah|yep|ok|okay|sure|はい|是|好|对)', re.I)
-_NO_RE = re.compile(r'^\s*(아니|아뇨|노|싫|그대로|안\s*바꿔|취소|ㄴㄴ|no\b|nope|いいえ|不)', re.I)
+# 🟩 11/18 낱말 하나로 끝나야 함 ('예약은 했어'·'좋아하는 곳'·'노래방'은 아님), 뒤에 '요·줘'는 붙어도 됨
+_YES_RE = re.compile(r'^\s*(응+|웅+|어|네+|넹|넵|예|그래|좋아|좋습니다|ㅇㅇ|ㅇㅋ|오케이|바꿔|바꿀래|그렇게|맞아|'
+                     r'yes|yeah|yep|okay|ok|sure|はい|是的|是|好的|好|对)(요|줘|\s*주세요)?(?=[\s,.!~]|$)', re.I)
+_NO_RE = re.compile(r'^\s*(아니야|아니오|아니요|아니|아뇨|노+|싫어|그대로|안\s*바꿔|취소|ㄴㄴ|no|nope|いいえ|不要|不用|不)'
+                    r'(요)?(?=[\s,.!~]|$)', re.I)
+# '네?', '어 잠깐만', '응 근데…'처럼 되묻거나 망설이면 '응'으로 보지 않는다
+_NOT_SURE_RE = re.compile(r'[?？]|잠깐|근데|그런데|하지만|글쎄|왜|뭐|\bwait\b|\bbut\b|\bwhat\b', re.I)
+
+
+def _said_yes(text):
+    return bool(_YES_RE.match(text or '')) and not _NOT_SURE_RE.search(text or '')
+
+
+def _said_no(text):
+    return bool(_NO_RE.match(text or ''))
+
+
+def _same_region(a, b):
+    """'서귀포'가 '제주' 안, '해운대'가 '부산' 안처럼 한쪽이 다른 쪽 지역 안에 있으면 True (🟩 11/18).
+    주소의 앞 두 낱말을 본다: '제주특별자치도 서귀포시 …' → 제주, 서귀포 / '경기 남양주시' → 경기, 남양주 ('양주'와 다름)"""
+    for outer, inner in ((a, b), (b, a)):
+        key = _region_word((region_parts(outer) or [outer or ''])[0].split()[-1] if outer else '')
+        found = kakao_first_place(inner) if key else None
+        words = [_region_word(w) for w in ((found or {}).get('addr') or '').split()[:2]]
+        if key and key in words:
+            return True
+    return False
 
 
 # 여행지를 바꾸자는 말 (AI가 여행지를 안 바꾸고 제 말로만 되물을 때 코드가 읽는다)
@@ -2000,17 +2034,28 @@ def _drop_unsaid_stays(ai_stays, prev, user_text):
     # 🟧 11/18 영어·일본어·중국어로 숙소를 말한 경우도 숙소 얘기 ('staying at Lotte Hotel Jeju' 의 숙소가 빠졌음)
     if any(word in text for word in _STAY_ASK_WORDS + _STAY_WORDS) or HOME_STAY_RE.search(text)             or _FOREIGN_STAY_RE.search(text):
         return ai_stays
-    before = {_squash(s.get('query')) for s in prev.get('stays') or [] if isinstance(s, dict)}
+    if '같은' in text or '똑같' in text or '연박' in text:      # '둘째 날도 같은 곳' → 같은 숙소를 더 넣는 말
+        return ai_stays
+    # 🟩 11/18 같은 숙소가 몇 번 있었는지 센다: '해운대 쪽 위주로'에 AI가 첫날 숙소를 둘째 날에도 넣었음
+    left = Counter(_squash(s.get('query')) for s in prev.get('stays') or [] if isinstance(s, dict))
     said = _squash(text)
-    return [s for s in ai_stays
-            if not isinstance(s, dict) or _squash(s.get('query')) in before
-            or (_squash(s.get('query')) and _squash(s.get('query')) in said)]
+    kept = []
+    for s in ai_stays:
+        query = _squash(s.get('query')) if isinstance(s, dict) else None
+        if not isinstance(s, dict) or (query and query in said):
+            kept.append(s)
+        elif left[query] > 0:
+            left[query] -= 1
+            kept.append(s)
+    return kept
 
 
 def same_place(a, b):
     """'부산'과 '부산광역시', '부산'과 '부산, 경주'는 같은 여행지로 본다 (지역을 더하거나 줄인 것)"""
-    a, b = _squash(a), _squash(b)
-    return bool(a and b) and (a in b or b in a)
+    # 지역마다 앞에서부터 같은지 본다 ('양주'와 '남양주'는 다른 곳)
+    pa = [_squash(x) for x in region_parts(a)]
+    pb = [_squash(x) for x in region_parts(b)]
+    return any(x and y and (x.startswith(y) or y.startswith(x)) for x in pa for y in pb)
 
 
 def _place_losses(prev):
@@ -2042,7 +2087,7 @@ def settle_place_change(prev, draft, user_text, notes):
     draft['place_change'] = None
     text = user_text or ''
 
-    if change.get('to') and _YES_RE.match(text):
+    if change.get('to') and _said_yes(text):
         to = change['to']
         draft['place'] = to
         found = region_center(to)
@@ -2067,15 +2112,24 @@ def settle_place_change(prev, draft, user_text, notes):
             to = draft['place'] = said
     # '아니 강릉으로 할래'처럼 다른 곳을 말하면 그대로 두지 않고 그 곳으로 다시 묻는다
     other = bool(to and not same_place(old, to) and not same_place(to, change.get('to')))
-    if change.get('to') and _NO_RE.match(text) and '바꿔' not in text and not other:
+    if change.get('to') and _said_no(text) and '바꿔' not in text and not other:
         _restore_place(prev, draft)
         return 'keep', "좋아요, 여행지는 '%s' 그대로 둘게요." % old
 
-    if change.get('to') and to and same_place(to, change['to']) and not same_place(to, text):
+    if change.get('to') and to and same_place(to, change['to']) and _squash(to) not in _squash(text):
         # 물은 뒤 딴 얘기('인원은 3명')를 했는데 AI가 앞 대화를 보고 새 여행지를 또 적은 것 → 또 묻지 않고 그대로
         _restore_place(prev, draft)
         draft['place_change'] = change   # 아직 답을 안 했으니 다음에 '응'이라고 하면 바꾼다
-        return None, None
+        return 'wait', _wait_reply(old, change['to'])
+
+    if old and to and not same_place(old, to) and _same_region(old, to):
+        # '서귀포 위주로'처럼 같은 지역 안의 동네 → 여행지는 그대로 두고 묻지 않는다 (숙소·담은 장소도 그대로)
+        for key in ('place', 'center', 'title'):
+            draft[key] = prev.get(key)
+        to = old
+        if change.get('to'):
+            draft['place_change'] = change
+            return 'wait', _wait_reply(old, change['to'])
 
     if old and to and not same_place(old, to):
         said_access = draft.get('access') if draft.get('access') != prev.get('access') else None
@@ -2089,7 +2143,28 @@ def settle_place_change(prev, draft, user_text, notes):
 
     if change.get('to'):
         draft['place_change'] = change   # 딴 얘기만 했으면 물음은 그대로 남겨 둔다
+        return 'wait', _wait_reply(old, change['to'])
     return None, None
+
+
+def _wait_reply(old, to):
+    return "여행지는 아직 '%s'이에요. '%s'(으)로 바꾸려면 '응', 그대로 두려면 '아니'라고 답해 주세요." % (old, to)
+
+
+_CHANGED_WORDS_RE = re.compile(r'변경|바꿨|바꾸|바뀌|설정|정했|반영|change|switch|updat|set', re.I)
+
+
+def wait_reply(ai_reply, prev, draft, to, reminder):
+    """아직 묻는 중인데 AI가 '여행 지역을 제주로 변경하고…'라고 쓴 문장은 빼고, '아직 부산이에요'를 붙인다 (🟩 11/18)"""
+    sentences = re.split(r'(?<=[.!?。])\s+', ai_reply or '')
+    kept = [x for x in sentences if x and not (to in x and _CHANGED_WORDS_RE.search(x))]
+    if len(kept) < len(sentences):
+        if kept:   # 앞 문장을 뺐으니 '하지만 …'처럼 이어 주는 말로 시작하지 않게
+            kept[0] = re.sub(r'^(하지만|그리고|또한|그런데|다만|그래서)\s*,?\s*', '', kept[0])
+        labels = [x for x in changed_labels(prev, draft) if x != '지역']
+        if labels:
+            kept.insert(0, '말씀하신 대로 바꿨어요: %s.' % ', '.join(labels))
+    return ' '.join(kept + [reminder]).strip()
 
 
 def _keep_previous(ai_draft, prev):
@@ -3186,7 +3261,9 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
             'hint': next_hint(new_draft), 'changed': changed_labels(prev, new_draft), 'notes': notes,
             'recommendation': None, 'weather': None, 'intent': intent,
         }, lang, llm)
-    if place_step:
+    if place_step == 'wait':
+        reply = wait_reply(reply, prev, new_draft, new_draft['place_change']['to'], place_reply)
+    elif place_step:
         reply = place_reply
 
     # 코드가 AI의 날짜를 고쳤으면, AI 답에서 날짜가 적힌 문장을 빼고 바른 날짜를 적는다
