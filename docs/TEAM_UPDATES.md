@@ -22,6 +22,7 @@ DB·마이그레이션·`.env`·응답 키 변경 없음
 - `css/mobile_nav.css` 새 파일 + `mypage.html`·`mypage_edit.html` 에 `_mobile_nav.html` 포함: 내 정보 화면에도 위 막대·아래 탭
 - `templates/404.html`·`500.html` 새 파일: TRIPA 모양 안내 + 홈으로 가기 (서버처럼 DEBUG=False 일 때만 보임)
 - 번역 사전 9문장 추가 (`i18n_missing` 0)
+- 🐛 `passport.css`: 내 정보 수정의 프로필 [바꾸기] 연필 아이콘이 폰(560px 이하)에서 94px 로 커지던 것 → 11px (`.pp-photo svg` 폰 규칙이 뒤에 와서 덮어썼음, 10/30부터). `?v=10`
 
 ### 🟦 영준
 - `style.css` 는 안 건드렸어요. `mobile_nav.css` 는 `style.css` 의 `.m-topbar`·`.m-tabbar` 를 그대로 옮긴 거라, 그쪽 모양을 바꾸면 이 파일도 같이 바꿔 주세요 (내 정보 화면은 `style.css` 를 안 불러와서 따로 둠).
