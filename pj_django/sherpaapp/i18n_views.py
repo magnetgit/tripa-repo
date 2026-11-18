@@ -45,9 +45,11 @@ def api_translate(request):
         body = json.loads(request.body or '{}')
     except ValueError:
         body = {}
+    if not isinstance(body, dict):   # 🟧 11/18 본문이 목록·글자면 500 이었음
+        body = {}
     lang = body.get('lang')
     texts = body.get('texts')
-    if lang not in translate_service.LANG_NAMES or not isinstance(texts, list):
+    if not isinstance(lang, str) or lang not in translate_service.LANG_NAMES or not isinstance(texts, list):
         return JsonResponse({'success': False, 'message': 'lang(en·ja·zh)과 texts 목록이 필요합니다.'}, status=400)
     texts = texts[:MAX_TEXTS]
 

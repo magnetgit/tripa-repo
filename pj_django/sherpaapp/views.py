@@ -18,7 +18,7 @@ from django.core.paginator import Paginator
 from django.db.models import Avg, Count, Exists, F, OuterRef, Prefetch, Q, Sum
 from collections import Counter
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template import loader
 from django.urls import reverse
@@ -867,6 +867,12 @@ def travel_detail(request, travel_id):
         except Member.DoesNotExist:
             member = None
 
+    # 🟧 11/18 내 여행만 열 수 있다 (전엔 주소의 번호만 바꾸면 남의 여행이 열렸음). 공유한 루트는 게시판(route_detail)에서 본다
+    if not member:
+        return redirect('login')
+    if travel.member_id != member.m_id:
+        return render(request, '404.html', status=404)
+
     # DAY 단위 일정. 장소 정보는 SchedulePlace를 통해 조회한다.
     schedules = (
         Schedule.objects
@@ -966,10 +972,10 @@ def travel_detail_day(
     day
 ):
 
-    travel = get_object_or_404(
-        Travel,
-        t_id=travel_id
-    )
+    # 🟧 11/18 내 여행만 (로그인 401 · 남의 여행 403)
+    _, travel, error = _my_travel_json(request, travel_id)
+    if error:
+        return error
 
 
     schedules = (
@@ -1216,6 +1222,15 @@ def travel_detail_day(
 # ==============================================
 # 여행 수정
 # ==============================================
+
+OVER_MIDNIGHT_MESSAGE = '머무는 시간이 자정을 넘길 수 없어요. 방문 시간이나 머무는 시간을 줄여 주세요.'
+
+
+def _is_id(value):
+    """주소·폼으로 받은 번호가 숫자인지 (글자가 오면 500 대신 400을 주려고)"""
+    value = str(value)
+    return value.isascii() and value.isdigit() and len(value) <= 18
+
 
 def _alert_back(message):
     """알림을 띄우고 앞 화면으로 (옛 폼 화면용). 문구는 코드에 적힌 것만 넣는다"""
@@ -1690,13 +1705,13 @@ def _trip_edit_extra(post, travel, region, new_start, new_end):
 
     people = (post.get('people') or '').strip()
     if people:
-        if not people.isdigit() or not 1 <= int(people) <= TRIP_PEOPLE_MAX:
+        if not (people.isascii() and people.isdigit()) or not 1 <= int(people) <= TRIP_PEOPLE_MAX:
             raise ValueError('인원은 1~%d명으로 적어 주세요.' % TRIP_PEOPLE_MAX)
         data['people'] = int(people)
 
     budget = re.sub(r'[,\s원]', '', post.get('t_budget') or '')
     if budget:
-        if not budget.isdigit() or int(budget) > TRIP_BUDGET_MAX:
+        if not (budget.isascii() and budget.isdigit()) or len(budget) > 9 or int(budget) > TRIP_BUDGET_MAX:
             raise ValueError('총예산은 숫자(원)로 적어 주세요.')
         data['budget'] = int(budget)
 
@@ -2297,6 +2312,21 @@ def join_ok(request):
     if profile_img not in AVATAR_KEYS:
         profile_img = random.choice(AVATAR_KEYS)
 
+    # 🟧 11/18 화면에서만 하던 검사를 서버에서도 (빈 아이디·이름, 너무 긴 값, 이메일 모양 → 전엔 500 이나 이상한 계정)
+    user_id = (user_id or '').strip()
+    name = (name or '').strip()
+    email = (email or '').strip()
+    if not user_id or len(user_id) > 50 or re.search(r"""[\s'"<>\\]""", user_id):
+        return _alert_back('아이디는 띄어쓰기·따옴표 없이 50자까지 쓸 수 있어요.')
+    if not name or len(name) > 30:
+        return _alert_back('이름은 1~30자로 적어 주세요.')
+    try:
+        if len(email) > 100:
+            raise ValidationError('long')
+        validate_email(email)
+    except ValidationError:
+        return _alert_back('이메일 형식이 올바르지 않아요. (예: example@tripa.com)')
+
     # 아이디 중복
     if (
         Member.objects
@@ -2360,16 +2390,19 @@ def join_ok(request):
     except (ValueError, TypeError):
         age_group = None
 
-    Member.objects.create(
-        user_id=user_id,
-        email=email,
-        pwd=make_password(pwd),
-        name=name,
-        nickname=nickname,
-        gender=gender,
-        age_group=age_group,
-        profile_img=profile_img,
-    )
+    try:
+        Member.objects.create(
+            user_id=user_id,
+            email=email,
+            pwd=make_password(pwd),
+            name=name,
+            nickname=nickname,
+            gender=gender,
+            age_group=age_group,
+            profile_img=profile_img,
+        )
+    except IntegrityError:   # 가입 버튼을 두 번 눌러 같은 아이디·이메일이 동시에 들어온 경우
+        return _alert_back('이미 가입된 아이디 또는 이메일이에요. 로그인해 주세요.')
 
     return HttpResponse("""
         <script>
@@ -2403,6 +2436,7 @@ def login_ok(request):
 
         if check_password(pwd, member.pwd):
 
+            request.session.cycle_key()   # 🟧 11/18 로그인하면 세션 번호를 새로 받음
             request.session[
                 'login_ok_user'
             ] = member.user_id
@@ -2413,6 +2447,7 @@ def login_ok(request):
         elif not member.pwd.startswith('pbkdf2_') and member.pwd == pwd:
             member.pwd = make_password(pwd)
             member.save()
+            request.session.cycle_key()   # 🟧 11/18 로그인하면 세션 번호를 새로 받음
             request.session[
                 'login_ok_user'
             ] = member.user_id
@@ -2635,12 +2670,8 @@ def id_find(request):
         ]
 
 
-        return HttpResponse(f"""
-            <script>
-                alert('회원님의 아이디는 {", ".join(ids)} 입니다.');
-                location.href = '../idpw/';
-            </script>
-        """)
+        found = json.dumps('회원님의 아이디는 %s 입니다.' % ', '.join(ids), ensure_ascii=False).replace('<', '\\u003c')
+        return HttpResponse("<script>alert(%s);location.href = '../idpw/';</script>" % found)
 
 
     return HttpResponse("""
@@ -2898,13 +2929,14 @@ def mypage_edit(request):
         )
 
 
-        member.name = (
-            name
-        )
+        # 🟧 11/18 이름이 비거나 30자를 넘으면 저장할 때 500 이었음
+        name = (name or '').strip()
+        if name and len(name) <= 30:
+            member.name = name
 
 
         # 닉네임 규칙
-        error = nickname_problem(nickname)
+        error = nickname_problem(nickname) or ('' if name and len(name) <= 30 else '이름은 1~30자로 적어 주세요.')
         if error:
             return render(request, 'mypage_edit.html', {'member': member, 'error': error, 'avatars': AVATAR_CHOICES, 'age_groups': AGE_GROUP_CHOICES})
 
@@ -3535,10 +3567,20 @@ def schedule_place_add(request):
     place_image = request.POST.get('place_image') or None
     place_kakao_id = request.POST.get('place_kakao_id') or None  # 리뷰·사진을 붙이는 열쇠, 화면이 안 보내면 None
 
+    # 🟧 11/18 로그인한 사람이 자기 여행에만 넣을 수 있다 (전엔 로그인 없이도 남의 일정에 들어갔음)
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+    for value in (schedule_id, travel_id, place_id):
+        if value and not _is_id(value):
+            return JsonResponse({'success': False, 'message': '일정 정보가 올바르지 않습니다.'}, status=400)
+
     # schedule_id가 있으면 기존 일정을 사용한다.
     if schedule_id:
         schedule = get_object_or_404(Schedule, s_id=schedule_id)
         travel = schedule.travel
+        if travel.member_id != member.m_id:
+            return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
     else:
         if not travel_id or not s_day:
             return JsonResponse({
@@ -3547,6 +3589,15 @@ def schedule_place_add(request):
             }, status=400)
 
         travel = get_object_or_404(Travel, t_id=travel_id)
+        if travel.member_id != member.m_id:
+            return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+        # 날짜는 여행 기간 안의 날만 (글자 그대로 저장하면 뒤에서 500 + 빈 일정이 남아 DAY 번호가 밀렸음)
+        try:
+            s_day = datetime.strptime(s_day, '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'message': '일정 정보가 올바르지 않습니다.'}, status=400)
+        if not (travel.t_start and travel.t_end and travel.t_start <= s_day <= travel.t_end):
+            return JsonResponse({'success': False, 'message': '여행 기간 안의 날짜에만 넣을 수 있어요.'}, status=400)
         schedule = (
             Schedule.objects
             .filter(travel=travel, s_day=s_day)
@@ -3561,8 +3612,9 @@ def schedule_place_add(request):
             )
 
     # place_id가 있으면 기존 PLACE를 사용한다.
+    new_place = None   # 이번 요청에서 새로 만든 장소 (뒤 검사에서 거절되면 지움)
     if place_id:
-        place = get_object_or_404(Place, p_id=place_id)
+        place = get_object_or_404(Place, p_id=place_id, travel=travel)   # 이 여행에 담긴 장소만
     else:
         if not place_name:
             return JsonResponse({
@@ -3591,6 +3643,7 @@ def schedule_place_add(request):
                 p_image=place_image,
                 p_kakao_id=place_kakao_id,
             )
+            new_place = place
 
     # 이미지가 비어 있으면 API를 통해 자동 보완하고 DB에 저장한다.
     if hasattr(place, 'p_image') and not (place.p_image or ''):
@@ -3684,6 +3737,12 @@ def schedule_place_add(request):
         schedule.s_day,
         arrival
     )
+
+    # 🟧 11/18 머무는 시간이 자정을 넘기면 출발 시각이 도착보다 앞서게 저장됐음 → 받지 않음
+    if (arrival_datetime + timedelta(minutes=stay_time)).date() != arrival_datetime.date():
+        if new_place:
+            new_place.delete()
+        return JsonResponse({'success': False, 'message': OVER_MIDNIGHT_MESSAGE}, status=400)
 
     start_time = (
         arrival_datetime
@@ -3794,6 +3853,8 @@ def schedule_place_delete(request):
             },
             status=400
         )
+    if not _is_id(sp_id):
+        return JsonResponse({'success': False, 'message': '일정 정보가 올바르지 않습니다.'}, status=400)
 
 
     login_user = request.session.get('login_ok_user')
@@ -3958,10 +4019,19 @@ def schedule_place_time_update(request):
             status=400
         )
 
+    # 🟧 11/18 로그인한 사람이 자기 일정만 고칠 수 있다 (전엔 로그인 없이도 남의 일정 시간이 바뀌었음)
+    login_user = request.session.get('login_ok_user')
+    if not login_user:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+    if not _is_id(sp_id):
+        return JsonResponse({'success': False, 'message': '일정 정보가 올바르지 않습니다.'}, status=400)
+
     schedule_place = get_object_or_404(
-        SchedulePlace,
+        SchedulePlace.objects.select_related('schedule__travel__member'),
         sp_id=sp_id
     )
+    if schedule_place.schedule.travel.member.user_id != login_user:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
 
     schedule = schedule_place.schedule
     update_fields = []
@@ -4029,6 +4099,10 @@ def schedule_place_time_update(request):
                 minutes=(schedule_place.stay_time or 0)
             )
         )
+
+        # 🟧 11/18 자정을 넘기는 시간은 받지 않음 (출발 시각이 도착보다 앞서게 저장됐음)
+        if start_datetime.date() != arrival_datetime.date():
+            return JsonResponse({'success': False, 'message': OVER_MIDNIGHT_MESSAGE}, status=400)
 
         schedule_place.start_time = start_datetime.time()
         update_fields.append('start_time')
@@ -4803,6 +4877,13 @@ def travel_route(
     )
 
     travel = schedule.travel
+
+    # 🟧 11/18 내 여행만 (출발지 주소·좌표가 들어 있음)
+    member = _login_member(request)
+    if not member:
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
+    if travel.member_id != member.m_id:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
 
 
     schedule_places = list(
@@ -6800,7 +6881,7 @@ def rain_options(request):
 
     lat = _float_or_none(request.GET.get('lat'))
     lon = _float_or_none(request.GET.get('lon'))
-    if lat is None or lon is None:
+    if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):   # nan 도 여기서 걸림
         return JsonResponse({'success': False, 'message': '장소 위치가 없어요.'}, status=400)
 
     skip = [s for s in (request.GET.get('skip') or '').split('|') if s][:50]

@@ -5126,11 +5126,11 @@ function buildStartPointHtml(
 
                 <div class="schedule-info">
                     <h3>
-                        S. ${name}
+                        S. ${escapeHtml(name)}
                     </h3>
 
                     <p class="schedule-address">
-                        ${address}
+                        ${escapeHtml(address)}
                     </p>
 
                     <div>
@@ -5296,11 +5296,11 @@ function buildReturnPointHtml(returnPoint) {
 
                 <div class="schedule-info">
                     <h3>
-                        R. ${name}
+                        R. ${escapeHtml(name)}
                     </h3>
 
                     <p class="schedule-address">
-                        ${address}
+                        ${escapeHtml(address)}
                     </p>
 
                     <div>
