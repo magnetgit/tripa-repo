@@ -259,6 +259,56 @@ def kakao_first_place(query, near=None, group=None):
 
 
 _STAY_NEAR_WORDS_RE = re.compile(r'\s*(근처|주변|부근|인근|쪽|일대|앞)\s*$')
+# 🟧 11/18 숙소를 풀어서 말한 경우: '한옥마을 안에 있는 게스트하우스' → '한옥마을 게스트하우스', '애월 쪽 에어비앤비' → '애월'
+_STAY_FILLER_RE = re.compile(r'(?:안|근처|주변|쪽|앞|옆)?에\s*있는|에서\s*가까운|잡았[가-힣]*|예약[가-힣]*|근처|주변|부근|인근|쪽|일대')
+_STAY_GENERIC_RE = re.compile(r'에어비앤비|에어비엔비|airbnb|숙소|숙박|민박|펜션|게스트하우스|게하|호텔|모텔|리조트|호스텔', re.I)
+# 숙박업소가 아닌 잘 곳 ('친구 집', '본가') → 숙박 분류로 찾지 않는다
+HOME_STAY_RE = re.compile(r'(?:친구|지인|친척|부모님|할머니|할아버지|이모|고모|삼촌|언니|누나|오빠|형|동생|우리|내|본)\s*(?:네\s*)?(?:집|댁)|본가|처가|시댁|외갓집|자취방')
+# '전주, 군산'·'부산이랑 경주'처럼 지역을 둘 말했을 때 나누는 글자
+_REGION_SPLIT_RE = re.compile(r'\s*[,·/&+]\s*|\s+(?:및|그리고)\s+|(?<=[가-힣])(?:이랑|랑|와|과|하고)\s+')
+
+
+def region_parts(place):
+    """'전주, 군산' → ['전주', '군산'], '부산' → ['부산']"""
+    return [x.strip() for x in _REGION_SPLIT_RE.split(place or '') if x and x.strip()]
+
+
+def kakao_address(query):
+    """주소·동네 이름('인천 송도', '수원시 영통구 광교중앙로 145')을 카카오 주소 검색으로 찾는다. 없으면 None. (🟧 11/18)
+    키워드 검색은 '인천 송도'에 '송도한옥마을'(식당)처럼 그 동네의 아무 장소를 돌려줘서, 주소로 읽히면 주소를 먼저 쓴다."""
+    key = getattr(settings, 'KAKAO_REST_API_KEY', '')
+    if not key or not query:
+        return None
+    try:
+        response = requests.get(
+            'https://dapi.kakao.com/v2/local/search/address.json',
+            headers={'Authorization': 'KakaoAK ' + key}, params={'query': query, 'size': 1}, timeout=8)
+        response.raise_for_status()
+        documents = response.json().get('documents') or []
+    except (requests.RequestException, ValueError):
+        logger.warning('카카오 주소 검색 실패: %s', query)
+        return None
+    if not documents:
+        return None
+    item = documents[0]
+    coord = _clean_coord(item.get('y'), item.get('x'))
+    if not coord:
+        return None
+    name = _clean_text(item.get('address_name'), 200)
+    return {'name': name, 'addr': name, 'lat': coord[0], 'lon': coord[1], 'kakao_id': None}
+
+
+def _find_home_stay(query, region):
+    """'친구 집 수성구 범어동' → 범어동 위치, 이름은 '친구 집 (수성구 범어동)'. 동네를 안 말했으면 None (🟧 11/18)"""
+    home = HOME_STAY_RE.search(query)
+    where = HOME_STAY_RE.sub(' ', query)
+    where = re.sub(r'\s+', ' ', re.sub(r'에서|에\b|[,()]', ' ', where)).strip()
+    if not where:
+        return None
+    found = kakao_address(_with_region(where, region)) or kakao_address(where) or kakao_first_place(_with_region(where, region))
+    if not found:
+        return None
+    return dict(found, name='%s (%s)' % (home.group(0), where), kakao_id=None)
 
 
 def _find_stay(query, region):
@@ -269,14 +319,28 @@ def _find_stay(query, region):
     - 못 찾으면 None → 화면에 "'안정' 위치를 찾지 못했어요" 안내 (엉뚱한 곳을 넣지 않음)
     - 여행 지역을 꼭 붙여 찾는다 (지역 없이 '안정'만 찾으면 군산 '안정모텔'이 나옴)
     """
+    query = query or ''
+    if HOME_STAY_RE.search(query):
+        return _find_home_stay(query, region)     # 🟧 11/18 '친구 집'은 숙박업소가 아님
+
     found = kakao_first_place(_with_region(query, region), group='AD5')
     if found:
         return found
 
     # '경포대 근처', '해운대 쪽' → '경포대', '해운대' 로 한 번 더
-    short = _STAY_NEAR_WORDS_RE.sub('', query or '').strip()
-    if short and short != query:
-        return kakao_first_place(_with_region(short, region), group='AD5')
+    # 🟧 11/18 그래도 없으면 풀어 쓴 말을 줄여서 ('한옥마을 안에 있는 게스트하우스' → '한옥마을 게스트하우스'),
+    #          마지막엔 숙소를 뜻하는 낱말을 빼고 동네만 ('애월 쪽 에어비앤비' → '애월' 의 숙소)
+    tried = {query}
+    short = _STAY_NEAR_WORDS_RE.sub('', query).strip()
+    plain = re.sub(r'\s+', ' ', _STAY_FILLER_RE.sub(' ', query)).strip()
+    area = re.sub(r'\s+', ' ', _STAY_GENERIC_RE.sub(' ', plain)).strip()
+    for text in (short, plain, area):
+        if not text or text in tried:
+            continue
+        tried.add(text)
+        found = kakao_first_place(_with_region(text, region), group='AD5')
+        if found:
+            return found
     return None
 
 
@@ -287,7 +351,9 @@ def _find_start_place(query, region):
     그래서 여행 지역을 앞에 붙이지 않고 말한 그대로 먼저 찾고,
     못 찾을 때만 '여행지역 + 이름'으로 한 번 더 찾는다.
     """
-    return kakao_first_place(query) or kakao_first_place(_with_region(query, region))
+    # 🟧 11/18 주소·동네 이름이면 주소 검색을 먼저 ('인천 송도' → 송도동, 도로명 주소 → 그 주소)
+    #          역·공항·건물 이름은 주소 검색에 안 걸려서 지금처럼 키워드 검색으로 감
+    return kakao_address(query) or kakao_first_place(query) or kakao_first_place(_with_region(query, region))
 
 
 def _resolved_or_empty(query, found):
@@ -352,6 +418,18 @@ def match_categories(raw, category_names):
 
 
 _NOT_CONCEPT_WORDS = ('추천', '빼', '제외', '말고', '싫', '별로')
+# 컨셉 이름 대신 자주 쓰는 말 (🟧 11/18) — DB 컨셉 이름이 있을 때만 쓰임
+CONCEPT_WORDS = {
+    '음식': ('맛집', '먹방', '먹거리', '식도락', '먹으러', '미식', '먹는 여행'),
+    '카페': ('디저트', '커피', '베이커리'),
+    '바다': ('바닷가', '해변', '해수욕', '오션뷰'),
+    '자연': ('힐링', '트레킹', '등산', '단풍', '풍경', '숲'),
+    '쇼핑': ('아울렛', '쇼핑몰', '면세점'),
+    '역사': ('유적', '문화재', '사찰', '고궁'),
+    '전통문화': ('한옥', '한복', '전통'),
+    '랜드마크': ('명소', '핫플', '관광지', '유명한 곳'),
+    '공원': ('산책', '피크닉'),
+}
 
 
 def guess_categories(text, category_names):
@@ -366,6 +444,12 @@ def guess_categories(text, category_names):
 
     squashed = _squash(text)
     found = [name for name in category_names if _squash(name) and _squash(name) in squashed]
+
+    # 🟧 11/18 '맛집 위주로'·'힐링 여행'처럼 컨셉 이름 대신 비슷한 말을 쓴 경우 (숙소·장소 이야기에서는 안 읽음)
+    if not found and not any(w in text for w in ('숙소', '숙박', '호텔', '펜션', '게스트하우스', '근처', '주변', '출발', '넣어', '담아')):
+        for name in category_names:
+            if any(w in text for w in CONCEPT_WORDS.get(name, ())) and name not in found:
+                found.append(name)
     return found[:MAX_CATEGORIES]
 
 
@@ -442,7 +526,8 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
             coord = _clean_coord(prev_center.get('lat'), prev_center.get('lon'))
             draft['center'] = {'lat': coord[0], 'lon': coord[1]} if coord else None
         elif resolve:
-            found = kakao_first_place(draft['place'])
+            # 지역을 둘 말했으면 앞의 것을 지도 중심으로 (🟧 11/18)
+            found = kakao_first_place(draft['place']) or kakao_first_place((region_parts(draft['place']) or [''])[0])
             draft['center'] = {'lat': found['lat'], 'lon': found['lon']} if found else None
 
     # ---- 출발지 ----
@@ -547,10 +632,12 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
 
 
 def _with_region(query, place):
-    if place and place not in query:
-        return '%s %s' % (place, query)
+    # 🟧 11/18 지역을 둘 말했으면('전주, 군산') 검색어에 둘 다 붙이지 않는다 ('전주, 군산 전주 라한호텔' → 결과 0개)
+    parts = region_parts(place)
+    if not parts or any(part in query for part in parts):
+        return query
 
-    return query
+    return '%s %s' % (parts[0], query)
 
 
 # =========================================================
@@ -1914,6 +2001,40 @@ _UNTIL_DAY_RE = re.compile(r'(?:부터|~|-)\s*(\d{1,2})\s*일')
 _WEEK_DAY_RE = re.compile(r'(이번\s*주|금주|다음\s*주|담주|다다음\s*주)?\s*(?:의\s*)?([월화수목금토일])요일')
 _WEEKEND_RE = re.compile(r'(이번\s*주?|금주|다음\s*주?|담주|다다음\s*주?)?\s*주말')   # '다음 주말'·'다음주 주말'
 _AFTER_DAYS_RE = re.compile(r'(\d{1,2})\s*일\s*(?:뒤|후)')
+# 🟧 11/18 '12월 첫째 주 토요일' (전엔 '토요일'만 읽어서 이번 주 토요일이 들어갔음)
+_NTH_WEEKDAY_RE = re.compile(
+    r'(\d{1,2})\s*월\s*(첫|둘|두|셋|세|넷|네|다섯|마지막|[1-5])\s*(?:째|번째)?\s*주\s*(?:의\s*)?(?:([월화수목금토일])요일|(주말))')
+_NTH = {'첫': 1, '둘': 2, '두': 2, '셋': 3, '세': 3, '넷': 4, '네': 4, '다섯': 5, '마지막': -1}
+# '이번 주 금토일', '다음 주 토일' → 그 요일들 (앞 글자가 한글이면 다른 낱말이라 안 읽음)
+_WEEKDAY_RUN_RE = re.compile(
+    r'(이번\s*주|금주|다음\s*주|담주|다다음\s*주)?\s*(?<![가-힣])(목금토일|금토일|목금토|금토|토일)(?=$|[\s,.!?~]|에|으로|로\s|동안)')
+# 날짜가 정해진 기념일 (음력인 설·추석은 해마다 달라서 AI에게 맡김)
+_HOLIDAYS = (('크리스마스 이브', 12, 24), ('크리스마스이브', 12, 24), ('크리스마스', 12, 25), ('성탄절', 12, 25),
+             ('새해 첫날', 1, 1), ('새해 첫 날', 1, 1), ('신정', 1, 1), ('삼일절', 3, 1), ('3.1절', 3, 1),
+             ('어린이날', 5, 5), ('현충일', 6, 6), ('광복절', 8, 15), ('개천절', 10, 3), ('한글날', 10, 9))
+
+
+def _nth_weekday(today, month, nth, weekday):
+    """그 달의 n번째 요일 (nth=-1 이면 마지막). 지났으면 내년."""
+    for year in (today.year, today.year + 1):
+        try:
+            first = date(year, month, 1)
+        except ValueError:
+            return None
+        day = first + timedelta(days=(weekday - first.weekday()) % 7)
+        days = []
+        while day.month == month:
+            days.append(day)
+            day += timedelta(days=7)
+        if nth == -1:
+            found = days[-1]
+        elif nth <= len(days):
+            found = days[nth - 1]
+        else:
+            return None
+        if found >= today:
+            return found
+    return None
 _RELATIVE_WORDS = (('글피', 3), ('모레', 2), ('내일', 1), ('오늘', 0))
 
 # 숙소 이야기에 나온 날짜를 출발일로 잘못 읽지 않으려고
@@ -2029,6 +2150,14 @@ def guess_dates(text, today):
     if not isinstance(text, str) or any(word in text for word in _STAY_WORDS + _NOT_TRIP_DATE_WORDS):
         return found
 
+    # 0) '12월 첫째 주 토요일', '1월 둘째 주 주말' (🟧 11/18)
+    match = _NTH_WEEKDAY_RE.search(text)
+    if match and 1 <= int(match.group(1)) <= 12:
+        nth = _NTH.get(match.group(2)) or int(match.group(2))
+        weekday = _WEEKDAY_INDEX[match.group(3)] if match.group(3) else 5
+        found['start'] = _nth_weekday(today, int(match.group(1)), nth, weekday)
+        return found
+
     # 1) '11월 7일', '11/7', '2026-11-07' (두 개면 출발·종료)
     # '2026-11-07' 은 '2026년 11월 07일'로 바꿔서 읽는다 ('3-4명' 같은 말은 날짜로 안 읽게 연도가 있을 때만)
     dated = re.sub(r'(\d{4})-(\d{1,2})-(\d{1,2})', r'\1년 \2월 \3일', text)
@@ -2052,6 +2181,20 @@ def guess_dates(text, today):
                 if end and end > days[0]:
                     found['end'] = end
 
+        return found
+
+    # 1-2) '크리스마스에', '어린이날부터' (🟧 11/18)
+    for word, month, day in _HOLIDAYS:
+        if word in text:
+            found['start'] = _month_day(None, month, day, today)
+            return found
+
+    # 1-3) '이번 주 금토일', '다음 주 토일' → 출발·종료 (🟧 11/18)
+    match = _WEEKDAY_RUN_RE.search(text)
+    if match:
+        run = match.group(2)
+        found['start'] = _weekday_date(today, _WEEKDAY_INDEX[run[0]], _week_offset(match.group(1)))
+        found['end'] = found['start'] + timedelta(days=len(run) - 1)
         return found
 
     # 2) '이번주 토요일', '다음주 금요일', '토요일'
@@ -2156,6 +2299,13 @@ _PEOPLE_RE = re.compile(r'(\d{1,2})\s*(?:[-~]\s*(\d{1,2})\s*)?명(?![소동란�
 _KOREAN_PEOPLE_RE = re.compile(r'(한|두|세|석|네|넉|다섯|여섯|일곱|여덟|아홉|열)\s*(?:명|사람)(?![소동란물])')
 
 
+# '아이 둘', '애들 2명', '딸 하나' (🟧 11/18)
+_KIDS_RE = re.compile(r'(?:아이들?|애들?|아기|자녀|딸|아들|조카|초등학생|유치원생)\s*(하나|한\s*명|둘|두\s*명|셋|세\s*명|넷|네\s*명|\d\s*명?)')
+_KID_COUNTS = {'하나': 1, '한': 1, '둘': 2, '두': 2, '셋': 3, '세': 3, '넷': 4, '네': 4}
+# 같이 가는 어른 수를 알려 주는 말 (말하는 사람 포함)
+_ADULT_CUES = ((('부부', '아내', '와이프', '남편', '신랑', '집사람'), 2), (('혼자', '나랑', '저랑'), 1))
+
+
 def guess_people(text):
     """사용자 문장에서 인원을 직접 읽는다. 없으면 None. (로컬 모델이 '혼자'를 자주 놓침)
 
@@ -2163,6 +2313,19 @@ def guess_people(text):
     """
     if not isinstance(text, str):
         return None
+
+    # 🟧 11/18 '아이 둘이랑 우리 부부' → 4 (전엔 '둘이'만 읽어서 2명)
+    kids = _KIDS_RE.search(text)
+    if kids and '포함' not in text and not re.search(r'성인|어른|총|모두|다\s*합', text):
+        kid_count = _KID_COUNTS.get(re.sub(r'\s|명', '', kids.group(1)))
+        if kid_count is None:
+            digits = re.sub(r'\D', '', kids.group(1))
+            kid_count = int(digits) if digits else None
+        adults = next((n for words, n in _ADULT_CUES if any(w in text for w in words)), None)
+        if kid_count and adults:
+            return kid_count + adults
+        if kid_count and not _PEOPLE_RE.search(_KIDS_RE.sub(' ', text)):
+            return None      # 어른이 몇인지 모르면 '둘이'로 읽지 않고 AI 값에 맡김
 
     counts = []
 
@@ -2210,6 +2373,64 @@ def guess_start_time(text, has_start_place=False):
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         return None
     return '%02d:%02d' % (hour, minute)
+
+
+# 현지 이동수단을 뜻하는 말 (🟧 11/18, AI가 빠뜨렸을 때만 씀. KTX·비행기 같은 '가는 길'은 guess_access 가 따로 읽음)
+_TRANSPORT_WORDS = (
+    ('public_transport', ('뚜벅이', '대중교통', '지하철', '시내버스', '차 없이', '차없이')),
+    ('walk', ('걸어서', '도보로', '도보 여행', '걸어 다')),
+    ('car', ('렌터카', '렌트카', '렌트해', '렌트할', '차 빌려')),
+    ('bike', ('자전거', '따릉이')),
+)
+
+
+def guess_transport(text):
+    """'뚜벅이 여행', '렌터카 빌릴 거야' → transport 값. 추천을 부탁하는 말이면 None"""
+    text = text or ''
+    if '추천' in text:
+        return None
+    for value, words in _TRANSPORT_WORDS:
+        if any(w in text for w in words):
+            return value
+    return None
+
+
+# '김포공항에서 7시 비행기 타', '수원역에서 출발' → 출발지 (🟧 11/18, 긴 문장에서 AI가 출발지를 빠뜨렸을 때만)
+_START_FROM_RE = re.compile(
+    r'([가-힣A-Za-z0-9]{1,15}(?:역|공항|터미널|여객터미널|휴게소|IC))\s*에서'
+    r'(?=[^.!?\n]{0,25}(?:출발|비행기|기차|열차|KTX|SRT|버스\s*타|타고|탑승|떠나|모여|만나|타$|타[.,\s]))')
+
+
+def guess_start_place(text, place):
+    """→ (출발지 이름, 그 근처에서 말한 출발 시각 또는 None). 여행지에 있는 곳('제주공항에서 렌터카 타고')은 출발지가 아님"""
+    match = _START_FROM_RE.search(text or '')
+    if not match:
+        return None, None
+    name = match.group(1)
+    if any(part and part in name for part in region_parts(place)):
+        return None, None
+    around = (text[match.end():match.end() + 25], text[max(0, match.start() - 15):match.start()])
+    when = next((t for t in (guess_start_time(x, True) for x in around) if t), None)
+    return name, when
+
+
+def guess_place(text):
+    """'대구 맛집 위주로' → '대구'. AI가 여행 지역을 빠뜨렸을 때만 쓴다 (🟧 11/18, 같은 말에 가끔 지역을 안 적었음)
+    가는 길 비교가 아는 도시 이름(access_service.CITIES)만 읽고, '서울역에서 출발'·'부산 말고'처럼 여행지가 아닌 말은 건너뜀"""
+    from .access_service import CITIES
+    text = text or ''
+    best = None
+    for name in CITIES:
+        for match in re.finditer(re.escape(name), text):
+            after = text[match.end():match.end() + 6]
+            if re.match(r'\s*(?:역|공항|터미널|항|IC|시청|에서|말고|대신|출발|살|사는)', after):
+                continue
+            if match.start() and '가' <= text[match.start() - 1] <= '힣':
+                continue                 # '남대구'·'동부산'처럼 다른 낱말 안
+            if best is None or match.start() < best[0]:
+                best = (match.start(), name)
+            break
+    return best[1] if best else None
 
 
 def next_question(draft, category_names):
@@ -2659,6 +2880,29 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         if guessed_cats:
             ai_draft['categories'] = guessed_cats
 
+    # 🟧 11/18 AI가 빠뜨린 값을 사용자 문장에서 직접 읽는다 (이미 정한 값은 안 건드림)
+    user_text = messages[-1]['content']
+    place_guessed = False
+    if not _clean_text(ai_draft.get('place'), 50) and not prev.get('place') and intent == 'schedule':
+        ai_draft['place'] = guess_place(user_text)
+        place_guessed = bool(ai_draft['place'])
+    if not ai_draft.get('transport') and not prev.get('transport'):
+        ai_draft['transport'] = guess_transport(user_text) or ai_draft.get('transport')
+    if not _clean_text(ai_draft.get('start_place_query'), 60) and not prev.get('start_place'):
+        said_place, said_time = guess_start_place(user_text, ai_draft.get('place') or prev.get('place'))
+        if said_place:
+            ai_draft['start_place_query'] = said_place
+            if said_time and not _clean_time(ai_draft.get('start_time')):
+                ai_draft['start_time'] = said_time
+    # '친구 집에서 잘 거야, 수성구 범어동' → AI는 숙소 이름을 '수성구 범어동'으로만 적는다 → '친구 집'을 붙여 둠
+    home = HOME_STAY_RE.search(user_text)
+    if home and isinstance(ai_draft.get('stays'), list):
+        old = {(x.get('date'), x.get('query')) for x in prev.get('stays') or [] if isinstance(x, dict)}
+        for stay in ai_draft['stays']:
+            query = stay.get('query') if isinstance(stay, dict) else None
+            if query and (stay.get('date'), query) not in old and not HOME_STAY_RE.search(query):
+                stay['query'] = '%s %s' % (home.group(0), query)
+
     # AI가 출발 시각을 빠뜨리면, 출발 이야기를 한 사용자 문장에서 시각을 직접 읽는다
     if not _clean_time(ai_draft.get('start_time')):
         raw_sp = (result.get('draft') or {}).get('start_place_query') if isinstance(result.get('draft'), dict) else None
@@ -2717,6 +2961,12 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
         kept = [s for s in sentences
                 if not ('?' in s and any(w in s for w in ('언제', '출발일', '날짜', '며칠')))]
         reply = ' '.join(kept).strip() or '일정 초안을 업데이트했어요.'
+
+    # 🟧 11/18 지역을 코드가 채웠으면 AI의 '지역이 아직 정해지지 않았습니다'·'어느 지역으로 가시나요?'를 뺀다
+    if place_guessed and new_draft.get('place'):
+        sentences = re.split(r'(?<=[.?!])\s+', reply)
+        kept = [x for x in sentences if not ('지역' in x and ('?' in x or '않' in x or '정해' in x)) and '어디로' not in x]
+        reply = ' '.join(["여행 지역은 '%s'(으)로 반영했어요." % new_draft['place']] + kept).strip()
 
     # 숙소/출발지를 못 찾았으면 알려준다
     for place in [new_draft.get('start_place')] + (new_draft.get('stays') or []):
@@ -2875,6 +3125,7 @@ def run_chat_turn(messages, draft, category_names, today=None, llm=None, profile
                 and not (question and '?' in s)
                 and '아직 안 정하셨다면' not in s   # 숙소 질문 뒤에 붙는 말 (질문을 빼면 혼자 남음)
                 and '다음에 물어볼' not in s        # AI가 지침 제목을 그대로 옮겨 쓴 말 ('다음에 물어볼 것은 출발 장소입니다')
+                and not (question and s.strip().startswith('(예'))   # 🟧 11/18 질문만 빠지고 '(예: 쇼핑, …)'이 남아 두 번 나오던 것
                 and not (question and '적용하기' in s)]
         reply = ' '.join(kept).strip() or '일정 초안을 업데이트했어요.'
     if question and not recommendation and '?' not in reply and intent == 'schedule':
