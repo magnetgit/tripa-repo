@@ -23,6 +23,7 @@ DB·마이그레이션·`.env`·응답 키 변경 없음
 - `templates/404.html`·`500.html` 새 파일: TRIPA 모양 안내 + 홈으로 가기 (서버처럼 DEBUG=False 일 때만 보임)
 - 번역 사전 9문장 추가 (`i18n_missing` 0)
 - 🐛 `passport.css`: 내 정보 수정의 프로필 [바꾸기] 연필 아이콘이 폰(560px 이하)에서 94px 로 커지던 것 → 11px (`.pp-photo svg` 폰 규칙이 뒤에 와서 덮어썼음, 10/30부터). `?v=10`
+- **비밀번호 규칙 완화**: 특수문자 필수를 빼고 **영문 대·소문자 + 숫자** 로 (특수문자는 써도 됨). `views.password_problem` + `join.html`·`idpw.html` 의 `PW_RULES`·규칙 목록(`special` → `digit`) 세 곳을 같이 바꿈. 이미 가입한 회원 비밀번호는 그대로 쓸 수 있어요
 
 ### 🟦 영준
 - `style.css` 는 안 건드렸어요. `mobile_nav.css` 는 `style.css` 의 `.m-topbar`·`.m-tabbar` 를 그대로 옮긴 거라, 그쪽 모양을 바꾸면 이 파일도 같이 바꿔 주세요 (내 정보 화면은 `style.css` 를 안 불러와서 따로 둠).
