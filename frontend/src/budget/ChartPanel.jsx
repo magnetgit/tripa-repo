@@ -28,6 +28,8 @@ export default function ChartPanel({ cfg, limits, total, plan, days, dayAmounts 
   useEffect(() => {
     const Chart = window.Chart;   // category_budget.html 에서 CDN 으로 불러온 Chart.js
     if (!Chart) return undefined;
+    // 🟧 11/18 예산도 일정 예상도 0원이면 캔버스를 안 그리는데(아래 안내 문구), 그때 차트를 만들려다 화면 전체가 꺼졌음
+    if (!donutRef.current || !dailyRef.current || !catRef.current) return undefined;
     const ds = JSON.parse(key);
     const catList = ds[0].map(([k, limit, p]) => ({ ...CATS.find((c) => c.key === k), limit: limit || 0, plan: p || 0 }));
     const days2 = ds[1];
