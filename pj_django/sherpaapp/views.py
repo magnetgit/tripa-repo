@@ -229,7 +229,7 @@ def _filter_reviews(reviews, by, v):
         return reviews
     if by == 'tag':
         return reviews.filter(tags__contains=[v])
-    if by == 'age' and not v.isdigit():      # ?v=abc 같은 값은 숫자 칸에서 오류 → 결과 없음
+    if by == 'age' and not (v.isascii() and v.isdigit()):      # ?v=abc 같은 값은 숫자 칸에서 오류 → 결과 없음
         return reviews.none()
     for key, label, field in REVIEW_GROUPS:
         if key == by and field:
@@ -595,7 +595,8 @@ def route_comment(request, sr_id):
         return redirect('login')
 
     route = get_object_or_404(SharedRoute, sr_id=sr_id)
-    content = (request.POST.get('content') or '').strip()
+    # 🟧 11/18 브라우저는 줄바꿈을 1자로 세는데 보낼 때는 \r\n 2자 → 길이를 재기 전에 \n 으로
+    content = (request.POST.get('content') or '').replace('\r\n', '\n').strip()
     if not content:
         request.session['route_message'] = '댓글 내용을 적어 주세요.'
     elif len(content) > ROUTE_COMMENT_MAX:
@@ -634,6 +635,8 @@ def _reviewable_places(member):
     return (
         Place.objects
         .filter(travel__member=member, travel__t_start__lte=date.today())
+        .filter(schedule_places__isnull=False)      # 🟧 11/18 지금 일정에 있는 장소만
+        .distinct()
         .exclude(p_id__in=reviewed)
         .exclude(p_kakao_id__in=reviewed_kakao)
         .select_related('travel')
@@ -655,7 +658,7 @@ def review_write(request):
         form = {
             'place_id': (request.POST.get('place_id') or '').strip(),
             'rating': (request.POST.get('rating') or '').strip(),
-            'content': (request.POST.get('content') or '').strip(),
+            'content': (request.POST.get('content') or '').replace('\r\n', '\n').strip(),
             'tags': [t for t in request.POST.getlist('tags') if t in REVIEW_TAGS],
         }
         place = next((p for p in places if str(p.p_id) == form['place_id']), None)
@@ -706,7 +709,12 @@ def _review_back(request):
     """장소 리뷰 탭의 보던 페이지로 돌아가는 주소"""
     url = reverse('review_board') + '?tab=places'
     page = (request.POST.get('page') or '').strip()
-    return url + ('&page=%s' % page if page.isdigit() else '')
+    url += '&page=%s' % page if page.isascii() and page.isdigit() else ''
+    # 🟧 11/18 보던 분류(by·v)·정렬(sort)도 그대로 (전엔 수정·삭제하면 풀렸음). 폼이 보내 줄 때만
+    from urllib.parse import urlencode
+    keep = {k: (request.POST.get(k) or '').strip()[:30] for k in ('by', 'v', 'sort')}
+    keep = {k: val for k, val in keep.items() if val}
+    return url + ('&' + urlencode(keep) if keep else '')
 
 
 # 내 장소 리뷰 고치기 (폼 POST → 게시판으로). 남의 리뷰는 고칠 수 없음
@@ -724,7 +732,7 @@ def review_update(request, rv_id):
         rating = int(request.POST.get('rating') or 0)
     except ValueError:
         rating = 0
-    content = (request.POST.get('content') or '').strip()
+    content = (request.POST.get('content') or '').replace('\r\n', '\n').strip()
     tags = [t for t in request.POST.getlist('tags') if t in REVIEW_TAGS]
 
     if not 1 <= rating <= 5:
@@ -5184,7 +5192,12 @@ def _decimal_or_none(value):
     if value is None:
         return None
 
-    return Decimal(str(value))
+    # 🟧 11/18 숫자가 아닌 값('abc')·NaN·무한대는 None (전엔 InvalidOperation 으로 500)
+    try:
+        number = Decimal(str(value).strip())
+    except Exception:
+        return None
+    return number if number.is_finite() and abs(number) <= 180 else None
 
 
 def _read_mock():
@@ -6252,6 +6265,8 @@ def review_summary(request):
 
 def review_keywords(request):
     """kakao_id 장소 리뷰의 키워드(최대 5개)와 한 줄 요약을 돌려준다. 실제 요약은 review_service.summarize_review"""
+    if not _login_member(request):      # 🟧 11/18 AI 요약을 만드는 주소라 로그인한 사람만
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
     kakao_id = request.GET.get('kakao_id')
     if not kakao_id:
         return JsonResponse(
@@ -6306,7 +6321,10 @@ def budget_estimate(request):
         return JsonResponse({'success': False, 'message': '요청 형식이 올바르지 않아요.'}, status=400)
 
     category_names = list(Category.objects.order_by('c_id').values_list('c_name', flat=True))
-    draft = chat_service.normalize_draft(body.get('draft'), None, category_names, date.today(), resolve=False)
+    try:
+        draft = chat_service.normalize_draft(body.get('draft'), None, category_names, date.today(), resolve=False)
+    except Exception:       # 🟧 11/18 stays·pins 가 목록이 아닌 요청 등
+        return JsonResponse({'success': False, 'message': '요청 형식이 올바르지 않아요.'}, status=400)
 
     try:
         estimate = budget_service.draft_budget(draft)
@@ -6340,6 +6358,12 @@ def budget_category(request, travel_id):
         if body is None or not isinstance(body.get('limit'), dict):
             return JsonResponse({'success': False, 'message': 'limit 값이 필요해요.'}, status=400)
         total = budget_service.clean_limits({'etc': body.get('total')}).get('etc') if 'total' in body else None
+        # 🟧 11/18 1억 원 초과·소수·문자처럼 저장할 수 없는 값은 알려 준다
+        #   (전엔 200 '저장했어요'인데 저장은 안 되고, 총예산은 분류 합계로 바뀌었음)
+        sent = [c for c in budget_service.CATEGORIES if body['limit'].get(c) not in (None, '')]
+        kept = budget_service.clean_limits(body['limit'])
+        if ('total' in body and body.get('total') not in (None, '') and total is None) or any(c not in kept for c in sent):
+            return JsonResponse({'success': False, 'message': '금액은 0원부터 1억 원까지 숫자로 적어 주세요.'}, status=400)
         if not budget_service.clean_limits(body['limit']) and not isinstance(body.get('items'), dict) and total is None:
             return JsonResponse({'success': False, 'message': '저장할 분류 금액이 없어요.'}, status=400)
         if isinstance(body.get('items'), dict):
@@ -6384,8 +6408,16 @@ def budget_category(request, travel_id):
                 if pay.schedule_id and pay.schedule and pay.schedule.s_day:
                     key = pay.schedule.s_day.isoformat()
                     daily_used[key] = daily_used.get(key, 0) + (pay.pay_pay or 0)
+            # 🟧 11/18 분류별 일정 예상에 회원이 고친 장소 금액을 반영 (전엔 AI 금액만 → 날짜별 차트·여행 상세와 숫자가 달랐음)
+            #   AI 금액 그대로는 plan_ai (추가 키)
+            plan = dict(estimate['by'])
+            for item in items:
+                if item.get('edited'):
+                    diff = (item.get('amount') or 0) - (item.get('ai') or 0)
+                    plan[item['cat']] = max(0, plan.get(item['cat'], 0) + diff)
             result['budget'].update({
-                'plan': estimate['by'],
+                'plan': plan,
+                'plan_ai': estimate['by'],
                 'counts': counts,
                 'people': estimate['people'],
                 'items': items,
@@ -6507,19 +6539,22 @@ def budget_swap(request, travel_id):
     if error:
         return error
 
+    sp_raw = (request.POST.get('sp_id') or '').strip()
+    if not (sp_raw.isascii() and sp_raw.isdigit()):      # 🟧 11/18 'abc' 같은 값에 500 이 났음
+        return JsonResponse({'success': False, 'message': '바꿀 장소 정보가 없습니다.'}, status=400)
     sp = (
         SchedulePlace.objects.select_related('place', 'schedule')
-        .filter(sp_id=request.POST.get('sp_id') or 0, schedule__travel=travel)
+        .filter(sp_id=int(sp_raw), schedule__travel=travel)
         .first()
     )
-    name = (request.POST.get('name') or '').strip()
+    name = (request.POST.get('name') or '').strip()[:100]
     if not sp or not name:
         return JsonResponse({'success': False, 'message': '바꿀 장소 정보가 없습니다.'}, status=400)
 
     lat = _decimal_or_none(request.POST.get('lat'))
     lon = _decimal_or_none(request.POST.get('lon'))
-    addr = (request.POST.get('addr') or '').strip()
-    kakao_id = (request.POST.get('kakao_id') or '').strip() or None
+    addr = (request.POST.get('addr') or '').strip()[:255]
+    kakao_id = (request.POST.get('kakao_id') or '').strip()[:20] or None
     old = sp.place
 
     if SchedulePlace.objects.filter(schedule=sp.schedule, place__p_name=name).exclude(sp_id=sp.sp_id).exists():

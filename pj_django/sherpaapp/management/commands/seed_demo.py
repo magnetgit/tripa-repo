@@ -5,6 +5,7 @@
     python manage.py seed_demo --clear      # 데모 데이터만 지우기 (만들지 않음)
     python manage.py seed_demo --members 30 --seed 7
     python manage.py seed_demo --summaries  # 리뷰 3개 이상 장소는 AI 키워드 요약까지 (LLM 호출, 시간·비용 듦)
+    python manage.py seed_demo --more       # 🟧 11/18 지금 데모 자료는 그대로 두고 리뷰 게시판·비용 관리 자료만 더 (여러 번 돌려도 됨)
 
 - 데모 회원은 아이디가 demo_ 로 시작해요 (demo_01 ~ demo_80). 비밀번호는 모두 아래 DEMO_PASSWORD (시험용).
   demo_01 은 20대 여성, demo_02 는 40대 남성 — 같은 장소라도 추천 카드 순서가 다르게 보여요.
@@ -220,6 +221,8 @@ class Command(BaseCommand):
         parser.add_argument('--seed', type=int, default=2026, help='같은 값이면 같은 데이터 (기본 2026)')
         parser.add_argument('--reset', action='store_true', help='데모 데이터를 지우고 다시 만든다')
         parser.add_argument('--clear', action='store_true', help='데모 데이터만 지우고 끝낸다')
+        parser.add_argument('--more', action='store_true',
+                            help='지금 데모 자료 위에 공유 루트·별점·댓글·고친 비용을 더 만든다 (지우지 않음)')
         parser.add_argument('--summaries', action='store_true', help='리뷰 3개 이상 장소는 AI 키워드 요약까지 (LLM 호출)')
 
     def handle(self, *args, **opts):
@@ -228,6 +231,16 @@ class Command(BaseCommand):
             self.stdout.write(f'데모 회원 {n}명과 그 여행·리뷰를 지웠어요.')
             if opts['clear']:
                 return
+        if opts['more']:
+            if not Member.objects.filter(user_id__startswith=DEMO_PREFIX).exists():
+                self.stdout.write(self.style.ERROR('데모 데이터가 없어요. 먼저 seed_demo 를 돌려 주세요.'))
+                return
+            with transaction.atomic():
+                made = make_more(random.Random(opts['seed'] + 1))
+            self.stdout.write(self.style.SUCCESS(
+                '더 만든 데모 자료: 공유 루트 +%(routes)d · 루트 별점 +%(ratings)d · 루트 댓글 +%(comments)d · '
+                '고친 비용 +%(items)d (비용 기록 +%(logs)d)' % made))
+            return
         if Member.objects.filter(user_id__startswith=DEMO_PREFIX).exists():
             self.stdout.write(self.style.WARNING('데모 데이터가 이미 있어요. 다시 만들려면 --reset 을 붙여 주세요.'))
             return
@@ -596,6 +609,103 @@ def make_budget_items(rnd, travels):
             log.changed_at = _not_future(rnd, datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59))))
             log.save(update_fields=['changed_at'])
     return count
+
+
+# ---------------------------------------------------------------------------
+# --more : 지금 데모 자료 위에 리뷰 게시판·비용 관리 자료를 더 (🟧 11/18)
+#   - 공유 루트: 다녀온 여행의 60%까지 공유 (지금 35%쯤)
+#   - 루트마다 별점 3~9개, 댓글 2~6개가 되게 채움 (같은 회원이 두 번 주지 않음)
+#   - 고친 비용: 다녀온 여행의 85%까지, 여행마다 3~6곳
+#   데모 회원(demo_)의 자료만 만들고, 이미 있는 것은 건드리지 않는다. 여러 번 돌려도 목표만큼만 찬다.
+# ---------------------------------------------------------------------------
+MORE_INTROS = INTROS + [
+    '대중교통으로만 다닌 뚜벅이 코스예요', '부모님 모시고 천천히 다닌 일정이에요', '비 오는 날에도 괜찮았던 실내 위주 코스',
+    '1박 2일로 알차게 돌았어요', '카페 투어에 진심인 분께 추천해요', '렌터카로 해안도로를 따라 돈 코스예요',
+    '아침 일찍 움직여서 줄 안 서고 다녔어요', '예산을 아껴서 다녀온 가성비 코스', '혼자 조용히 걷기 좋은 곳만 골랐어요',
+    '야경이 예쁜 곳을 저녁에 몰았어요', '시장 먹거리 위주로 다닌 여행', '친구들이랑 사진 남기기 좋았던 코스',
+]
+MORE_COMMENTS = COMMENTS + [
+    '둘째 날 동선이 정말 효율적이네요', '주차는 편했나요?', '아이랑 가도 괜찮을까요?', '이 순서 그대로 따라가 볼게요',
+    '숙소 위치가 좋아 보여요', '비 올 때 대신 갈 만한 곳도 있을까요?', '예산이 얼마나 들었는지 궁금해요',
+    '사진 보니까 당장 가고 싶네요', '저는 반대 순서로 돌았는데 그것도 좋았어요', '마지막 날 일정이 여유로워서 좋네요',
+    '시장은 오전에 가는 게 좋더라고요', '카페 줄이 길지 않았나요?', '부모님이 좋아하셨을 것 같아요', '덕분에 일정 다 짰어요, 감사해요',
+    '렌터카 없이도 가능할까요?', '겨울에 가도 괜찮을까요?', '여기 야경 진짜 예쁘죠', '다음 달에 그대로 가 보려고요',
+]
+
+
+def _people_of(travel):
+    """여행 제목의 동행 말('커플', '아이와' …)로 인원 짐작 (동행은 DB 칸이 아니라서)"""
+    for _, people, word in COMPANIONS.values():
+        if word in (travel.t_title or ''):
+            return people
+    return 2
+
+
+def _after(rnd, travel, low, high):
+    day = travel.t_end + timedelta(days=rnd.randint(low, high))
+    return _not_future(rnd, datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59))))
+
+
+def make_more(rnd):
+    today = date.today()
+    members = list(Member.objects.filter(user_id__startswith=DEMO_PREFIX).order_by('m_id'))
+    past = list(Travel.objects.filter(member__in=members, t_end__lt=today).select_related('member').order_by('t_id'))
+    made = {'routes': 0, 'ratings': 0, 'comments': 0, 'items': 0, 'logs': 0}
+
+    # ---- 공유 루트: 60%까지
+    shared = set(SharedRoute.objects.filter(travel__in=past).values_list('travel_id', flat=True))
+    rest = [t for t in past if t.t_id not in shared and SchedulePlace.objects.filter(schedule__travel=t).exists()]
+    rnd.shuffle(rest)
+    for t in rest[:max(0, int(len(past) * .6) - len(shared))]:
+        route = SharedRoute.objects.create(travel=t, member=t.member, intro=rnd.choice(MORE_INTROS))
+        SharedRoute.objects.filter(pk=route.pk).update(created_at=_after(rnd, t, 1, 10))
+        made['routes'] += 1
+
+    # ---- 루트마다 별점 3~9개, 댓글 2~6개가 되게
+    for route in SharedRoute.objects.filter(travel__in=past).select_related('travel'):
+        t = route.travel
+        rated = set(RouteRating.objects.filter(route=route).values_list('member_id', flat=True))
+        others = [m for m in members if m.m_id != route.member_id and m.m_id not in rated]
+        for m in rnd.sample(others, min(len(others), max(0, rnd.randint(3, 9) - len(rated)))):
+            row = RouteRating.objects.create(route=route, member=m, rating=rnd.choice([2, 3, 3, 4, 4, 4, 5, 5, 5]))
+            RouteRating.objects.filter(pk=row.pk).update(created_at=_after(rnd, t, 2, 60))
+            made['ratings'] += 1
+        have = RouteComment.objects.filter(route=route).count()
+        writers = [m for m in members if m.m_id != route.member_id]
+        for m in rnd.sample(writers, min(len(writers), max(0, rnd.randint(2, 6) - have))):
+            row = RouteComment.objects.create(route=route, member=m, content=rnd.choice(MORE_COMMENTS))
+            RouteComment.objects.filter(pk=row.pk).update(created_at=_after(rnd, t, 2, 60))
+            made['comments'] += 1
+
+    # ---- 고친 비용: 다녀온 여행의 85%까지, 여행마다 3~6곳
+    logs_before = BudgetLog.objects.count()
+    has_item = set(TravelBudgetItem.objects.filter(travel__in=past).values_list('travel_id', flat=True))
+    rest = [t for t in past if t.t_id not in has_item]
+    rnd.shuffle(rest)
+    targets = rest[:max(0, int(len(past) * .85) - len(has_item))] + [t for t in past if t.t_id in has_item]
+    for t in targets:
+        people = _people_of(t)
+        taken = set(TravelBudgetItem.objects.filter(travel=t).values_list('schedule_place_id', flat=True))
+        sps = [sp for sp in SchedulePlace.objects.filter(schedule__travel=t).select_related('place')
+               if sp.place.p_kind in PAY_PER_PERSON and sp.sp_id not in taken]
+        new_logs = []
+        for sp in rnd.sample(sps, min(len(sps), max(0, rnd.randint(3, 6) - len(taken)))):
+            low, high = PAY_PER_PERSON[sp.place.p_kind]
+            amount = rnd.randint(low, high) * people // 1000 * 1000
+            before = set(BudgetLog.objects.filter(travel_id=t.t_id).values_list('pk', flat=True))
+            item = TravelBudgetItem.objects.create(travel=t, schedule_place=sp, amount=amount)
+            if rnd.random() < .4:
+                item.amount = max(0, int(amount * rnd.uniform(.7, 1.3)) // 1000 * 1000)
+                item.save(update_fields=['amount', 'updated_at'])
+            new_logs += list(BudgetLog.objects.filter(travel_id=t.t_id).exclude(pk__in=before))
+            made['items'] += 1
+        for log in new_logs:        # 트리거가 NOW() 로 남긴 기록을 여행 날짜 근처로
+            day = (t.t_start - timedelta(days=rnd.randint(1, 5)) if log.action == 'insert'
+                   else t.t_end + timedelta(days=rnd.randint(0, 3)))
+            log.changed_at = _not_future(rnd, datetime.combine(day, time(rnd.randint(9, 22), rnd.randint(0, 59))))
+            log.save(update_fields=['changed_at'])
+    made['logs'] = BudgetLog.objects.count() - logs_before
+    return made
 
 
 # ---------------------------------------------------------------------------
