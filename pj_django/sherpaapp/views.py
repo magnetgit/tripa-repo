@@ -1223,6 +1223,24 @@ def travel_detail_day(
 # 여행 수정
 # ==============================================
 
+def _hit_limit(key, limit, seconds):
+    """🟧 11/19 key 로 seconds 동안 limit 번까지. 넘으면 True (세션 기준 제한은 다시 로그인하면 0부터라 같이 씀)"""
+    key = 'rl:' + hashlib.sha256(key.encode('utf-8')).hexdigest()[:40]
+    cache.add(key, 0, seconds)
+    try:
+        count = cache.incr(key)
+    except ValueError:   # 그사이 만료됐으면 새로
+        cache.set(key, 1, seconds)
+        count = 1
+    return count > limit
+
+
+def _real_ip(request):
+    """nginx 가 X-Forwarded-For 맨 뒤에 붙인 값(진짜 접속 주소). 앞쪽 값은 보내는 사람이 꾸밀 수 있음"""
+    forwarded = [p.strip() for p in request.headers.get('X-Forwarded-For', '').split(',') if p.strip()]
+    return forwarded[-1] if forwarded else request.META.get('REMOTE_ADDR', '') or 'unknown'
+
+
 OVER_MIDNIGHT_MESSAGE = '머무는 시간이 자정을 넘길 수 없어요. 방문 시간이나 머무는 시간을 줄여 주세요.'
 
 
@@ -2696,17 +2714,37 @@ def _alert_as_json(view):
             return response
         text = response.content.decode('utf-8', 'ignore')
         found = re.search(r"alert\('(.*?)'\);", text, re.S)
-        if not found:
+        quoted = None if found else re.search(r'alert\(("(?:[^"\\]|\\.)*")\);', text)   # _alert_back 모양 (🟧 11/19)
+        if not (found or quoted):
             return response
         moved = re.search(r"location\.href\s*=", text)
         return JsonResponse({
             'success': bool(moved),
-            'message': found.group(1).strip(),
+            'message': found.group(1).strip() if found else json.loads(quoted.group(1)),
             'next': reverse('login') if moved else '',
         })
     wrapper.__name__ = view.__name__
     wrapper.__doc__ = view.__doc__
     return wrapper
+
+
+PW_CODE_SEND_COUNT = 3     # 🟧 11/19 한 아이디로 10분에 3통
+PW_CODE_IP_COUNT = 20      #          한 접속 주소에서 1시간에 20번
+PW_FAIL_COUNT = 10         #          한 아이디로 30분에 10번 틀리면 잠깐 막음 (재전송해도 안 풀림)
+PW_LOCKED_MESSAGE = '인증번호를 너무 많이 틀렸어요. 30분 뒤에 다시 시도해 주세요.'
+
+
+def _pw_locked(user_id):
+    return (cache.get('pw_fail:%s' % user_id) or 0) >= PW_FAIL_COUNT
+
+
+def _pw_failed(user_id):
+    key = 'pw_fail:%s' % user_id
+    cache.add(key, 0, 1800)
+    try:
+        cache.incr(key)
+    except ValueError:
+        cache.set(key, 1, 1800)
 
 
 @_alert_as_json
@@ -2754,7 +2792,10 @@ def pw_find(request):
                 </script>
             """)
 
+    if _pw_locked(user_id):
+        return _alert_back(PW_LOCKED_MESSAGE)
     if not check_password(code, saved['code']):
+        _pw_failed(user_id)
         saved['tries'] = saved.get('tries', 0) + 1
         request.session['pw_reset'] = saved          # 바꾼 dict 를 세션에 다시 넣기
         return HttpResponse(f"""
@@ -2842,7 +2883,12 @@ def pw_code(request):
     if now - saved.get('sent', 0) < PW_CODE_RESEND:
         return JsonResponse({'success': False, 'message': '잠시 뒤에 다시 받을 수 있어요.'}, status=429)
 
+    # 🟧 11/19 쿠키를 새로 만들면 5초 막기가 풀려서, 아이디(10분에 3통)·접속 주소(1시간에 20번)로도 셈
+    if _hit_limit('pw_ip:%s' % _real_ip(request), PW_CODE_IP_COUNT, 3600):
+        return JsonResponse({'success': False, 'message': '요청이 너무 많아요. 잠시 뒤에 다시 받아 주세요.'}, status=429)
     member = Member.objects.filter(user_id=user_id, email=email, name=name).first()
+    if member and _hit_limit('pw_send:%s' % member.user_id, PW_CODE_SEND_COUNT, PW_CODE_SECONDS):
+        return JsonResponse({'success': False, 'message': '인증번호를 여러 번 보냈어요. 10분 뒤에 다시 받아 주세요.'}, status=429)
     if member:
         code = '%06d' % secrets.randbelow(1000000)          # 000000 ~ 999999
         request.session['pw_reset'] = {
@@ -2852,12 +2898,17 @@ def pw_code(request):
             'tries': 0,
             'sent': now,
         }
-        send_mail(
-            '[TRIPA] 비밀번호 찾기 인증번호',
-            f'인증번호: {code}\n10분 안에 입력해 주세요. 직접 요청하지 않았다면 이 메일은 무시해 주세요.',
-            None,                                           # 보내는 사람: settings.DEFAULT_FROM_EMAIL
-            [member.email],
-        )
+        try:
+            send_mail(
+                '[TRIPA] 비밀번호 찾기 인증번호',
+                f'인증번호: {code}\n10분 안에 입력해 주세요. 직접 요청하지 않았다면 이 메일은 무시해 주세요.',
+                None,                                           # 보내는 사람: settings.DEFAULT_FROM_EMAIL
+                [member.email],
+            )
+        except Exception:   # 🟧 11/19 메일 서버 오류면 500 대신 안내 (보내지 못한 코드는 지움)
+            logger.exception('비밀번호 찾기 메일 발송 실패')
+            request.session['pw_reset'] = {'sent': now}
+            return JsonResponse({'success': False, 'message': '메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.'}, status=502)
     else:
         request.session['pw_reset'] = {'sent': now}         # 없는 회원도 5초 막기는 똑같이
 
@@ -2879,7 +2930,10 @@ def pw_code_check(request):
         return JsonResponse({'success': False, 'message': '인증번호를 먼저 받아 주세요. (10분이 지났으면 재전송)'})
     if saved.get('tries', 0) >= PW_CODE_TRIES:
         return JsonResponse({'success': False, 'message': '5번 틀렸어요. 인증번호를 다시 받아 주세요.'})
+    if _pw_locked(user_id):
+        return JsonResponse({'success': False, 'message': PW_LOCKED_MESSAGE})
     if not check_password(code, saved['code']):
+        _pw_failed(user_id)
         saved['tries'] = saved.get('tries', 0) + 1
         request.session['pw_reset'] = saved
         return JsonResponse({'success': False, 'message': f"인증번호가 맞지 않아요. ({saved['tries']}/{PW_CODE_TRIES})"})
@@ -3080,17 +3134,20 @@ def member_delete(request):
     """)
 
 def schedule_place_search(request):
-    query = request.GET.get('query', '').strip()
+    if not _login_member(request):   # 🟧 11/19 로그인 없이 카카오 검색 할당량을 쓸 수 있었음
+        return JsonResponse({'places': [], 'message': '로그인이 필요합니다.'}, status=401)
+    query = request.GET.get('query', '').strip()[:100]
 
     if not query:
         return JsonResponse({'places': []})
 
     try:
         places = _search_kakao_places(query)
-    except requests.RequestException as e:
+    except requests.RequestException:
+        logger.exception('장소 검색 실패')
         return JsonResponse({
             'places': [],
-            'message': f'장소 검색 중 오류가 발생했습니다: {e}',
+            'message': '장소 검색 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.',
         }, status=502)
 
     return JsonResponse({'places': places})
@@ -5496,6 +5553,8 @@ def api_chat(request):
 #    hours: {open, close, text, estimated, closed, rest}|null, review: {rating, count}|null, date}
 # 새 계산 없이 있던 함수만 모음: photo_service.get_photo · hours_service.place_hours · review_rank.review_stats
 def api_place_info(request):
+    if not _login_member(request):   # 🟧 11/19 로그인 없이 카카오·관광공사 할당량을 쓸 수 있었음
+        return JsonResponse({'success': False, 'message': '로그인이 필요합니다.'}, status=401)
     kakao_id = (request.GET.get('kakao_id') or '').strip()
     if not kakao_id:
         return JsonResponse({'success': False, 'message': 'kakao_id가 필요해요.'})
@@ -5576,7 +5635,8 @@ def travel_chat(request):
     if body is None:
         return _chat_error('요청 형식이 올바르지 않아요.', 400)
 
-    if not chat_service.check_rate_limit(request.session):
+    if (not chat_service.check_rate_limit(request.session)
+            or _hit_limit('chat:%s' % member.m_id, chat_service.RATE_LIMIT_COUNT, chat_service.RATE_LIMIT_SECONDS)):
         return _chat_error('잠시 후 다시 시도해 주세요. (요청이 너무 많아요)', 429)
 
     category_names = list(
@@ -5619,6 +5679,10 @@ def travel_chat_apply(request):
 
     if body is None:
         return _chat_error('요청 형식이 올바르지 않아요.', 400)
+
+    # 🟧 11/19 여행 만들기 횟수 제한 (10분에 10번 · 하루 50번, 회원 기준)
+    if _hit_limit('apply:%s' % member.m_id, APPLY_RATE_COUNT, 600) or _hit_limit('apply_day:%s:%s' % (member.m_id, date.today()), APPLY_DAY_COUNT, 86400):
+        return _chat_error('여행을 너무 자주 만들고 있어요. 잠시 후 다시 시도해 주세요.', 429)
 
     category_names = list(
         Category.objects.order_by('c_id').values_list('c_name', flat=True)
@@ -5747,6 +5811,8 @@ def _chat_choose_access(travel, draft, people, add_to_total=False):
 # AI 대화 여행 만들기 - 일정 미리보기
 # ==============================================
 
+APPLY_RATE_COUNT = 10          # 🟧 11/19 채팅으로 여행 만들기: 10분에 10번
+APPLY_DAY_COUNT = 50           #          하루 50번
 PREVIEW_RATE_COUNT = 30        # 10분에 30번까지 (일정 생성은 무거운 작업이라 따로 센다)
 PREVIEW_PHOTO_NEW = 8          # 미리보기에서 사진을 새로 찾는 장소 수 (나머지는 다음 미리보기 때)
 PREVIEW_CACHE_SECONDS = 600    # 같은 초안/삭제 조건이면 10분 동안 저장해 둔 결과를 다시 쓴다
@@ -6389,11 +6455,12 @@ def travel_chat_preview(request):
     if cached:
         return JsonResponse(cached)
 
+    preview_member = _login_member(request)
     if not chat_service.check_rate_limit(
         request.session,
         key='ai_preview_calls',
         count=PREVIEW_RATE_COUNT,
-    ):
+    ) or (preview_member and _hit_limit('preview:%s' % preview_member.m_id, PREVIEW_RATE_COUNT, 600)):
         recent = request.session.get('ai_preview_calls') or []
         wait = 30
 

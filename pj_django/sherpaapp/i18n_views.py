@@ -32,8 +32,9 @@ def _same_site(request):
 
 
 def _client_ip(request):
-    forwarded = request.headers.get('X-Forwarded-For', '')
-    return (forwarded.split(',')[0].strip() or request.META.get('REMOTE_ADDR', '')) or 'unknown'
+    # 🟧 11/19 nginx 가 맨 뒤에 붙인 값만 믿음 (앞쪽은 보내는 사람이 꾸며서 제한을 피할 수 있었음)
+    forwarded = [p.strip() for p in request.headers.get('X-Forwarded-For', '').split(',') if p.strip()]
+    return (forwarded[-1] if forwarded else request.META.get('REMOTE_ADDR', '')) or 'unknown'
 
 
 @csrf_exempt

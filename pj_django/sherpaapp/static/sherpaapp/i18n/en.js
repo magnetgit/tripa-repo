@@ -1419,5 +1419,13 @@ window.TRIPA_DICT = {
 "일정 정보가 올바르지 않습니다.": "The schedule information is invalid.",
 "총예산은 숫자(원)로 적어 주세요.": "Please enter the total budget as a number (KRW).",
 "출발 시간을 다시 골라 주세요.": "Please choose the departure time again.",
-"출발지 '{}' 위치를 찾지 못했어요. 역·건물 이름이나 주소로 적어 주세요.": "Couldn't find the starting point '{}'. Please enter a station, building name, or address."
+"출발지 '{}' 위치를 찾지 못했어요. 역·건물 이름이나 주소로 적어 주세요.": "Couldn't find the starting point '{}'. Please enter a station, building name, or address.",
+"메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.": "We couldn't send the email. Please try again shortly.",
+"비밀번호 찾기 메일 발송 실패": "Failed to send password reset email",
+"여행을 너무 자주 만들고 있어요. 잠시 후 다시 시도해 주세요.": "You're creating trips too often. Please try again in a moment.",
+"요청이 너무 많아요. 잠시 뒤에 다시 받아 주세요.": "Too many requests. Please request again shortly.",
+"인증번호를 너무 많이 틀렸어요. 30분 뒤에 다시 시도해 주세요.": "Too many wrong codes. Please try again in 30 minutes.",
+"인증번호를 여러 번 보냈어요. 10분 뒤에 다시 받아 주세요.": "A code has been sent several times. Please request again in 10 minutes.",
+"장소 검색 실패": "Place search failed",
+"장소 검색 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.": "An error occurred while searching places. Please try again shortly."
 };
