@@ -6,6 +6,8 @@
   - HTML 화면 맨 위에 '관리자 보기 · 읽기 전용 [끝내기]' 띠를 붙인다
 장고 관리자 로그인(is_staff)이 풀리면 보기도 바로 끝낸다.
 """
+import hashlib
+
 from django.http import HttpResponse, JsonResponse
 from django.middleware.csrf import get_token
 from django.utils.html import escape
@@ -87,3 +89,36 @@ class ManageReadOnlyMiddleware:
                 if response.has_header('Content-Length'):
                     response['Content-Length'] = str(len(response.content))
         return response
+
+
+# ---- 비밀번호를 바꾸면 다른 기기 로그인도 풀기 (🟧 11/19) ----
+PW_TAG_KEY = 'login_pw'      # 로그인할 때의 비밀번호(암호화된 값)로 만든 짧은 표시
+
+
+def pw_tag(saved_pwd):
+    """DB 에 저장된 비밀번호 값(암호화된 것) → 짧은 표시. 비밀번호를 바꾸면 값이 달라진다"""
+    return hashlib.sha256((saved_pwd or '').encode('utf-8')).hexdigest()[:16]
+
+
+class LoginPasswordMiddleware:
+    """세션에 적어 둔 비밀번호 표시와 지금 DB 값이 다르면(다른 기기에서 비밀번호를 바꿈) 로그아웃.
+    표시가 없는 예전 세션은 지금 값으로 한 번 적어 둔다. 관리자 '회원 화면 보기' 중에는 건너뜀"""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        session = request.session
+        user_id = session.get('login_ok_user')
+        if user_id and MANAGE_KEY not in session:
+            from .models import Member
+            saved = Member.objects.filter(user_id=user_id).values_list('pwd', flat=True).first()
+            if saved is None:
+                session.flush()                       # 탈퇴한 회원
+            else:
+                tag = pw_tag(saved)
+                if session.get(PW_TAG_KEY) is None:
+                    session[PW_TAG_KEY] = tag
+                elif session[PW_TAG_KEY] != tag:
+                    session.flush()
+        return self.get_response(request)

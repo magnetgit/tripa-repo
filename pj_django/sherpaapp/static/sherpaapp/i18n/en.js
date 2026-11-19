@@ -1427,5 +1427,6 @@ window.TRIPA_DICT = {
 "인증번호를 너무 많이 틀렸어요. 30분 뒤에 다시 시도해 주세요.": "Too many wrong codes. Please try again in 30 minutes.",
 "인증번호를 여러 번 보냈어요. 10분 뒤에 다시 받아 주세요.": "A code has been sent several times. Please request again in 10 minutes.",
 "장소 검색 실패": "Place search failed",
-"장소 검색 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.": "An error occurred while searching places. Please try again shortly."
+"장소 검색 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.": "An error occurred while searching places. Please try again shortly.",
+"이 여행은 리뷰 게시판에 공유돼 있어요. 지우면 게시판 글과 별점·댓글도 같이 지워져요. 그래도 삭제할까요?": "This trip is shared on the review board. Deleting it also removes the post, ratings and comments. Delete anyway?"
 };

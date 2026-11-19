@@ -282,6 +282,17 @@ def _region_word(word):
     return short if len(short) >= 2 else word
 
 
+# 시청 반경(최대 20km)으로 다 못 덮는 넓은 지역: 제주도, '강원도'·'경남' 같은 도 이름 (🟧 11/19)
+_WIDE_REGION_RE = re.compile(
+    r'(제주|제주도|제주특별자치도|(?:강원|경기|충청남|충청북|충남|충북|전라남|전라북|전남|전북|경상남|경상북|경남|경북)(?:특별자치)?도?)')
+
+
+def is_wide_region(place):
+    """'제주', '강원도', '경남' → True / '제주시', '서귀포', '강릉' → False"""
+    first = (region_parts(place) or [''])[0].strip()
+    return bool(first) and bool(_WIDE_REGION_RE.fullmatch(first))
+
+
 # 시청 이름이 겹치는 곳: '광주시청'은 경기 광주시라서 여행지 광주는 광역시청으로
 _CENTER_ALIAS = {'광주': '광주광역시청'}
 
@@ -1316,7 +1327,9 @@ def _pick_anchor(rec, draft):
 
     center = draft.get('center')
 
-    if center:
+    # 🟧 11/19 제주도·도 단위처럼 넓은 지역은 시청 20km(카카오 최대 반경) 안만 나와서 서귀포 쪽이 빠졌음
+    #   → 중심 좌표로 좁히지 않고 지역 이름으로만 검색 (지도 중심은 그대로)
+    if center and not is_wide_region(place):
         return (center['lat'], center['lon']), '%s 중심' % (place or '지역')
 
     return None, None
@@ -2665,6 +2678,11 @@ _ADULT_CUES = ((('부부', '아내', '와이프', '남편', '신랑', '집사람
 _PER_PERSON_BUDGET_RE = re.compile(r'(?:1\s*인당|일인당|인당|한\s*사람당|한\s*명당|각자)\s*(\d{1,4})\s*만\s*원?')
 
 
+# '나 제외', '저 빼고', '나 말고' + 인원 → 말한 사람은 따로 (🟧 11/19)
+_SELF_OUT_RE = re.compile(r'(?:^|[\s,])(?:나|저|난|전)\s*(?:는|를|은)?\s*(?:제외|빼고|말고|빼면)')
+_SELF_STAY_RE = re.compile(r'(?:나|저)\s*(?:는|은)?\s*(?:안|못)\s*가|(?:난|전)\s*(?:안|못)\s*가')
+
+
 _PEOPLE_MORE_RE = re.compile(r'(한|두|세|네|다섯|\d{1,2})\s*(?:명|사람)\s*(?:이|을|만)?\s*(더|추가|늘|빠|줄|못\s*가|안\s*가|덜)')
 
 
@@ -2701,6 +2719,11 @@ def guess_people(text):
             return None      # 어른이 몇인지 모르면 '둘이'로 읽지 않고 AI 값에 맡김
 
     counts = []
+    # 🟧 11/19 '나 제외 3명', '저 빼고 두 명' → 말한 사람까지 +1 ('나는 안 가'면 그대로)
+    #   '4명 중에 나 빼고'처럼 인원 뒤에 오는 말은 이미 포함된 것이라 더하지 않는다
+    self_out = _SELF_OUT_RE.search(text)
+    first_count = _PEOPLE_RE.search(text) or _KOREAN_PEOPLE_RE.search(text)
+    self_out = bool(self_out and first_count and self_out.start() < first_count.start()) and not _SELF_STAY_RE.search(text)
 
     for match in _PEOPLE_RE.finditer(text):
         counts.append(int(match.group(2) or match.group(1)))
@@ -2709,7 +2732,7 @@ def guess_people(text):
         counts.append(_KOREAN_COUNTS[match.group(1)])
 
     if counts:
-        total = sum(counts)
+        total = sum(counts) + (1 if self_out else 0)
         return total if 1 <= total <= 30 else None
 
     for word, count in _PEOPLE_WORDS:
