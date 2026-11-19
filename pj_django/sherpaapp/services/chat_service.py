@@ -600,7 +600,8 @@ def normalize_draft(data, prev, category_names, today, resolve, notes=None):
     seen_dates = set()
     stays = []
 
-    for item in data.get('stays') or []:
+    stays_src = data.get('stays')
+    for item in stays_src if isinstance(stays_src, list) else []:   # 🟧 11/19 숫자·true 가 오면 500 이었음
         if not isinstance(item, dict) or not (start and end):
             continue
 
