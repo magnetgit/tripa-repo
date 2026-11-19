@@ -162,6 +162,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # 비밀번호를 바꾸면 다른 기기 로그인도 풀기 (🟧 11/19)
+    "sherpaapp.middleware.LoginPasswordMiddleware",
     # 관리자 '회원 화면 보기' 중에는 저장·수정 403 + 화면 위 안내 띠 (🟩 11/12, /manage/)
     "sherpaapp.middleware.ManageReadOnlyMiddleware",
     # 화면 언어 바꾸기: 모든 화면 <head> 에 언어 버튼·사전 스크립트를 붙임 (🟧 11/12, 쿠키 tripa_lang)

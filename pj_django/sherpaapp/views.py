@@ -48,6 +48,7 @@ from .services.schedule_service import (
 from .services.review_service import summarize_review
 from .services import chat_service
 from .i18n_middleware import request_lang
+from .middleware import MANAGE_KEY, PW_TAG_KEY, end_manage_view, pw_tag
 from .services import embed_service
 from .services import transit_service
 from .services import fare_service
@@ -198,7 +199,7 @@ def travel_list(request):
         member = Member.objects.get(user_id=login_user)
     except Member.DoesNotExist:
         return redirect('login')
-    travels = (Travel.objects.filter(member=member).order_by('-t_id'))
+    travels = (Travel.objects.filter(member=member).select_related('shared_route').order_by('-t_id'))   # 공유 여부: 지울 때 안내 (🟧 11/19)
     return render(request,'sherpaapp/travel_list.html',{'member':member,'travels':travels})
 
 # ==============================================
@@ -2458,6 +2459,7 @@ def login_ok(request):
             request.session[
                 'login_ok_user'
             ] = member.user_id
+            request.session[PW_TAG_KEY] = pw_tag(member.pwd)   # 🟧 11/19 비밀번호가 바뀌면 이 로그인도 풀림
 
             # 팝업 없이 바로 홈으로
             return redirect('index')
@@ -2469,6 +2471,7 @@ def login_ok(request):
             request.session[
                 'login_ok_user'
             ] = member.user_id
+            request.session[PW_TAG_KEY] = pw_tag(member.pwd)   # 🟧 11/19 비밀번호가 바뀌면 이 로그인도 풀림
 
             # 팝업 없이 바로 홈으로
             return redirect('index')
@@ -2620,6 +2623,11 @@ def build_travel_record(member):
 # ==============================================
 
 def logout(request):
+
+    # 🟧 11/19 관리자 '회원 화면 보기' 중이면 보기만 끝냄 (전엔 관리자 로그인까지 풀렸음)
+    if MANAGE_KEY in request.session:
+        end_manage_view(request.session)
+        return redirect('manage_home')
 
     request.session.flush()
 
