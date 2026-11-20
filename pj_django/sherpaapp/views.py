@@ -692,18 +692,23 @@ def review_write(request):
         elif len(form['content']) > 100:
             error = '리뷰는 100자까지 쓸 수 있어요.'
         else:
-            with transaction.atomic():
-                review = Review.objects.create(
-                    member=member,
-                    place=place,
-                    kakao_id=place.p_kakao_id or None,
-                    place_name=place.p_name,
-                    rating=rating,
-                    content=form['content'],
-                    tags=form['tags'],
-                )
-                if photo:
-                    review_photo_service.save_photo(review, photo)
+            try:
+                with transaction.atomic():
+                    review = Review.objects.create(
+                        member=member,
+                        place=place,
+                        kakao_id=place.p_kakao_id or None,
+                        place_name=place.p_name,
+                        rating=rating,
+                        content=form['content'],
+                        tags=form['tags'],
+                    )
+                    if photo:
+                        review_photo_service.save_photo(review, photo)
+            except IntegrityError:
+                # 🟧 11/20 [리뷰 올리기]를 빠르게 두 번 누르면 두 번째가 같은 장소 리뷰(1인 1개)에 걸려 500 이었음
+                #   → 먼저 들어간 리뷰가 있으니 올린 것으로 보고 게시판으로
+                pass
             request.session['review_message'] = "'%s' 리뷰를 올렸어요." % place.p_name
             return redirect('review_board')
 
@@ -3714,7 +3719,9 @@ def schedule_place_add(request):
         )
 
         if not schedule:
-            schedule = Schedule.objects.create(
+            # 🟧 11/20 빈 날에 [추가]를 빠르게 두 번 누르면 둘 다 '그날 일정 없음'으로 보고 만들다가 두 번째가 500
+            #   (같은 날 일정 1개 규칙), 장소 하나는 빠졌음 → get_or_create 는 겹치면 먼저 만든 일정을 다시 읽음
+            schedule, _ = Schedule.objects.get_or_create(
                 travel=travel,
                 s_day=s_day,
             )
@@ -6040,7 +6047,7 @@ def _chat_add_pins(travel, pins, with_images=False):
 
                 schedule = (
                     Schedule.objects.filter(travel=travel, s_day=day_date).order_by('s_id').first()
-                    or Schedule.objects.create(travel=travel, s_day=day_date)
+                    or Schedule.objects.get_or_create(travel=travel, s_day=day_date)[0]   # 겹쳐도 500 안 나게 (🟧 11/20)
                 )
 
                 place = Place.objects.filter(travel=travel, p_name=name, p_addr=addr).first()
