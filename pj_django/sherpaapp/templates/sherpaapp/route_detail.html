@@ -30,7 +30,7 @@
         </ul>
 
         {% if member %}
-            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} {{ member.nickname }}</a>
+            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} <span data-no-i18n>{{ member.nickname }}</span></a>
         {% else %}
             <a href="{% url 'login' %}" class="user-profile">{% include "_icon.html" with name="user" %} 로그인</a>
         {% endif %}
@@ -54,7 +54,7 @@
                 <div class="rd-owner">
                     <img src="{% static 'sherpaapp/avatars/'|add:route.member.avatar_key|add:'.svg' %}" alt="" width="40" height="40">
                     <div>
-                        <strong>{{ route.member.nickname }}</strong>
+                        <strong data-no-i18n>{{ route.member.nickname }}</strong>
                         <small>{{ route.created_at|date:"Y.m.d" }} 공유</small>
                     </div>
                 </div>
@@ -160,7 +160,7 @@
                             <img src="{% static 'sherpaapp/avatars/'|add:c.member.avatar_key|add:'.svg' %}" alt="" width="34" height="34">
                             <div>
                                 <div class="rd-comment__head">
-                                    <strong>{{ c.member.nickname }}</strong>
+                                    <strong data-no-i18n>{{ c.member.nickname }}</strong>
                                     {% if c.member_id == route.member_id %}<span class="is-owner">작성자</span>{% endif %}
                                     <time datetime="{{ c.created_at|date:'c' }}">{{ c.created_at|date:"Y.m.d H:i" }}</time>
                                     {% if c.member_id == member.m_id or is_owner %}

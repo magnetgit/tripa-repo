@@ -2072,7 +2072,7 @@
             <a href="{% url 'mypage' %}"
                class="user-profile">
 
-                {% include "_icon.html" with name="user" %} {{ member.nickname }}
+                {% include "_icon.html" with name="user" %} <span data-no-i18n>{{ member.nickname }}</span>
 
             </a>
 
@@ -2164,8 +2164,9 @@
                 <div class="ac-chosen" id="acChosen"></div>
                 <div class="ac-controls">
                     <label for="acPeople">인원</label>
-                    <select id="acPeople">
-                        {% for n in "12345678" %}<option value="{{ n }}"{% if n == "2" %} selected{% endif %}>{{ n }}명</option>{% endfor %}
+                    <select id="acPeople" data-trip="{{ trip_people }}">
+                        {# 🟧 11/20 여행 인원으로 시작 (전엔 늘 2명이라 [가격 비교]를 누르면 여행 인원이 2명으로 바뀌어 저장됐음) #}
+                        {% with tp=trip_people|stringformat:"s" %}{% for n in "12345678" %}<option value="{{ n }}"{% if n == tp %} selected{% endif %}>{{ n }}명</option>{% endfor %}{% if trip_people > 8 %}<option value="{{ trip_people }}" selected>{{ trip_people }}명</option>{% endif %}{% endwith %}
                     </select>
                     <button type="button" class="ac-btn" id="acCompare">가격 비교</button>
                 </div>
@@ -9072,7 +9073,7 @@ function goToTravelDetail(travelId) {
 })();
 </script>
 
-<script src="{% static 'sherpaapp/js/access.js' %}?v=20261117"></script>
+<script src="{% static 'sherpaapp/js/access.js' %}?v=20261120"></script>
 
 </body>
 

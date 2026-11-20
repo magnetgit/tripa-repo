@@ -81,7 +81,7 @@
 
         {% if member %}
             <a href="{% url 'mypage' %}" class="user-profile">
-                {% include "_icon.html" with name="user" %} {{ member.nickname }}
+                {% include "_icon.html" with name="user" %} <span data-no-i18n>{{ member.nickname }}</span>
             </a>
         {% else %}
             <a href="{% url 'login' %}" class="user-profile">

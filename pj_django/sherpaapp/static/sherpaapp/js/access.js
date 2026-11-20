@@ -374,7 +374,9 @@
             choose(btn.dataset.mode, btn);
         }
     });
-    if (route && route.people) {
+    // 🟧 11/20 여행 인원(서버가 select 에 골라 둠)이 있으면 그대로 — 예전에 고른 가는 길의 인원(2명 등)으로 바꾸면
+    //   [가격 비교]를 누를 때 여행 인원이 그 값으로 바뀌어 저장됐음
+    if (route && route.people && !els.people.dataset.trip) {
         els.people.value = String(Math.min(8, route.people));
     }
     renderChosen();

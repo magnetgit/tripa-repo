@@ -53,11 +53,11 @@
             <div class="pp-row">
                 <div class="pp-field">
                     <dt>성명 <em>/ Name</em></dt>
-                    <dd>{{ member.name }}</dd>
+                    <dd data-no-i18n>{{ member.name }}</dd>
                 </div>
                 <div class="pp-field">
                     <dt>닉네임 <em>/ Nickname</em></dt>
-                    <dd>{{ member.nickname }}</dd>
+                    <dd data-no-i18n>{{ member.nickname }}</dd>
                 </div>
             </div>
             <div class="pp-row">
@@ -155,7 +155,7 @@
     </section>
 
     <!-- 여권 맨 아래 기계 판독 줄 (꾸밈) -->
-    <div class="pp-mrz" aria-hidden="true">
+    <div class="pp-mrz" aria-hidden="true" data-no-i18n>
         TRP&lt;KOR&lt;&lt;{{ member.nickname }}&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;<br>
         {{ member.m_id|stringformat:"06d" }}&lt;&lt;TRIPA&lt;&lt;DOMESTIC&lt;&lt;TRAVELER&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;
     </div>

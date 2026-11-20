@@ -324,7 +324,10 @@
       'justify-content:center;font-size:16px;line-height:1}#tripaLang:after{display:none}}' +
       '@media print{#tripaLang{display:none}}' +
       // 번역하면 글자가 길어져서 겹치는 곳 (한국어일 때는 안 건드림)
-      (lang === 'ko' ? '' : '.tc-row{grid-template-columns:minmax(76px,max-content) 1fr !important;column-gap:8px}');
+      (lang === 'ko' ? '' : '.tc-row{grid-template-columns:minmax(76px,max-content) 1fr !important;column-gap:8px}' +
+        // 홈 '내 여행' 날짜 칸의 '1-night 2-day'가 칸 밖으로 삐져나옴 (🟧 11/20)
+        '.trip-card__date span{max-width:100%;padding:0 3px;box-sizing:border-box;text-align:center;' +
+        'font-size:10px;line-height:1.15}');
     document.head.appendChild(css);
     var box = document.createElement('div');
     box.id = 'tripaLang';

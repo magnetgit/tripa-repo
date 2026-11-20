@@ -31,7 +31,7 @@
         </ul>
 
         {% if member %}
-            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} {{ member.nickname }}</a>
+            <a href="{% url 'mypage' %}" class="user-profile">{% include "_icon.html" with name="user" %} <span data-no-i18n>{{ member.nickname }}</span></a>
         {% else %}
             <a href="{% url 'login' %}" class="user-profile">{% include "_icon.html" with name="user" %} 로그인</a>
         {% endif %}
@@ -136,7 +136,7 @@
                         <div class="rt-card__foot">
                             <span class="rt-card__who">
                                 <img src="{% static 'sherpaapp/avatars/'|add:c.route.member.avatar_key|add:'.svg' %}" alt="" width="24" height="24">
-                                {{ c.route.member.nickname }}
+                                <span data-no-i18n>{{ c.route.member.nickname }}</span>
                             </span>
                             <span class="rt-card__stats">
                                 <b class="rt-star">★ {% if c.avg %}{{ c.avg }}{% else %}-{% endif %}</b>
@@ -201,7 +201,7 @@
                     <header class="rv-card__head">
                         <img class="rv-avatar" src="{% static 'sherpaapp/avatars/'|add:r.member.avatar_key|add:'.svg' %}" alt="" width="40" height="40">
                         <div class="rv-who">
-                            <strong>{{ r.member.nickname }}</strong> {% if sort == 'helpful' and page.number == 1 and forloop.counter <= 3 and r.helpful_count %}<span class="rv-rank">추천 {{ forloop.counter }}위</span>{% endif %}
+                            <strong data-no-i18n>{{ r.member.nickname }}</strong> {% if sort == 'helpful' and page.number == 1 and forloop.counter <= 3 and r.helpful_count %}<span class="rv-rank">추천 {{ forloop.counter }}위</span>{% endif %}
                             <span>{{ r.created_at|date:"Y.m.d" }}</span>
                         </div>
                         <span class="rv-stars" aria-label="별점 {{ r.rating }}점">{% for i in "12345" %}{% if forloop.counter <= r.rating %}★{% else %}☆{% endif %}{% endfor %}</span>
@@ -274,7 +274,7 @@
                             <strong>{{ r.place_name }}</strong>
                             <span class="rv-best__meta">{% if r.place %}{{ r.place.travel.t_place }} · {% endif %}<em>★ {{ r.rating }}</em> · 👍 {{ r.helpful_count }}</span>
                             <p>"{{ r.content }}"</p>
-                            <span class="rv-best__who">{{ r.member.nickname }}</span>
+                            <span class="rv-best__who" data-no-i18n>{{ r.member.nickname }}</span>
                         </div>
                     </li>
                     {% endfor %}
