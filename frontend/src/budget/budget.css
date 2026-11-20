@@ -59,6 +59,7 @@
 .cb-bar__plan { position: absolute; inset: 2px auto 2px 0; border-radius: 3px; opacity: .9; }
 .cb-row__meta { margin: 0; font-size: 12.5px; color: var(--cb-sub); }
 .cb-bad { color: var(--cb-red); }
+.cb-link--inline { margin-top: 0; text-decoration: underline; }
 .cb-good { color: var(--cb-green); }
 
 /* 더 싼 대안 */

@@ -1436,5 +1436,7 @@ window.TRIPA_DICT = {
 "사진이 없어요.": "No photo.",
 "올린 사진 빼기": "Remove photo",
 "사진 파일(JPG·PNG·WEBP)만 올릴 수 있어요.": "Only image files (JPG, PNG, WEBP) can be uploaded.",
-"사진이 너무 커요. 더 작은 사진으로 올려 주세요.": "The photo is too large. Please upload a smaller one."
+"사진이 너무 커요. 더 작은 사진으로 올려 주세요.": "The photo is too large. Please upload a smaller one.",
+"분류 예산을 일정 예상에 맞추기": "Match category budgets to the plan estimate",
+"분류 예산을 일정 예상 비용에 맞췄어요. 저장을 눌러야 반영돼요.": "Category budgets now match the plan estimate. Press Save to apply."
 };
