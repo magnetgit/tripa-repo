@@ -40,7 +40,7 @@
 
             {% if member %}
                 {# 닉네임을 누르면 마이페이지 (따로 있던 '마이페이지' 링크는 뺌: 폰에서 세로로 꺾여서) #}
-                <a href="{% url 'mypage' %}" class="header-user" title="마이페이지">{% include "_icon.html" with name="user" %}<span class="hdr-label hdr-label--name">{{ member.nickname }}님</span></a>
+                <a href="{% url 'mypage' %}" class="header-user" title="마이페이지">{% include "_icon.html" with name="user" %}<span class="hdr-label hdr-label--name" data-no-i18n>{{ member.nickname }}님</span></a>
                 <a href="{% url 'logout' %}">로그아웃</a>
             {% else %}
                 <a href="{% url 'login' %}">로그인</a>
@@ -387,7 +387,7 @@
                                     <strong>{{ pick.title }}</strong>
                                     <span class="review-pick__rating">★ {% if pick.rating %}{{ pick.rating }}{% else %}-{% endif %}</span>
                                 </div>
-                                <p class="review-pick__meta">{{ pick.region }}{% if pick.length %} · {{ pick.length }}{% endif %} · {{ pick.owner }} · 💬 {{ pick.comment_count }}</p>
+                                <p class="review-pick__meta">{{ pick.region }}{% if pick.length %} · {{ pick.length }}{% endif %} · <span data-no-i18n>{{ pick.owner }}</span> · 💬 {{ pick.comment_count }}</p>
                                 <p class="review-pick__quote review-pick__route">{{ pick.route }}</p>
                             </div>
                         </a>
