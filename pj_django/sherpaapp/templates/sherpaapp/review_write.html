@@ -6,7 +6,7 @@
     <title>TRIPA - 리뷰 쓰기</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=9">
 </head>
 <body>
 <div class="detail-container">
@@ -43,7 +43,7 @@
         </div>
 
         {% if groups %}
-        <form method="post" class="rv-form" novalidate onsubmit="return checkReview(this);">
+        <form method="post" class="rv-form" enctype="multipart/form-data" novalidate onsubmit="return checkReview(this);">
             {% csrf_token %}
 
             <!-- 1단계: 여행 고르기 (내 여행 중 시작한 여행) -->
@@ -103,6 +103,14 @@
                 </div>
             </div>
 
+            <!-- 사진 (선택, 1장) 🟧 11/20 — 올린 사진은 그 장소의 대표 사진으로도 보여요 -->
+            <div class="rv-field">
+                <label for="photo" class="rv-label">사진 <em>(선택)</em></label>
+                <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" class="rv-photo-input">
+                <img id="photoPreview" class="rv-photo-preview" alt="" hidden>
+                <p class="rv-photo-help">JPG·PNG·WEBP, 8MB까지. 올린 사진은 이 장소의 대표 사진으로도 보여요.</p>
+            </div>
+
             <p class="rv-error" id="formError" role="alert">{{ error }}</p>
 
             <div class="rv-actions">
@@ -129,8 +137,23 @@
         if (!f.querySelector('input[name="place_id"]:checked')) { err.textContent = "리뷰를 쓸 장소를 골라 주세요."; return false; }
         if (!f.querySelector('input[name="rating"]:checked')) { err.textContent = "별점을 1~5개 중에서 골라 주세요."; return false; }
         if (!f.content.value.trim()) { err.textContent = "리뷰 내용을 적어 주세요."; f.content.focus(); return false; }
+        var file = f.photo && f.photo.files[0];
+        if (file && file.size > 8 * 1024 * 1024) { err.textContent = "사진은 8MB까지 올릴 수 있어요."; return false; }
         return true;
     }
+
+    // 고른 사진 미리 보기 (🟧 11/20)
+    (function () {
+        var input = document.getElementById("photo");
+        var preview = document.getElementById("photoPreview");
+        if (!input || !preview) return;
+        input.addEventListener("change", function () {
+            var file = input.files[0];
+            if (preview.src) URL.revokeObjectURL(preview.src);
+            preview.hidden = !file;
+            preview.src = file ? URL.createObjectURL(file) : "";
+        });
+    })();
 
     // 여행 카드를 누르면 그 여행의 장소만 아래에 보여줌
     function pickTrip(tripId) {

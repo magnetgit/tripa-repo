@@ -6,7 +6,7 @@
     <title>TRIPA - 리뷰 게시판</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
-    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=8">
+    <link rel="stylesheet" href="{% static 'sherpaapp/css/review.css' %}?v=9">
     </head>
 <body>
 <div class="detail-container">        <!-- 전체 틀: 왼쪽 메뉴 + 오른쪽 본문 -->
@@ -214,6 +214,12 @@
 
                     <p class="rv-content">{{ r.content }}</p>
 
+                    {% if r.photo_at %}
+                    <a class="rv-photo" href="{% url 'review_photo' r.rv_id %}?v={{ r.photo_at|date:'U' }}" target="_blank" rel="noopener">
+                        <img src="{% url 'review_photo' r.rv_id %}?v={{ r.photo_at|date:'U' }}" alt="{{ r.place_name }} 리뷰 사진" loading="lazy">
+                    </a>
+                    {% endif %}
+
                     {% if r.tags %}
                     <div class="rv-tags">{% for t in r.tags %}<span>#{{ t }}</span>{% endfor %}</div>
                     {% endif %}
@@ -225,7 +231,8 @@
                             <button type="button" class="rv-mine__btn" data-review-edit
                                     data-url="{% url 'review_update' r.rv_id %}"
                                     data-place="{{ r.place_name }}" data-rating="{{ r.rating }}"
-                                    data-content="{{ r.content }}" data-tags="{{ r.tags|join:'|' }}">수정</button>
+                                    data-content="{{ r.content }}" data-tags="{{ r.tags|join:'|' }}"
+                                    data-photo="{% if r.photo_at %}1{% endif %}">수정</button>
                             <form method="post" action="{% url 'review_delete' r.rv_id %}" class="rv-mine__del"
                                   onsubmit="return confirm('\'{{ r.place_name|escapejs }}\' 리뷰를 지울까요? 받은 추천도 함께 사라져요.');">
                                 {% csrf_token %}
@@ -304,7 +311,7 @@
         {% if tab == 'places' %}
         {# 내 장소 리뷰 고치기 창 #}
         <dialog class="rv-dialog" id="reviewEditDialog" aria-labelledby="reviewEditTitle">
-            <form method="post" class="rv-dialog__form" id="reviewEditForm">
+            <form method="post" class="rv-dialog__form" id="reviewEditForm" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="hidden" name="page" value="{{ page.number }}"><input type="hidden" name="by" value="{{ by }}"><input type="hidden" name="v" value="{{ v }}"><input type="hidden" name="sort" value="{{ sort }}">
                 <h2 id="reviewEditTitle">리뷰 고치기</h2>
@@ -324,6 +331,9 @@
                     <label><input type="checkbox" name="tags" value="{{ t }}"> #{{ t }}</label>
                     {% endfor %}
                 </div>
+                <label for="reviewEditPhoto">사진 바꾸기 (선택, 8MB까지)</label>
+                <input type="file" id="reviewEditPhoto" name="photo" accept="image/jpeg,image/png,image/webp,image/gif">
+                <label class="rv-dialog__remove" data-photo-remove hidden><input type="checkbox" name="photo_remove" value="1"> 올린 사진 빼기</label>
                 <div class="rv-dialog__btns">
                     <button type="button" class="btn btn-secondary" data-close>취소</button>
                     <button type="submit" class="btn btn-primary">저장</button>
@@ -397,6 +407,9 @@
                 reviewForm.rating.value = btn.dataset.rating;
                 reviewForm.content.value = btn.dataset.content;
                 reviewForm.querySelectorAll('[name=tags]').forEach(function (box) { box.checked = tags.indexOf(box.value) >= 0; });
+                reviewForm.photo.value = '';
+                reviewForm.photo_remove.checked = false;
+                reviewForm.querySelector('[data-photo-remove]').hidden = btn.dataset.photo !== '1';
                 reviewDialog.showModal();
             });
         });

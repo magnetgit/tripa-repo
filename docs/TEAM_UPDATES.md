@@ -10,6 +10,38 @@
 
 ---
 
+## 2026-11-20 · ⚠️ DB 변경 · 📷 리뷰 사진 올리기 + 장소 대표 사진 1순위를 리뷰 사진으로 — 🟧 이수한 (🟩 남은 항목)
+**새 표 `review_photo` (마이그레이션 `0024_review_photo`)** — main 을 받으면 `python manage.py migrate` 한 번. 기존 표·응답 키는 그대로(키 추가만)
+
+### 무엇이 되나
+- **리뷰 쓰기**(`/review/write/`)와 **리뷰 고치기 창**에서 사진 1장(선택). 고치기 창에서 사진 바꾸기·빼기
+- 게시판 장소 리뷰 카드에 사진 (누르면 크게)
+- **장소 대표 사진 순서**: ① 그 장소 리뷰 사진(추천 많고 별점 높은 리뷰 것) → ② 저장해 둔 사진 → ③ 관광공사 → ④ 카카오 이미지
+  - `photo_service.get_photo`·`attach_photos`·`place_photo_url` 모두 → 채팅 추천 카드, 여행 상세 지도 말풍선, 대체 장소 카드에 같이 나옴
+  - `photo.source` 에 **`"review"`** 추가 (mock.json `place_info` 설명에 적음). 주소는 우리 서버 `/review_photo/<rv_id>/?v=…`
+- `GET /review_list/?kakao_id=` 응답의 리뷰마다 **`photo`** 키 추가 (사진 주소 또는 null)
+
+### 저장 방식
+- 사진은 서버 폴더가 아니라 **DB `review_photo` 표**에 (리뷰 1개당 1장, 리뷰를 지우면 같이 지워짐). nginx·서버 폴더 설정 바꿀 것 없음
+- 올릴 때 `services/review_photo_service.py` 가 검사·변환: JPG·PNG·WEBP·GIF·BMP, 8MB 까지, 긴 변 1280px JPEG 로 다시 저장
+  - **사진 속 위치(GPS) 같은 EXIF 정보는 지워짐**, 폰 사진 방향은 바로 세움, 투명 PNG 는 흰 바탕
+  - 사진이 아니거나 깨진 파일·너무 큰 그림은 안내 문구 ("사진 파일(JPG·PNG·WEBP)만 올릴 수 있어요." 등) — 그때 리뷰도 저장 안 됨
+- `GET /review_photo/<rv_id>/` 는 로그인 없이 열림 (장소 대표 사진으로 쓰여서). 하루 캐시, 사진을 바꾸면 `?v=` 값이 달라짐
+
+### 🟦 영준
+- `review_write.html`·`review.html` 폼에 `enctype="multipart/form-data"` + 파일 칸, 카드에 `.rv-photo`, `review.css` 맨 아래 몇 줄(`?v=9`). 모양 바꿀 때 참고
+- 사진 출처 글씨(`사진: 한국관광공사`)는 `source === "tour"` 일 때만이라 리뷰 사진엔 안 붙어요. 붙이고 싶으면 `"review"` 일 때 문구 추가 (React `RecCards.jsx` 는 빌드 필요)
+
+### 🟩 지윤
+- 11/12 에 정한 "리뷰 사진을 대표 사진 1순위로" 를 이걸로 끝냈어요. `photo_service.py` 맨 위 설명·`get_photo`·`attach_photos` 앞부분에 리뷰 사진 확인이 들어감
+- 사진 찾는 순서를 바꾸면 `review_photo_service.best_photos(kakao_ids)` 를 그대로 쓰면 돼요
+
+### 시험
+- 새 시험 29가지(파일 검사 9: 줄이기·EXIF 지움·방향·투명 PNG·글자/깨진/HTML 파일·8MB / 쓰기·보기·404·게시판·대표 사진 1순위·review_list photo·고치기 바꾸기/빼기·남의 리뷰 403·틀린 사진이면 리뷰 안 생김·리뷰 지우면 사진도) + 브라우저로 쓰기·미리 보기·게시판·고치기 창 확인 + 기존 시험 같은 결과
+- 번역 8문장 추가 (`i18n_missing` 0)
+
+---
+
 ## 2026-11-20 · 🐛 🟦·🟩 남은 확인 항목 대신 점검 + 다른 언어 화면 손보기 + 가는 길 인원 고침 — 🟧 이수한
 DB·마이그레이션·`.env`·응답 키 변경 없음. 화면 파일(템플릿·JS)만 조금
 
