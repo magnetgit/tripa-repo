@@ -74,7 +74,17 @@ export default function BudgetApp({ cfg }) {
     return <div className="cb-card cb-loading">일정 기준 예상 비용을 계산하는 중이에요...</div>;
   }
 
-  const plan = data.plan || {};
+  // 일정 예상(분류별): 서버 값(저장된 금액 기준)에 지금 고치는 중인 장소 금액을 바로 반영 (🟦 11/20)
+  //   전엔 저장하기 전까지 위쪽 합계·경고가 그대로라, 금액을 줄여도 "예산보다 많아요"가 남아 보였음
+  const itemNow = (it) => {
+    const text = itemInputs[it.sp_id] ?? '';
+    return text === '' ? (it.ai || 0) : toNumber(text);   // 비워 두면 AI 금액
+  };
+  const plan = { ...(data.plan || {}) };
+  items.forEach((it) => {
+    const diff = itemNow(it) - (it.amount ?? 0);
+    if (diff) plan[it.cat] = Math.max(0, (plan[it.cat] || 0) + diff);
+  });
   const sumLimit = CATS.reduce((s, c) => s + limits[c.key], 0);
   const sumPlan = CATS.reduce((s, c) => s + (plan[c.key] || 0), 0);
   const unassigned = total - sumLimit;   // + 면 아직 분류에 안 나눈 금액, - 면 분류에 더 많이 나눔
@@ -111,6 +121,11 @@ export default function BudgetApp({ cfg }) {
     setItemInputs(Object.fromEntries(items.map((it) => [it.sp_id, it.ai == null ? '' : String(it.ai)])));
     setResets(items.filter((it) => it.edited).map((it) => it.sp_id));
     setMsg('일정 예상 비용(AI)으로 채웠어요. 저장을 눌러야 반영돼요.');
+  };
+  // 분류 예산만 일정 예상에 맞춤 (장소별로 고친 금액은 그대로 둠)
+  const fitLimitsToPlan = () => {
+    setInputs(toInputs(plan));
+    setMsg('분류 예산을 일정 예상 비용에 맞췄어요. 저장을 눌러야 반영돼요.');
   };
   const reset = () => {
     setInputs(toInputs(data.limit)); setItemInputs(toItemInputs(items)); setResets([]);
@@ -176,6 +191,10 @@ export default function BudgetApp({ cfg }) {
             : <>일정 예상 비용이 예산 안에 있어요{left > 0 ? <> ({won(left)} 여유)</> : null}.</>}
           {unassigned > 0 && <> 분류에 나눈 금액은 {won(sumLimit)}이고, {won(unassigned)}은 아직 안 나눴어요.</>}
           {unassigned < 0 && <> <b className="cb-bad">분류 예산 합계({won(sumLimit)})가 총예산보다 {won(-unassigned)} 많아요.</b></>}
+          {/* 장소를 더 싼 곳으로 바꿔 일정 예상은 줄었는데 분류에 적어 둔 예산이 그대로일 때: 한 번에 맞추기 */}
+          {unassigned < 0 && overPlan <= 0 && (
+            <> <button type="button" className="cb-link cb-link--inline" onClick={fitLimitsToPlan}>분류 예산을 일정 예상에 맞추기</button></>
+          )}
           {changed && <> 저장을 눌러야 반영돼요.</>}
         </p>
       </section>
