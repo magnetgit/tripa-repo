@@ -1,4 +1,4 @@
-{% load static %}<!DOCTYPE html>
+{% load static tripa_static %}<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -8,7 +8,7 @@
     <!-- 공통 모양 (사이드바·하늘 배경) -->
     <link rel="stylesheet" href="{% static 'sherpaapp/css/style.css' %}?v=20261078">
     <!-- React 빌드 결과물 (frontend 에서 npm run build → static/budget/) -->
-    <link rel="stylesheet" href="{% static 'budget/budget.css' %}">
+    <link rel="stylesheet" href="{% vstatic 'budget/budget.css' %}">
 </head>
 
 <body>
@@ -69,7 +69,7 @@
 {% if travel %}
 <!-- 예산 차트 (예전 비용 관리와 같은 Chart.js) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script type="module" src="{% static 'budget/budget.js' %}"></script>
+<script type="module" src="{% vstatic 'budget/budget.js' %}"></script>
 {% endif %}
 
 </body>
