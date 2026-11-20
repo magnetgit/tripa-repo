@@ -1428,5 +1428,13 @@ window.TRIPA_DICT = {
 "인증번호를 여러 번 보냈어요. 10분 뒤에 다시 받아 주세요.": "A code has been sent several times. Please request again in 10 minutes.",
 "장소 검색 실패": "Place search failed",
 "장소 검색 중 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.": "An error occurred while searching places. Please try again shortly.",
-"이 여행은 리뷰 게시판에 공유돼 있어요. 지우면 게시판 글과 별점·댓글도 같이 지워져요. 그래도 삭제할까요?": "This trip is shared on the review board. Deleting it also removes the post, ratings and comments. Delete anyway?"
+"이 여행은 리뷰 게시판에 공유돼 있어요. 지우면 게시판 글과 별점·댓글도 같이 지워져요. 그래도 삭제할까요?": "This trip is shared on the review board. Deleting it also removes the post, ratings and comments. Delete anyway?",
+"JPG·PNG·WEBP, 8MB까지. 올린 사진은 이 장소의 대표 사진으로도 보여요.": "JPG·PNG·WEBP, up to 8MB. Your photo may also be shown as this place's main photo.",
+"{} 리뷰 사진": "{} review photo",
+"사진 바꾸기 (선택, 8MB까지)": "Change photo (optional, up to 8MB)",
+"사진은 8MB까지 올릴 수 있어요.": "Photos can be up to 8MB.",
+"사진이 없어요.": "No photo.",
+"올린 사진 빼기": "Remove photo",
+"사진 파일(JPG·PNG·WEBP)만 올릴 수 있어요.": "Only image files (JPG, PNG, WEBP) can be uploaded.",
+"사진이 너무 커요. 더 작은 사진으로 올려 주세요.": "The photo is too large. Please upload a smaller one."
 };

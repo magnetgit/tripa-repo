@@ -6,6 +6,8 @@ urlpatterns = [
 
     # 관리자 '회원 화면 보기' 읽기 전용 (🟩 11/12, 장고 관리자만)
     path('manage/', manage_views.manage_home, name='manage_home'),
+    # 리뷰 사진 보여 주기 (🟧 11/20)
+    path('review_photo/<int:rv_id>/', views.review_photo, name='review_photo'),
     path('manage/view/<int:m_id>/', manage_views.manage_start, name='manage_start'),
     path('manage/stop/', manage_views.manage_stop, name='manage_stop'),
 

@@ -833,3 +833,13 @@
 }
 .rv-pages a:hover { background: rgba(45, 108, 223, .08); }
 .rv-pages span[aria-current="page"] { background: #1f2d4a; color: #fff; font-weight: 700; }
+
+/* 리뷰 사진 (🟧 11/20) */
+.rv-photo { display: block; margin: 8px 0 4px; max-width: 320px; border-radius: 12px; overflow: hidden; background: #eef2f8; }
+.rv-photo img { display: block; width: 100%; max-height: 240px; object-fit: cover; }
+.rv-photo-input { display: block; max-width: 100%; font-size: 14px; }
+.rv-photo-preview { display: block; margin-top: 8px; max-width: 220px; max-height: 160px; border-radius: 10px; object-fit: cover; }
+.rv-photo-help { margin: 6px 0 0; font-size: 12px; color: #6b7a90; }
+.rv-dialog__remove { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.rv-dialog__remove[hidden] { display: none; }
+@media (max-width: 600px) { .rv-photo { max-width: 100%; } }

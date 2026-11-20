@@ -645,6 +645,47 @@ class Review(models.Model):
         ]
 
 # ==============================================
+# 리뷰 사진 (🟧 11/20) — 리뷰 1개당 1장, 장소 대표 사진 1순위
+# 줄인 JPEG(긴 변 1280px)를 DB 에 그대로 저장. 리뷰를 지우면 같이 지워짐
+# 올리기·검사: services/review_photo_service.py, 보여 주기: GET /review_photo/<rv_id>/
+# ==============================================
+
+class ReviewPhoto(models.Model):
+
+    rp_id = models.AutoField(
+        primary_key=True,
+        db_column='RP_ID'
+    )
+
+    review = models.OneToOneField(
+        Review,
+        on_delete=models.CASCADE,
+        db_column='RV_ID',
+        related_name='photo'
+    )
+
+    data = models.BinaryField(
+        db_column='RP_DATA'
+    )
+
+    width = models.PositiveIntegerField(
+        db_column='RP_WIDTH'
+    )
+
+    height = models.PositiveIntegerField(
+        db_column='RP_HEIGHT'
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        db_column='UPDATED_AT'
+    )
+
+    class Meta:
+        db_table = 'review_photo'
+
+
+# ==============================================
 # 도움돼요
 # ==============================================
 

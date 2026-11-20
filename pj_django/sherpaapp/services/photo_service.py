@@ -1,6 +1,7 @@
 """장소 사진 찾기 (카카오 장소 ID당 한 장)
 
 찾는 순서
+0) 그 장소 리뷰에 올린 사진 (🟧 11/20, review_photo 테이블 — 추천 많고 별점 높은 리뷰 것) → source "review"
 1) 저장해 둔 사진 (place_photo 테이블)
 2) 한국관광공사 TourAPI: 이름이 맞고 300m 안에 있는 곳의 대표 사진
 3) 카카오 이미지 검색: '장소 이름 + 시·구'로 검색한 첫 사진
@@ -9,7 +10,8 @@
 찾은 결과(사진 없음 포함)는 저장해서 같은 장소를 다시 찾지 않는다.
 사진 없음은 NONE_RETRY_DAYS가 지나면 다시 찾는다.
 
-응답 모양 (mock.json 의 photo): {"url": "...", "source": "tour" | "kakao"} 또는 None
+응답 모양 (mock.json 의 photo): {"url": "...", "source": "review" | "tour" | "kakao"} 또는 None
+  review 사진 주소는 우리 서버 주소('/review_photo/12/?v=…')
 """
 
 import math
@@ -21,6 +23,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from sherpaapp.models import PlacePhoto
+from sherpaapp.services.review_photo_service import best_photos
 
 
 TOUR_URL = 'https://apis.data.go.kr/B551011/KorService2/searchKeyword2'
@@ -218,6 +221,10 @@ def get_photo(kakao_id, name, addr=None, lat=None, lon=None):
     if not kakao_id:
         return None
 
+    review_url = best_photos([kakao_id]).get(kakao_id)
+    if review_url:
+        return {'url': review_url, 'source': 'review'}
+
     row = PlacePhoto.objects.filter(kakao_id=kakao_id).first()
     if row and _is_fresh(row):
         return _to_photo(row)
@@ -234,6 +241,7 @@ def attach_photos(items, max_new=None):
     """
     ids = [str(item.get('kakao_id')) for item in items if item.get('kakao_id')]
     saved = {row.kakao_id: row for row in PlacePhoto.objects.filter(kakao_id__in=ids)}
+    reviewed = best_photos(ids)
     new_count = 0
 
     for item in items:
@@ -242,6 +250,8 @@ def attach_photos(items, max_new=None):
 
         if not kakao_id:
             item['photo'] = None
+        elif kakao_id in reviewed:
+            item['photo'] = {'url': reviewed[kakao_id], 'source': 'review'}
         elif row and _is_fresh(row):
             item['photo'] = _to_photo(row)
         elif max_new is not None and new_count >= max_new:

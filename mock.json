@@ -67,7 +67,7 @@
   "translate": {"_설명": "POST /api/translate/ 화면 자동 번역 (🟧 11/12). 사전(static/sherpaapp/i18n)에 없는 글(장소 이름·주소·리뷰 본문)을 AI로 번역하고 ui_translation 표에 남김. texts 와 같은 길이·순서, 못 한 글(사용량 넘음·AI 오류·한글 없음·닉네임)은 null. 한 번에 40개·한 글 600자까지, 같은 사이트 화면에서만(다른 곳이면 403)",
                 "request": {"lang": "en", "texts": ["빛고을농촌테마공원", "쉬는 날: 매주 월요일"]},
                 "response": {"success": true, "lang": "en", "texts": ["Bitgoeul Rural Theme Park", "Closed: every Monday"]}},
-  "place_info": {"_설명": "GET /api/place_info/?kakao_id=...(&name=&addr=&kind=&lat=&lon=&date=YYYY-MM-DD) 장소 정보 한 번에 (🟩 11/11). 없는 장소는 404 대신 success false. photo·hours·review 는 모르면 null, hours 는 date(없으면 오늘) 기준",
+  "place_info": {"_설명": "GET /api/place_info/?kakao_id=...(&name=&addr=&kind=&lat=&lon=&date=YYYY-MM-DD) 장소 정보 한 번에 (🟩 11/11). 없는 장소는 404 대신 success false. photo·hours·review 는 모르면 null, hours 는 date(없으면 오늘) 기준. photo.source 는 review(그 장소 리뷰 사진, 우리 서버 주소 /review_photo/<rv_id>/?v=…, 1순위 🟧 11/20) | tour | kakao",
                  "success": true, "kakao_id": "10070964", "name": "이재모피자 본점", "addr": "부산 중구 광복중앙로 31", "kind": "음식",
                  "lat": 35.1020422, "lon": 129.0307472,
                  "photo": {"url": "https://tong.visitkorea.or.kr/cms/resource/38/2836438_image2_1.jpg", "source": "tour"},

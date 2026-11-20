@@ -17,13 +17,15 @@ from django.core.validators import validate_email
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, Exists, F, OuterRef, Prefetch, Q, Sum
 from collections import Counter
-from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.db import IntegrityError, transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template import loader
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from .models import Member, Review, ReviewHelpful
+from .models import ReviewPhoto
+from .services import review_photo_service
 from .models import AVATAR_CHOICES, AVATAR_KEYS
 from .models import AGE_GROUP_CHOICES, GENDER_CHOICES
 from .models import Travel
@@ -285,6 +287,7 @@ def _reviews_with_counts(member):
             is_helped=Exists(
                 ReviewHelpful.objects.filter(review=OuterRef('pk'), member=member)
             ),
+            photo_at=F('photo__updated_at'),     # 🟧 11/20 사진 있으면 고친 시각 (사진 바이트는 안 읽음)
         )
     )
 
@@ -654,6 +657,7 @@ def review_write(request):
     places = list(_reviewable_places(member))
     form = {'place_id': '', 'rating': '', 'content': '', 'tags': []}
     error = ''
+    photo = None
 
     if request.method == 'POST':
         form = {
@@ -669,7 +673,17 @@ def review_write(request):
         except ValueError:
             rating = 0
 
-        if not place:
+        # 🟧 11/20 사진 (선택, 1장)
+        upload = request.FILES.get('photo')
+        if upload:
+            try:
+                photo = review_photo_service.clean_upload(upload)
+            except ValueError as problem:
+                error = str(problem)
+
+        if error:
+            pass
+        elif not place:
             error = '리뷰를 쓸 장소를 골라 주세요.'
         elif not 1 <= rating <= 5:
             error = '별점을 1~5개 중에서 골라 주세요.'
@@ -678,15 +692,18 @@ def review_write(request):
         elif len(form['content']) > 100:
             error = '리뷰는 100자까지 쓸 수 있어요.'
         else:
-            Review.objects.create(
-                member=member,
-                place=place,
-                kakao_id=place.p_kakao_id or None,
-                place_name=place.p_name,
-                rating=rating,
-                content=form['content'],
-                tags=form['tags'],
-            )
+            with transaction.atomic():
+                review = Review.objects.create(
+                    member=member,
+                    place=place,
+                    kakao_id=place.p_kakao_id or None,
+                    place_name=place.p_name,
+                    rating=rating,
+                    content=form['content'],
+                    tags=form['tags'],
+                )
+                if photo:
+                    review_photo_service.save_photo(review, photo)
             request.session['review_message'] = "'%s' 리뷰를 올렸어요." % place.p_name
             return redirect('review_board')
 
@@ -736,17 +753,32 @@ def review_update(request, rv_id):
     content = (request.POST.get('content') or '').replace('\r\n', '\n').strip()
     tags = [t for t in request.POST.getlist('tags') if t in REVIEW_TAGS]
 
-    if not 1 <= rating <= 5:
+    # 🟧 11/20 사진 바꾸기(photo) · 빼기(photo_remove=1)
+    photo, message = None, ''
+    if request.FILES.get('photo'):
+        try:
+            photo = review_photo_service.clean_upload(request.FILES['photo'])
+        except ValueError as problem:
+            message = str(problem)
+
+    if message:
+        pass
+    elif not 1 <= rating <= 5:
         message = '별점을 1~5개 중에서 골라 주세요.'
     elif not content:
         message = '리뷰 내용을 적어 주세요.'
     elif len(content) > 100:
         message = '리뷰는 100자까지 쓸 수 있어요.'
     else:
-        review.rating = rating
-        review.content = content
-        review.tags = tags
-        review.save(update_fields=['rating', 'content', 'tags'])
+        with transaction.atomic():
+            review.rating = rating
+            review.content = content
+            review.tags = tags
+            review.save(update_fields=['rating', 'content', 'tags'])
+            if photo:
+                review_photo_service.save_photo(review, photo)
+            elif request.POST.get('photo_remove') == '1':
+                ReviewPhoto.objects.filter(review=review).delete()
         message = "'%s' 리뷰를 고쳤어요." % review.place_name
 
     request.session['review_message'] = message
@@ -810,6 +842,17 @@ def build_review_picks(limit=3):
         })
 
     return picks
+
+
+# 리뷰 사진 보여 주기 (🟧 11/20). 장소 대표 사진으로도 쓰여서 로그인 없이 열림 (리뷰 게시판 글과 같은 공개 사진)
+def review_photo(request, rv_id):
+    row = ReviewPhoto.objects.filter(review_id=rv_id).values_list('data', flat=True).first()
+    if row is None:
+        raise Http404('사진이 없어요.')
+    response = HttpResponse(bytes(row), content_type='image/jpeg')
+    response['Cache-Control'] = 'public, max-age=86400'     # 사진을 바꾸면 주소의 ?v= 가 달라짐
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 # 리뷰 추천 누르기/취소 (POST, JSON)
@@ -6547,7 +6590,7 @@ def review_list(request):
         return JsonResponse(
             {'success': False, 'message': 'kakao_id가 필요합니다.'}, status=400
             )
-    reviews = Review.objects.filter(kakao_id=kakao_id).select_related('member').annotate(helpful_count=Count('helpfuls'))
+    reviews = Review.objects.filter(kakao_id=kakao_id).select_related('member').annotate(helpful_count=Count('helpfuls'), photo_at=F('photo__updated_at'))
     if sort == 'helpful':
         reviews = reviews.order_by('-helpful_count', '-created_at')
     else:
@@ -6572,6 +6615,8 @@ def review_list(request):
             'helpful_count': r.helpful_count,
             'is_mine': bool(me and r.member_id == me.m_id),
             'is_helpful': bool(r.rv_id in my_ids),
+            # 🟧 11/20 리뷰 사진 주소 (없으면 null) — 키 추가만
+            'photo': review_photo_service.photo_url(r.rv_id, r.photo_at) if r.photo_at else None,
         })
     return JsonResponse({
         'success': True,
