@@ -51,6 +51,7 @@ from .services.review_service import summarize_review
 from .services import chat_service
 from .i18n_middleware import request_lang
 from .middleware import MANAGE_KEY, PW_TAG_KEY, end_manage_view, pw_tag
+from .url_safety import safe_web_url
 from .services import embed_service
 from .services import transit_service
 from .services import fare_service
@@ -388,7 +389,7 @@ def _route_cards(routes):
         places = by_travel.get(r.travel_id, [])
         # 표지: 여행 지역 대표 사진 (없으면 루트 안 첫 장소 사진)
         cover = region_photo_service.region_cover(r.travel.t_place) or next(
-            (p.p_image for p in places if p.p_image and str(p.p_image).startswith('http')), '')
+            (safe_web_url(p.p_image, https_only=True) for p in places if safe_web_url(p.p_image)), '')
         cards.append({
             'route': r,
             'travel': r.travel,
@@ -452,7 +453,7 @@ def _route_days(travel):
                 'name': p.p_name,
                 'kind': p.p_kind or '',
                 'addr': p.p_addr or '',
-                'image': p.p_image if p.p_image and str(p.p_image).startswith('http') else '',
+                'image': safe_web_url(p.p_image, https_only=True),
                 'arrive': sp.arrive_time.strftime('%H:%M') if sp.arrive_time else '',
                 'leave': sp.start_time.strftime('%H:%M') if sp.start_time else '',
                 'stay': sp.stay_time_display if sp.stay_time else '',
@@ -3677,7 +3678,7 @@ def schedule_place_add(request):
     place_kind = request.POST.get('place_kind', '').strip()
     place_lat = request.POST.get('place_lat') or None
     place_lon = request.POST.get('place_lon') or None
-    place_image = request.POST.get('place_image') or None
+    place_image = safe_web_url(request.POST.get('place_image'), https_only=True) or None   # 🟧 11/23 http(s) 만 (대소문자 무관)
     place_kakao_id = request.POST.get('place_kakao_id') or None  # 리뷰·사진을 붙이는 열쇠, 화면이 안 보내면 None
 
     # 🟧 11/18 로그인한 사람이 자기 여행에만 넣을 수 있다 (전엔 로그인 없이도 남의 일정에 들어갔음)

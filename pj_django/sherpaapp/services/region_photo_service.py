@@ -95,7 +95,7 @@ def region_cover(t_place):
         logger.warning('region cover lookup failed: %s', region, exc_info=True)
         return ''
 
-    if url.startswith('http://'):
-        url = 'https://' + url[len('http://'):]
+    from sherpaapp.url_safety import safe_web_url
+    url = safe_web_url(url, https_only=True)   # 🟧 11/23 대소문자 무관 https 로, http(s) 아니면 ''
     cache.set(cache_key, url, CACHE_SECONDS)
     return url
