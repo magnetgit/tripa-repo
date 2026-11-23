@@ -62,12 +62,9 @@ def _to_float(value):
 
 
 def _https(url):
-    if not url:
-        return None
-    url = str(url).strip()
-    if url.startswith('http://'):
-        url = 'https://' + url[len('http://'):]
-    return url if url.startswith('https://') else None
+    # 🟧 11/23 'HTTP://'·'Https://' 처럼 대문자가 섞여도 같은 주소 (scheme 은 대소문자 무관), javascript: 등은 None
+    from sherpaapp.url_safety import safe_web_url
+    return safe_web_url(str(url) if url else '', https_only=True) or None
 
 
 def _region_words(addr):

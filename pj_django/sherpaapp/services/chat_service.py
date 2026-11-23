@@ -726,8 +726,10 @@ def _short_kind(category_name):
 
 def _clean_url(value):
     """카카오맵 장소 주소만 허용한다. (엉뚱한 링크 차단)"""
-    if isinstance(value, str) and re.match(r'^https?://(place\.)?map\.kakao\.com/', value.strip()):
-        return value.strip()[:300]
+    # 🟧 11/23 scheme·호스트는 대소문자 무관 ('HTTPS://Map.Kakao.com/…' 도 같은 주소), 저장할 땐 https 소문자로
+    if isinstance(value, str) and re.match(r'^https?://(place\.)?map\.kakao\.com/', value.strip(), re.I):
+        from sherpaapp.url_safety import safe_web_url
+        return safe_web_url(value.strip()[:300], https_only=True) or None
 
     return None
 

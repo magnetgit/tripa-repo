@@ -10,6 +10,19 @@
 
 ---
 
+## 2026-11-23 · 🔒 주소 앞부분(https·javascript) 대소문자 검사 — 🟧 이수한
+DB·응답 키 변경 없음. 새 파일 `sherpaapp/url_safety.py` (`safe_web_url`)
+
+- 주소 맨 앞(scheme)은 대소문자를 가리지 않아요. `HTTPS://…` 도 정상 주소이고 `JavaScript:alert(1)` 도 브라우저는 실행해요. 그래서 `startswith('https://')` 처럼 소문자 글자로만 비교하면 안 돼요
+- 점검 결과: 저장소의 검사는 모두 **허용 목록**이라 대문자로 **우회되는 곳은 없었음** (대문자면 그냥 버려짐). 다만 장소 추가의 `place_image` 는 받은 글자를 **검사 없이 DB 에 저장**했음 (지금은 `<img>` 에만 써서 실행은 안 됨)
+- 고친 것
+  - `safe_web_url(값, https_only)`: http/https 만 통과, 앞부분은 소문자로, 줄바꿈·`//evil.com`·`javascript:`·`data:` 는 ''
+  - `schedule_place_add` 의 `place_image` 저장 전에 검사 (막히면 카카오 사진 찾기로 넘어감)
+  - 사진 주소 https 로 바꾸기(`photo_service._https`, `region_photo_service`), 루트 상세 사진, 카카오맵 링크(`chat_service._clean_url`)를 대소문자 무관으로
+- 🟦·🟩: 사용자·외부에서 받은 주소를 `href`·`src` 에 넣을 땐 `safe_web_url` 을 거쳐 주세요. JS 에서 직접 검사하면 정규식에 `i` 를 붙이고 허용 목록으로 (`/^https?:\/\//i`)
+
+---
+
 ## 2026-11-20 · 🐛 전체 점검: 빠르게 두 번 누르면 500 나던 곳 2개 — 🟧 이수한
 DB·응답 키 변경 없음. `views.py` 세 줄 묶음
 
